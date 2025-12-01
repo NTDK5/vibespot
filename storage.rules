@@ -1,0 +1,40 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return isAuthenticated() && 
+             firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Places images
+    match /places/{placeId}/{allPaths=**} {
+      // Only admins can upload place images
+      allow write: if isAdmin();
+      // Anyone authenticated can read place images
+      allow read: if isAuthenticated();
+    }
+    
+    // Review images
+    match /reviews/{reviewId}/{allPaths=**} {
+      // Users can upload their own review images
+      allow write: if isAuthenticated() && 
+                    resource == null || // Allow create
+                    firestore.get(/databases/(default)/documents/reviews/$(reviewId)).data.userId == request.auth.uid;
+      // Anyone authenticated can read review images
+      allow read: if isAuthenticated();
+    }
+    
+    // Deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
