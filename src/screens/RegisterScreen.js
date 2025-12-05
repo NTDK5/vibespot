@@ -8,6 +8,7 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Image
 } from 'react-native';
 import { Button } from '../components/Button';
 // import { registerWithEmail, signInWithGoogle } from '../services/auth';
@@ -74,6 +75,10 @@ export const RegisterScreen = ({ navigation }) => {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
+        <Image
+        source={require("../../assets/logo.png")}
+        style={styles.logo}
+      />
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>Join VibeSpot and discover amazing places</Text>
 
@@ -163,6 +168,13 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 24,
+  },
+  logo: {
+    width: 150,
+    height: 150,
+    alignSelf: 'center',
+    marginBottom: 10,
+    resizeMode: 'contain',
   },
   title: {
     fontSize: 32,
