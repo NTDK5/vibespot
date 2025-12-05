@@ -8,6 +8,7 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Image
 } from 'react-native';
 import { Button } from '../components/Button';
 // import { signInWithEmail, signInWithGoogle } from '../services/auth';
@@ -58,6 +59,10 @@ export const LoginScreen = ({ navigation }) => {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
+        <Image
+        source={require("../../assets/logo.png")}
+        style={styles.logo}
+      />
           <Text style={styles.title}>Welcome to VibeSpot</Text>
           <Text style={styles.subtitle}>Discover amazing places around you</Text>
 
@@ -130,6 +135,14 @@ const styles = StyleSheet.create({
   content: {
     padding: 24,
   },
+  logo: {
+    width: 200,
+    height: 200,
+    alignSelf: 'center',
+    marginBottom: 20,
+    resizeMode: 'contain',
+  },
+  
   title: {
     fontSize: 32,
     fontWeight: 'bold',
