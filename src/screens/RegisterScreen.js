@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { Button } from '../components/Button';
-import { registerWithEmail, signInWithGoogle } from '../services/auth';
+// import { registerWithEmail, signInWithGoogle } from '../services/auth';
 import { isValidEmail, isValidPassword } from '../utils/helpers';
 
 /**
@@ -22,47 +22,49 @@ export const RegisterScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-
   const handleRegister = async () => {
-    if (!displayName || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
+    // if (!displayName || !email || !password || !confirmPassword) {
+    //   Alert.alert('Error', 'Please fill in all fields');
+    //   return;
+    // }
 
-    if (!isValidEmail(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return;
-    }
+    // if (!isValidEmail(email)) {
+    //   Alert.alert('Error', 'Please enter a valid email address');
+    //   return;
+    // }
 
-    if (!isValidPassword(password)) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return;
-    }
+    // if (!isValidPassword(password)) {
+    //   Alert.alert('Error', 'Password must be at least 6 characters');
+    //   return;
+    // }
 
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
+    // if (password !== confirmPassword) {
+    //   Alert.alert('Error', 'Passwords do not match');
+    //   return;
+    // }
 
-    setLoading(true);
-    const { user, error } = await registerWithEmail(email, password, displayName);
-    setLoading(false);
+    // setLoading(true);
+    // const { user, error } = await registerWithEmail(email, password, displayName);
+    // setLoading(false);
 
-    if (error) {
-      Alert.alert('Registration Failed', error);
-    } else {
-      Alert.alert('Success', 'Account created successfully!');
-    }
+    // if (error) {
+    //   Alert.alert('Registration Failed', error);
+    // } else {
+    //   Alert.alert('Success', 'Account created successfully!');
+    // }
+
+    Alert.alert('Register', 'Registration disabled');
   };
 
   const handleGoogleSignUp = async () => {
-    setLoading(true);
-    const { user, error } = await signInWithGoogle();
-    setLoading(false);
+    // setLoading(true);
+    // const { user, error } = await signInWithGoogle();
+    // setLoading(false);
 
-    if (error) {
-      Alert.alert('Registration Failed', error);
-    }
+    // if (error) {
+    //   Alert.alert('Registration Failed', error);
+    // }
+    Alert.alert('Google Sign Up', 'Google sign up disabled');
   };
 
   return (
@@ -220,4 +222,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

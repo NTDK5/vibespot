@@ -22,8 +22,10 @@ const Tab = createBottomTabNavigator();
 /**
  * Main Tab Navigator (for authenticated users)
  */
+
+
 const MainTabs = () => {
-  const { isAdmin } = useAuth();
+  // const { isAdmin } = useAuth();
 
   return (
     <Tab.Navigator
@@ -51,7 +53,7 @@ const MainTabs = () => {
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Explore" component={ExploreScreen} />
       <Tab.Screen name="Map" component={MapScreen} />
-      {isAdmin && (
+      
         <Tab.Screen
           name="AddPlace"
           component={AddPlaceScreen}
@@ -66,7 +68,7 @@ const MainTabs = () => {
             ),
           }}
         />
-      )}
+      
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
@@ -76,9 +78,9 @@ const MainTabs = () => {
  * Root Navigator
  * Handles authentication flow and main app navigation
  */
+
 export const AppNavigator = () => {
   const { user, loading } = useAuth();
-
   if (loading) {
     return (
       <View style={styles.loading}>
@@ -90,38 +92,22 @@ export const AppNavigator = () => {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
+
         {!user ? (
-          // Auth Stack
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
           </>
         ) : (
-          // Main App Stack
           <>
             <Stack.Screen name="MainTabs" component={MainTabs} />
-            <Stack.Screen
-              name="PlaceDetail"
-              component={PlaceDetailScreen}
-              options={{
-                headerShown: true,
-                title: 'Place Details',
-                headerBackTitle: 'Back',
-              }}
-            />
-            <Stack.Screen
-              name="AddPlace"
-              component={AddPlaceScreen}
-              options={{
-                headerShown: true,
-                title: 'Add New Place',
-                headerBackTitle: 'Back',
-              }}
-            />
+            <Stack.Screen name="PlaceDetail" component={PlaceDetailScreen} />
           </>
         )}
+
       </Stack.Navigator>
     </NavigationContainer>
+
   );
 };
 
@@ -133,4 +119,3 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
 });
-

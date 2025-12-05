@@ -10,46 +10,46 @@ import {
   Alert,
 } from 'react-native';
 import { Button } from '../components/Button';
-import { signInWithEmail, signInWithGoogle } from '../services/auth';
+// import { signInWithEmail, signInWithGoogle } from '../services/auth';
 import { isValidEmail } from '../utils/helpers';
+import { useAuth } from "../hooks/useAuth"
 
 /**
  * Login Screen
  */
 export const LoginScreen = ({ navigation }) => {
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
+  
 
   const handleEmailLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert("Error", "Please fill in all fields");
       return;
     }
-
+  
     if (!isValidEmail(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      Alert.alert("Error", "Please enter a valid email address");
       return;
     }
-
+  
     setLoading(true);
-    const { user, error } = await signInWithEmail(email, password);
+    const { user, error } = await login(email, password);
     setLoading(false);
-
+  
     if (error) {
-      Alert.alert('Login Failed', error);
+      Alert.alert("Login Failed", error);
+      return;
     }
+  
+    Alert.alert("Success", "Logged in successfully");
+  
+    // navigation.replace("MainTabs");
   };
-
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    const { user, error } = await signInWithGoogle();
-    setLoading(false);
-
-    if (error) {
-      Alert.alert('Login Failed', error);
-    }
-  };
+  
 
   return (
     <KeyboardAvoidingView
@@ -96,7 +96,7 @@ export const LoginScreen = ({ navigation }) => {
 
             <Button
               title="Sign in with Google"
-              onPress={handleGoogleLogin}
+              onPress={ ()=> {}}
               variant="secondary"
               loading={loading}
               style={styles.button}
@@ -188,4 +188,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

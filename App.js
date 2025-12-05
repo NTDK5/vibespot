@@ -1,15 +1,16 @@
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { AppNavigator } from './src/navigation/AppNavigator';
+import { AuthProvider } from './src/context/AuthContext';
 
-// Import Firebase ONCE — this initializes app/auth/db/storage
-import './src/firebase/config';
 
 export default function App() {
   return (
     <>
-      <StatusBar style="auto" />
-      <AppNavigator />
+      <AuthProvider>
+        <StatusBar style="auto" />
+        <AppNavigator />
+      </AuthProvider>
     </>
   );
 }

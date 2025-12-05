@@ -9,14 +9,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../components/Button';
-import { useAuth } from '../hooks/useAuth';
+// import { useAuth } from '../hooks/useAuth';
 import { signOutUser } from '../services/auth';
 
 /**
  * Profile Screen
  */
 export const ProfileScreen = ({ navigation }) => {
-  const { user, role, isAdmin } = useAuth();
+  // const { user, role, isAdmin } = useAuth();
 
   const handleSignOut = async () => {
     Alert.alert(

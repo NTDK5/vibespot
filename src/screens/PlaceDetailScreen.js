@@ -22,7 +22,7 @@ import {
 import { uploadReviewImage } from '../services/upload';
 import { ReviewCard } from '../components/ReviewCard';
 import { Button } from '../components/Button';
-import { useAuth } from '../hooks/useAuth';
+// import { useAuth } from '../hooks/useAuth';
 import { formatDate, getStars } from '../utils/helpers';
 import { pickImage } from '../services/upload';
 
@@ -32,7 +32,7 @@ import { pickImage } from '../services/upload';
  */
 export const PlaceDetailScreen = ({ route, navigation }) => {
   const { placeId } = route.params;
-  const { user, isAdmin } = useAuth();
+  // const { user, isAdmin } = useAuth();
   const [place, setPlace] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [userReview, setUserReview] = useState(null);
