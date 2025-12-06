@@ -1,15 +1,15 @@
 # VibeSpot - React Native (Expo) + Firebase
 
-A mobile app for discovering and reviewing amazing places around you.
+A mobile app for discovering and reviewing amazing spots around you.
 
 ## Features
 
 - 🔐 **Authentication**: Email/password and Google Sign-In
 - 👥 **Role-based Access**: Admin and User roles
-- 📍 **Places Management**: Admins can add places with images, location, and details
-- 🗺️ **Map View**: Browse places on an interactive map
+- 📍 **Spots Management**: Admins can add spots with images, location, and details
+- 🗺️ **Map View**: Browse spots on an interactive map
 - ⭐ **Reviews System**: Users can leave ratings and reviews
-- 📸 **Image Upload**: Multiple image support for places and reviews
+- 📸 **Image Upload**: Multiple image support for spots and reviews
 - 🔄 **Offline Support**: Firestore local caching enabled
 
 ## Project Structure
@@ -19,7 +19,7 @@ vibespot/
 ├── src/
 │   ├── components/          # Reusable UI components
 │   │   ├── Button.js
-│   │   ├── PlaceCard.js
+│   │   ├── SpotCard.js
 │   │   ├── ReviewCard.js
 │   │   └── ImageUploader.js
 │   ├── screens/             # App screens
@@ -28,12 +28,12 @@ vibespot/
 │   │   ├── HomeScreen.js
 │   │   ├── ExploreScreen.js
 │   │   ├── MapScreen.js
-│   │   ├── PlaceDetailScreen.js
-│   │   ├── AddPlaceScreen.js
+│   │   ├── SpotDetailScreen.js
+│   │   ├── AddSpotScreen.js
 │   │   └── ProfileScreen.js
 │   ├── services/            # Firebase services
 │   │   ├── auth.js
-│   │   ├── places.js
+│   │   ├── spots.js
 │   │   ├── reviews.js
 │   │   └── upload.js
 │   ├── hooks/               # Custom React hooks
@@ -84,7 +84,7 @@ npm install
 
 ### 3. Configure Firebase
 
-Edit `src/firebase/config.js` and replace the placeholder values:
+Edit `src/firebase/config.js` and respot the spotholder values:
 
 ```javascript
 const firebaseConfig = {
@@ -103,8 +103,8 @@ const firebaseConfig = {
    - Enable Google Sign-In
    - Copy the Web client ID
 2. Edit `src/services/auth.js`:
-   - Replace `YOUR_IOS_CLIENT_ID` with your iOS OAuth client ID
-   - Replace `YOUR_ANDROID_CLIENT_ID` with your Android OAuth client ID
+   - Respot `YOUR_IOS_CLIENT_ID` with your iOS OAuth client ID
+   - Respot `YOUR_ANDROID_CLIENT_ID` with your Android OAuth client ID
 
 ### 5. Cloud Functions Setup
 
@@ -166,14 +166,14 @@ Then press:
 - Google Sign-In
 - Role-based access control via Firestore + custom claims
 
-### Places Management
-- Admins can add places with:
+### Spots Management
+- Admins can add spots with:
   - Title, description, category
   - Price range
   - Location (lat/lng)
   - Tags
   - Main image + gallery images
-- Places stored in Firestore with GeoPoint for location
+- Spots stored in Firestore with GeoPoint for location
 
 ### Reviews System
 - Users can add reviews with:
@@ -184,20 +184,20 @@ Then press:
 
 ### Map Integration
 - Google Maps integration via `react-native-maps`
-- Display places as markers
-- Query nearby places
+- Display spots as markers
+- Query nearby spots
 - User location tracking
 
 ## Security Rules
 
 ### Firestore Rules
-- Only admins can create/update/delete places
-- Authenticated users can read places
+- Only admins can create/update/delete spots
+- Authenticated users can read spots
 - Users can only edit their own reviews
 - Admins can delete any review
 
 ### Storage Rules
-- Only admins can upload place images
+- Only admins can upload spot images
 - Users can upload their own review images
 - Authenticated users can read all images
 

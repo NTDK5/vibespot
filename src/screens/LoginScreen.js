@@ -48,7 +48,7 @@ export const LoginScreen = ({ navigation }) => {
   
     Alert.alert("Success", "Logged in successfully");
   
-    // navigation.replace("MainTabs");
+    // navigation.respot("MainTabs");
   };
   
 
@@ -64,12 +64,12 @@ export const LoginScreen = ({ navigation }) => {
         style={styles.logo}
       />
           <Text style={styles.title}>Welcome to VibeSpot</Text>
-          <Text style={styles.subtitle}>Discover amazing places around you</Text>
+          <Text style={styles.subtitle}>Discover amazing spots around you</Text>
 
           <View style={styles.form}>
             <TextInput
               style={styles.input}
-              placeholder="Email"
+              spotholder="Email"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -79,7 +79,7 @@ export const LoginScreen = ({ navigation }) => {
 
             <TextInput
               style={styles.input}
-              placeholder="Password"
+              spotholder="Password"
               value={password}
               onChangeText={setPassword}
               secureTextEntry

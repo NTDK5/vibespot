@@ -13,15 +13,15 @@ import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker } from 'react-native-maps';
 import { Button } from '../components/Button';
 import { ImageUploader } from '../components/ImageUploader';
-import { addPlace } from '../services/places';
-import { uploadPlaceImages } from '../services/upload';
+import { addSpot } from '../services/spots';
+import { uploadSpotImages } from '../services/upload';
 import { useLocation } from '../hooks/useLocation';
 import { CATEGORIES, PRICE_RANGES } from '../utils/constants';
 
 /**
- * Add Place Screen (Admin Only)
+ * Add Spot Screen (Admin Only)
  */
-export const AddPlaceScreen = ({ navigation }) => {
+export const AddSpotScreen = ({ navigation }) => {
   const { location } = useLocation();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -34,83 +34,60 @@ export const AddPlaceScreen = ({ navigation }) => {
   const [mapModalVisible, setMapModalVisible] = useState(false);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [address, setAddress] = useState('');
+  const [bestTime, setBestTime] = useState('');
+
 
   const handleSubmit = async () => {
-    // Validation
-    if (!title.trim()) {
-      Alert.alert('Error', 'Please enter a title');
-      return;
-    }
-
-    if (!description.trim()) {
-      Alert.alert('Error', 'Please enter a description');
-      return;
-    }
-
-    if (!category) {
-      Alert.alert('Error', 'Please select a category');
-      return;
-    }
-
-    if (images.length === 0) {
-      Alert.alert('Error', 'Please add at least one image');
-      return;
-    }
-
+    if (!title.trim()) return Alert.alert("Error", "Please enter a title");
+    if (!description.trim()) return Alert.alert("Error", "Please enter a description");
+    if (!category) return Alert.alert("Error", "Please select a category");
+    // if (images.length === 0) return Alert.alert("Error", "Please add at least one image");
+  
     setSubmitting(true);
-
+  
     try {
-      // Create place document first
-      const placeData = {
+      const spotData = {
         title: title.trim(),
         description: description.trim(),
         category,
         priceRange,
         tags: tags
-          .split(',')
-          .map((tag) => tag.trim())
-          .filter((tag) => tag.length > 0),
-        latitude,
-        longitude,
+          .split(",")
+          .map((t) => t.trim())
+          .filter((t) => t),
+        // latitude,
+        // longitude,
+        address,
+        bestTime
       };
+  
+      // Step 1 — Create spot
+      const { id: spotId, error: spotError } = await addSpot(spotData);
 
-      const { id: placeId, error: placeError } = await addPlace(placeData);
-
-      if (placeError) {
-        throw new Error(placeError);
+      console.log(spotId)
+  
+      if (spotError || !spotId) {
+        throw new Error(spotError || "Spot ID missing");
       }
-
-      // Upload images
-      const mainImage = images[0];
-      const galleryImages = images.slice(1);
-
-      const uploadResult = await uploadPlaceImages(
-        mainImage.uri,
-        galleryImages.map((img) => img.uri),
-        placeId
-      );
-
-      // Update place with image URLs
-      if (uploadResult.mainImage) {
-        // Update place document with image URLs
-        // This would be done via updatePlace service
-        // For now, the images are uploaded and URLs can be added later
+  
+      // Step 2 — Upload images
+      const uploadResult = await uploadSpotImages(spotId, images);
+  
+      if (uploadResult.error) {
+        throw new Error(uploadResult.error);
       }
-
-      Alert.alert('Success', 'Place added successfully!', [
-        {
-          text: 'OK',
-          onPress: () => {
-            navigation.goBack();
-          },
-        },
+  
+      Alert.alert("Success", "Spot added successfully!", [
+        { text: "OK", onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to add place');
+      Alert.alert("Error", error.message || "Failed to add spot");
     } finally {
       setSubmitting(false);
     }
   };
+  
 
   const handleMapPress = (event) => {
     const { latitude: lat, longitude: lng } = event.nativeEvent.coordinate;
@@ -126,7 +103,7 @@ export const AddPlaceScreen = ({ navigation }) => {
         <Text style={styles.label}>Title *</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter place title"
+          spotholder="Enter spot title"
           value={title}
           onChangeText={setTitle}
         />
@@ -134,7 +111,7 @@ export const AddPlaceScreen = ({ navigation }) => {
         <Text style={styles.label}>Description *</Text>
         <TextInput
           style={[styles.input, styles.textArea]}
-          placeholder="Describe the place..."
+          spotholder="Describe the spot..."
           value={description}
           onChangeText={setDescription}
           multiline
@@ -176,9 +153,24 @@ export const AddPlaceScreen = ({ navigation }) => {
         <Text style={styles.label}>Tags (comma-separated)</Text>
         <TextInput
           style={styles.input}
-          placeholder="e.g., outdoor, scenic, quiet"
+          spotholder="e.g., outdoor, scenic, quiet"
           value={tags}
           onChangeText={setTags}
+        />
+        <Text style={styles.label}>Address *</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter address"
+          value={address}
+          onChangeText={setAddress}
+        />
+
+        <Text style={styles.label}>Best Time To Visit (optional)</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. Morning, Weekend, Sunset"
+          value={bestTime}
+          onChangeText={setBestTime}
         />
 
         <Text style={styles.label}>Images *</Text>
@@ -201,7 +193,7 @@ export const AddPlaceScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <Button
-          title="Add Place"
+          title="Add Spot"
           onPress={handleSubmit}
           loading={submitting}
           style={styles.submitButton}

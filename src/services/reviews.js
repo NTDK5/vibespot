@@ -15,17 +15,17 @@
 // import { db } from '../firebase/config';
 
 // /**
-//  * Manually recalculate average rating for a place
+//  * Manually recalculate average rating for a spot
 //  * (Used when Cloud Functions are not available)
 //  */
-// export const recalculatePlaceRating = async (placeId) => {
+// export const recalculateSpotRating = async (spotId) => {
 //   try {
 //     const reviewsSnapshot = await getDocs(
-//       query(collection(db, REVIEWS_COLLECTION), where('placeId', '==', placeId))
+//       query(collection(db, REVIEWS_COLLECTION), where('spotId', '==', spotId))
 //     );
 
 //     if (reviewsSnapshot.empty) {
-//       await updateDoc(doc(db, PLACES_COLLECTION, placeId), {
+//       await updateDoc(doc(db, PLACES_COLLECTION, spotId), {
 //         averageRating: 0,
 //         reviewCount: 0,
 //       });
@@ -43,7 +43,7 @@
 
 //     const averageRating = Math.round((totalRating / reviewCount) * 10) / 10;
 
-//     await updateDoc(doc(db, PLACES_COLLECTION, placeId), {
+//     await updateDoc(doc(db, PLACES_COLLECTION, spotId), {
 //       averageRating,
 //       reviewCount,
 //     });
@@ -61,15 +61,15 @@
 //  */
 
 // const REVIEWS_COLLECTION = 'reviews';
-// const PLACES_COLLECTION = 'places';
+// const PLACES_COLLECTION = 'spots';
 
 // /**
 //  * Add a review
 //  */
-// export const addReview = async (placeId, userId, reviewData) => {
+// export const addReview = async (spotId, userId, reviewData) => {
 //   try {
 //     const reviewRef = await addDoc(collection(db, REVIEWS_COLLECTION), {
-//       placeId,
+//       spotId,
 //       userId,
 //       rating: reviewData.rating,
 //       comment: reviewData.comment || '',
@@ -79,7 +79,7 @@
 //     });
 
 //     // Recalculate average rating (manual since Cloud Functions are disabled)
-//     await recalculatePlaceRating(placeId).catch(err =>
+//     await recalculateSpotRating(spotId).catch(err =>
 //       console.warn('Rating recalculation failed:', err)
 //     );
 
@@ -109,8 +109,8 @@
 //     });
 
 //     // Recalculate average rating (manual since Cloud Functions are disabled)
-//     const placeId = reviewDoc.data().placeId;
-//     await recalculatePlaceRating(placeId).catch(err =>
+//     const spotId = reviewDoc.data().spotId;
+//     await recalculateSpotRating(spotId).catch(err =>
 //       console.warn('Rating recalculation failed:', err)
 //     );
 
@@ -132,11 +132,11 @@
 //       return { error: 'Review not found' };
 //     }
 
-//     const placeId = reviewDoc.data().placeId;
+//     const spotId = reviewDoc.data().spotId;
 //     await deleteDoc(reviewRef);
 
 //     // Recalculate average rating (manual since Cloud Functions are disabled)
-//     await recalculatePlaceRating(placeId).catch(err =>
+//     await recalculateSpotRating(spotId).catch(err =>
 //       console.warn('Rating recalculation failed:', err)
 //     );
 
@@ -147,13 +147,13 @@
 // };
 
 // /**
-//  * Get all reviews for a place
+//  * Get all reviews for a spot
 //  */
-// export const getReviewsByPlace = async (placeId, limitCount = 50) => {
+// export const getReviewsBySpot = async (spotId, limitCount = 50) => {
 //   try {
 //     const q = query(
 //       collection(db, REVIEWS_COLLECTION),
-//       where('placeId', '==', placeId),
+//       where('spotId', '==', spotId),
 //       orderBy('createdAt', 'desc'),
 //       limit(limitCount)
 //     );
@@ -211,13 +211,13 @@
 // };
 
 // /**
-//  * Check if user has already reviewed a place
+//  * Check if user has already reviewed a spot
 //  */
-// export const getUserReviewForPlace = async (placeId, userId) => {
+// export const getUserReviewForSpot = async (spotId, userId) => {
 //   try {
 //     const q = query(
 //       collection(db, REVIEWS_COLLECTION),
-//       where('placeId', '==', placeId),
+//       where('spotId', '==', spotId),
 //       where('userId', '==', userId),
 //       limit(1)
 //     );

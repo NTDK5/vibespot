@@ -12,8 +12,8 @@ import { RegisterScreen } from '../screens/RegisterScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { ExploreScreen } from '../screens/ExploreScreen';
 import { MapScreen } from '../screens/MapScreen';
-import { PlaceDetailScreen } from '../screens/PlaceDetailScreen';
-import { AddPlaceScreen } from '../screens/AddPlaceScreen';
+import { SpotDetailScreen } from '../screens/SpotDetailScreen';
+import { AddSpotScreen } from '../screens/AddSpotScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
@@ -55,10 +55,10 @@ const MainTabs = () => {
       <Tab.Screen name="Map" component={MapScreen} />
       
         <Tab.Screen
-          name="AddPlace"
-          component={AddPlaceScreen}
+          name="AddSpot"
+          component={AddSpotScreen}
           options={{
-            tabBarLabel: 'Add Place',
+            tabBarLabel: 'Add Spot',
             tabBarIcon: ({ focused, color, size }) => (
               <Ionicons
                 name={focused ? 'add-circle' : 'add-circle-outline'}
@@ -101,7 +101,7 @@ export const AppNavigator = () => {
         ) : (
           <>
             <Stack.Screen name="MainTabs" component={MainTabs} />
-            <Stack.Screen name="PlaceDetail" component={PlaceDetailScreen} />
+            <Stack.Screen name="SpotDetail" component={SpotDetailScreen} />
           </>
         )}
 

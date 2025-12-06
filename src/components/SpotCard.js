@@ -4,32 +4,32 @@ import { Ionicons } from '@expo/vector-icons';
 import { truncateText, getStars } from '../utils/helpers';
 
 /**
- * Place Card Component
- * Displays a place in list/grid view
+ * Spot Card Component
+ * Displays a spot in list/grid view
  */
-export const PlaceCard = ({ place, onPress }) => {
-  const stars = getStars(place.averageRating || 0);
-  const priceRange = place.priceRange || 0;
+export const SpotCard = ({ spot, onPress }) => {
+  const stars = getStars(spot.averageRating || 0);
+  const priceRange = spot.priceRange || 0;
   const priceLabels = ['Free', '$', '$$', '$$$', '$$$$'];
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
       <Image
-        source={{ uri: place.mainImage || 'https://via.placeholder.com/300' }}
+        source={{ uri: spot.mainImage || 'https://via.spotholder.com/300' }}
         style={styles.image}
         resizeMode="cover"
       />
       <View style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title} numberOfLines={1}>
-            {place.title}
+            {spot.title}
           </Text>
           <View style={styles.priceBadge}>
             <Text style={styles.priceText}>{priceLabels[priceRange] || 'Free'}</Text>
           </View>
         </View>
         
-        <Text style={styles.category}>{place.category}</Text>
+        <Text style={styles.category}>{spot.category}</Text>
         
         <View style={styles.ratingContainer}>
           <View style={styles.stars}>
@@ -44,19 +44,19 @@ export const PlaceCard = ({ place, onPress }) => {
             ))}
           </View>
           <Text style={styles.ratingText}>
-            {place.averageRating?.toFixed(1) || '0.0'} ({place.reviewCount || 0})
+            {spot.averageRating?.toFixed(1) || '0.0'} ({spot.reviewCount || 0})
           </Text>
         </View>
 
-        {place.description && (
+        {spot.description && (
           <Text style={styles.description} numberOfLines={2}>
-            {truncateText(place.description, 80)}
+            {truncateText(spot.description, 80)}
           </Text>
         )}
 
-        {place.tags && place.tags.length > 0 && (
+        {spot.tags && spot.tags.length > 0 && (
           <View style={styles.tagsContainer}>
-            {place.tags.slice(0, 3).map((tag, index) => (
+            {spot.tags.slice(0, 3).map((tag, index) => (
               <View key={index} style={styles.tag}>
                 <Text style={styles.tagText}>{tag}</Text>
               </View>

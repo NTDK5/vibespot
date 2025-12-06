@@ -24,7 +24,7 @@ vibespot/
 └── src/
     ├── components/                # Reusable UI components
     │   ├── Button.js              # Button component
-    │   ├── PlaceCard.js           # Place card for lists
+    │   ├── SpotCard.js           # Spot card for lists
     │   ├── ReviewCard.js          # Review card component
     │   └── ImageUploader.js       # Image picker/uploader
     │
@@ -34,13 +34,13 @@ vibespot/
     │   ├── HomeScreen.js          # Home/feed screen
     │   ├── ExploreScreen.js      # Browse/search screen
     │   ├── MapScreen.js           # Map view screen
-    │   ├── PlaceDetailScreen.js   # Place details & reviews
-    │   ├── AddPlaceScreen.js      # Add place (admin only)
+    │   ├── SpotDetailScreen.js   # Spot details & reviews
+    │   ├── AddSpotScreen.js      # Add spot (admin only)
     │   └── ProfileScreen.js       # User profile
     │
     ├── services/                  # Firebase services
     │   ├── auth.js                # Authentication service
-    │   ├── places.js              # Places CRUD operations
+    │   ├── spots.js              # Spots CRUD operations
     │   ├── reviews.js             # Reviews CRUD operations
     │   └── upload.js              # Image upload service
     │
@@ -67,10 +67,10 @@ vibespot/
 - **src/screens/LoginScreen.js**: Login UI
 - **src/screens/RegisterScreen.js**: Registration UI
 
-### Places Management
-- **src/services/places.js**: CRUD operations for places
-- **src/screens/AddPlaceScreen.js**: Admin add place form
-- **src/components/PlaceCard.js**: Place display component
+### Spots Management
+- **src/services/spots.js**: CRUD operations for spots
+- **src/screens/AddSpotScreen.js**: Admin add spot form
+- **src/components/SpotCard.js**: Spot display component
 
 ### Reviews System
 - **src/services/reviews.js**: Review CRUD operations
@@ -94,24 +94,24 @@ vibespot/
    - User signs in → Auth service → Firestore user doc → Custom claims
    - Role checked via useAuth hook → Navigation updates
 
-2. **Places Flow**
-   - Admin adds place → Upload images → Save to Firestore
+2. **Spots Flow**
+   - Admin adds spot → Upload images → Save to Firestore
    - Users browse → Query Firestore → Display on list/map
 
 3. **Reviews Flow**
    - User adds review → Save to Firestore → Trigger Cloud Function
-   - Cloud Function recalculates rating → Updates place document
+   - Cloud Function recalculates rating → Updates spot document
 
 ## Security
 
 - **Firestore Rules**: Role-based access control
-- **Storage Rules**: Admin-only place uploads, user review uploads
+- **Storage Rules**: Admin-only spot uploads, user review uploads
 - **Custom Claims**: Admin role verification
 
 ## Cloud Functions
 
 1. **setUserRole**: Sets custom claims from Firestore role
-2. **recalculateRating**: Updates place rating when reviews change
+2. **recalculateRating**: Updates spot rating when reviews change
 
 ## Next Steps
 

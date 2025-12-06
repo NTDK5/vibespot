@@ -11,13 +11,13 @@ import {
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getPlace } from '../services/places';
+import { getSpot } from '../services/spots';
 import {
-  getReviewsByPlace,
+  getReviewsBySpot,
   addReview,
   updateReview,
   deleteReview,
-  getUserReviewForPlace,
+  getUserReviewForSpot,
 } from '../services/reviews';
 import { uploadReviewImage } from '../services/upload';
 import { ReviewCard } from '../components/ReviewCard';
@@ -27,13 +27,13 @@ import { formatDate, getStars } from '../utils/helpers';
 import { pickImage } from '../services/upload';
 
 /**
- * Place Detail Screen
- * Shows place details and reviews
+ * Spot Detail Screen
+ * Shows spot details and reviews
  */
-export const PlaceDetailScreen = ({ route, navigation }) => {
-  const { placeId } = route.params;
+export const SpotDetailScreen = ({ route, navigation }) => {
+  const { spotId } = route.params;
   // const { user, isAdmin } = useAuth();
-  const [place, setPlace] = useState(null);
+  const [spot, setSpot] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [userReview, setUserReview] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -44,16 +44,16 @@ export const PlaceDetailScreen = ({ route, navigation }) => {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    loadPlace();
+    loadSpot();
     loadReviews();
-  }, [placeId, user]);
+  }, [spotId, user]);
 
-  const loadPlace = async () => {
+  const loadSpot = async () => {
     try {
-      const data = await getPlace(placeId);
-      setPlace(data);
+      const data = await getSpot(spotId);
+      setSpot(data);
     } catch (error) {
-      console.error('Error loading place:', error);
+      console.error('Error loading spot:', error);
     } finally {
       setLoading(false);
     }
@@ -61,11 +61,11 @@ export const PlaceDetailScreen = ({ route, navigation }) => {
 
   const loadReviews = async () => {
     try {
-      const data = await getReviewsByPlace(placeId);
+      const data = await getReviewsBySpot(spotId);
       setReviews(data);
 
       if (user) {
-        const review = await getUserReviewForPlace(placeId, user.uid);
+        const review = await getUserReviewForSpot(spotId, user.uid);
         setUserReview(review);
       }
     } catch (error) {
@@ -115,7 +115,7 @@ export const PlaceDetailScreen = ({ route, navigation }) => {
         Alert.alert('Success', 'Review updated successfully');
       } else {
         // Create new review
-        await addReview(placeId, user.uid, {
+        await addReview(spotId, user.uid, {
           rating,
           comment,
           imageUrl,
@@ -153,7 +153,7 @@ export const PlaceDetailScreen = ({ route, navigation }) => {
     );
   };
 
-  if (loading || !place) {
+  if (loading || !spot) {
     return (
       <View style={styles.loading}>
         <Text>Loading...</Text>
@@ -161,28 +161,28 @@ export const PlaceDetailScreen = ({ route, navigation }) => {
     );
   }
 
-  const stars = getStars(place.averageRating || 0);
+  const stars = getStars(spot.averageRating || 0);
   const priceLabels = ['Free', '$', '$$', '$$$', '$$$$'];
 
   return (
     <ScrollView style={styles.container}>
       <Image
-        source={{ uri: place.mainImage || 'https://via.placeholder.com/400' }}
+        source={{ uri: spot.mainImage || 'https://via.spotholder.com/400' }}
         style={styles.mainImage}
         resizeMode="cover"
       />
 
       <View style={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.title}>{place.title}</Text>
+          <Text style={styles.title}>{spot.title}</Text>
           <View style={styles.priceBadge}>
             <Text style={styles.priceText}>
-              {priceLabels[place.priceRange] || 'Free'}
+              {priceLabels[spot.priceRange] || 'Free'}
             </Text>
           </View>
         </View>
 
-        <Text style={styles.category}>{place.category}</Text>
+        <Text style={styles.category}>{spot.category}</Text>
 
         <View style={styles.ratingContainer}>
           <View style={styles.stars}>
@@ -197,17 +197,17 @@ export const PlaceDetailScreen = ({ route, navigation }) => {
             ))}
           </View>
           <Text style={styles.ratingText}>
-            {place.averageRating?.toFixed(1) || '0.0'} ({place.reviewCount || 0} reviews)
+            {spot.averageRating?.toFixed(1) || '0.0'} ({spot.reviewCount || 0} reviews)
           </Text>
         </View>
 
-        {place.description && (
-          <Text style={styles.description}>{place.description}</Text>
+        {spot.description && (
+          <Text style={styles.description}>{spot.description}</Text>
         )}
 
-        {place.tags && place.tags.length > 0 && (
+        {spot.tags && spot.tags.length > 0 && (
           <View style={styles.tagsContainer}>
-            {place.tags.map((tag, index) => (
+            {spot.tags.map((tag, index) => (
               <View key={index} style={styles.tag}>
                 <Text style={styles.tagText}>{tag}</Text>
               </View>
@@ -287,7 +287,7 @@ export const PlaceDetailScreen = ({ route, navigation }) => {
             <Text style={styles.label}>Comment</Text>
             <TextInput
               style={styles.commentInput}
-              placeholder="Write your review..."
+              spotholder="Write your review..."
               value={comment}
               onChangeText={setComment}
               multiline
@@ -304,7 +304,7 @@ export const PlaceDetailScreen = ({ route, navigation }) => {
                   style={styles.reviewImagePreview}
                 />
               ) : (
-                <View style={styles.imagePickerPlaceholder}>
+                <View style={styles.imagePickerSpotholder}>
                   <Ionicons name="camera" size={32} color="#007AFF" />
                   <Text style={styles.imagePickerText}>Add Photo</Text>
                 </View>
@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
   imagePicker: {
     marginBottom: 24,
   },
-  imagePickerPlaceholder: {
+  imagePickerSpotholder: {
     borderWidth: 2,
     borderColor: '#007AFF',
     borderStyle: 'dashed',

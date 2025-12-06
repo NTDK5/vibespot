@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-// SAMPLE SPOTS (replace with API later)
+// SAMPLE SPOTS (respot with API later)
 const sampleSpots = [
   {
     id: "1",
@@ -51,7 +51,7 @@ const nearbySpots = [
     distance: "1.2 km",
     time: "5 min",
     rating: 4.8,
-    image: require("../../assets/nearby1.jpg"), // replace
+    image: require("../../assets/nearby1.jpg"), // respot
   },
   {
     id: "n2",
@@ -149,7 +149,7 @@ export const HomeScreen = ({ navigation }) => {
   const renderSpotCard = ({ item }) => (
     <TouchableOpacity
       style={styles.spotCard}
-      onPress={() => navigation.navigate("PlaceDetail", { placeId: item.id })}
+      onPress={() => navigation.navigate("SpotDetail", { spotId: item.id })}
     >
       <Image source={item.image} style={styles.spotImage} />
 
@@ -171,7 +171,7 @@ export const HomeScreen = ({ navigation }) => {
   const renderNearbyCard = ({ item }) => (
     <TouchableOpacity
       style={styles.nearCard}
-      onPress={() => navigation.navigate("PlaceDetail", { placeId: item.id })}
+      onPress={() => navigation.navigate("SpotDetail", { spotId: item.id })}
     >
       <Image source={item.image} style={styles.nearImage} />
   
@@ -224,7 +224,7 @@ export const HomeScreen = ({ navigation }) => {
               <Ionicons name="search" size={20} color="#999" />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Find your next vibe spot"
+                spotholder="Find your next vibe spot"
               />
               <TouchableOpacity style={styles.filterBtn}>
                 <Ionicons name="options" size={22} color="#fff" />

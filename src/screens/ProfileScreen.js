@@ -81,10 +81,10 @@ export const ProfileScreen = ({ navigation }) => {
         {isAdmin && (
           <TouchableOpacity
             style={styles.menuItem}
-            onPress={() => navigation.navigate('AddPlace')}
+            onPress={() => navigation.navigate('AddSpot')}
           >
             <Ionicons name="add-circle" size={24} color="#007AFF" />
-            <Text style={[styles.menuText, styles.adminMenuText]}>Add Place</Text>
+            <Text style={[styles.menuText, styles.adminMenuText]}>Add Spot</Text>
             <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
         )}

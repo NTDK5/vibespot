@@ -8,16 +8,16 @@ import {
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
-import { getAllPlaces, getNearbyPlaces } from '../services/places';
+import { getAllSpots, getNearbySpots } from '../services/spots';
 import { useLocation } from '../hooks/useLocation';
 
 /**
  * Map Screen
- * Displays places on a map
+ * Displays spots on a map
  */
 export const MapScreen = ({ navigation }) => {
   const { location, loading: locationLoading } = useLocation();
-  const [places, setPlaces] = useState([]);
+  const [spots, setSpots] = useState([]);
   const [mapRegion, setMapRegion] = useState({
     latitude: 37.78825,
     longitude: -122.4324,
@@ -26,7 +26,7 @@ export const MapScreen = ({ navigation }) => {
   });
 
   useEffect(() => {
-    loadPlaces();
+    loadSpots();
   }, []);
 
   useEffect(() => {
@@ -37,26 +37,26 @@ export const MapScreen = ({ navigation }) => {
         latitudeDelta: 0.0922,
         longitudeDelta: 0.0421,
       });
-      loadNearbyPlaces();
+      loadNearbySpots();
     }
   }, [location]);
 
-  const loadPlaces = async () => {
+  const loadSpots = async () => {
     try {
-      const data = await getAllPlaces();
-      setPlaces(data);
+      const data = await getAllSpots();
+      setSpots(data);
     } catch (error) {
-      console.error('Error loading places:', error);
+      console.error('Error loading spots:', error);
     }
   };
 
-  const loadNearbyPlaces = async () => {
+  const loadNearbySpots = async () => {
     if (!location) return;
     try {
-      const data = await getNearbyPlaces(location.latitude, location.longitude, 10);
-      setPlaces(data);
+      const data = await getNearbySpots(location.latitude, location.longitude, 10);
+      setSpots(data);
     } catch (error) {
-      console.error('Error loading nearby places:', error);
+      console.error('Error loading nearby spots:', error);
     }
   };
 
@@ -82,17 +82,17 @@ export const MapScreen = ({ navigation }) => {
         showsUserLocation={true}
         showsMyLocationButton={false}
       >
-        {places.map((place) => (
+        {spots.map((spot) => (
           <Marker
-            key={place.id}
+            key={spot.id}
             coordinate={{
-              latitude: place.latitude,
-              longitude: place.longitude,
+              latitude: spot.latitude,
+              longitude: spot.longitude,
             }}
-            title={place.title}
-            description={place.category}
+            title={spot.title}
+            description={spot.category}
             onCalloutPress={() =>
-              navigation.navigate('PlaceDetail', { placeId: place.id })
+              navigation.navigate('SpotDetail', { spotId: spot.id })
             }
           />
         ))}
@@ -104,7 +104,7 @@ export const MapScreen = ({ navigation }) => {
 
       <View style={styles.infoBar}>
         <Text style={styles.infoText}>
-          {places.length} {places.length === 1 ? 'place' : 'places'} nearby
+          {spots.length} {spots.length === 1 ? 'spot' : 'spots'} nearby
         </Text>
       </View>
     </View>

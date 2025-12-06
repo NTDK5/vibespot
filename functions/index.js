@@ -67,14 +67,14 @@ exports.setUserRole = functions.https.onRequest(async (req, res) => {
 });
 
 /**
- * Cloud Function: Recalculate Place Rating
+ * Cloud Function: Recalculate Spot Rating
  *
- * This function recalculates the average rating and review count for a place
+ * This function recalculates the average rating and review count for a spot
  * whenever a review is created, updated, or deleted.
  *
  * Usage:
  * POST https://YOUR_REGION-YOUR_PROJECT_ID.cloudfunctions.net/recalculateRating
- * Body: { "placeId": "place_id_here" }
+ * Body: { "spotId": "spot_id_here" }
  */
 exports.recalculateRating = functions.https.onRequest(async (req, res) => {
   // Enable CORS
@@ -93,29 +93,29 @@ exports.recalculateRating = functions.https.onRequest(async (req, res) => {
   }
 
   try {
-    const {placeId} = req.body;
+    const {spotId} = req.body;
 
-    if (!placeId) {
-      res.status(400).json({error: "placeId is required"});
+    if (!spotId) {
+      res.status(400).json({error: "spotId is required"});
       return;
     }
 
-    // Get all reviews for this place
+    // Get all reviews for this spot
     const reviewsSnapshot = await db
       .collection("reviews")
-      .where("placeId", "==", placeId)
+      .where("spotId", "==", spotId)
       .get();
 
     if (reviewsSnapshot.empty) {
       // No reviews, set rating to 0
-      await db.collection("places").doc(placeId).update({
+      await db.collection("spots").doc(spotId).update({
         averageRating: 0,
         reviewCount: 0,
       });
 
       res.status(200).json({
         success: true,
-        placeId: placeId,
+        spotId: spotId,
         averageRating: 0,
         reviewCount: 0,
       });
@@ -134,15 +134,15 @@ exports.recalculateRating = functions.https.onRequest(async (req, res) => {
 
     const averageRating = totalRating / reviewCount;
 
-    // Update place document
-    await db.collection("places").doc(placeId).update({
+    // Update spot document
+    await db.collection("spots").doc(spotId).update({
       averageRating: Math.round(averageRating * 10) / 10, // Round to 1 decimal
       reviewCount: reviewCount,
     });
 
     res.status(200).json({
       success: true,
-      placeId: placeId,
+      spotId: spotId,
       averageRating: averageRating,
       reviewCount: reviewCount,
     });
@@ -163,21 +163,21 @@ exports.onReviewChange = functions.firestore
   .document('reviews/{reviewId}')
   .onWrite(async (change, context) => {
     const reviewData = change.after.exists ? change.after.data() : change.before.data();
-    const placeId = reviewData?.placeId;
+    const spotId = reviewData?.spotId;
 
-    if (!placeId) {
-      console.error('No placeId found in review');
+    if (!spotId) {
+      console.error('No spotId found in review');
       return;
     }
 
     // Recalculate rating
     const reviewsSnapshot = await db
       .collection('reviews')
-      .where('placeId', '==', placeId)
+      .where('spotId', '==', spotId)
       .get();
 
     if (reviewsSnapshot.empty) {
-      await db.collection('places').doc(placeId).update({
+      await db.collection('spots').doc(spotId).update({
         averageRating: 0,
         reviewCount: 0,
       });
@@ -195,7 +195,7 @@ exports.onReviewChange = functions.firestore
 
     const averageRating = totalRating / reviewCount;
 
-    await db.collection('places').doc(placeId).update({
+    await db.collection('spots').doc(spotId).update({
       averageRating: Math.round(averageRating * 10) / 10,
       reviewCount: reviewCount,
     });

@@ -80,12 +80,12 @@ export const RegisterScreen = ({ navigation }) => {
         style={styles.logo}
       />
           <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join VibeSpot and discover amazing places</Text>
+          <Text style={styles.subtitle}>Join VibeSpot and discover amazing spots</Text>
 
           <View style={styles.form}>
             <TextInput
               style={styles.input}
-              placeholder="Full Name"
+              spotholder="Full Name"
               value={displayName}
               onChangeText={setDisplayName}
               autoCapitalize="words"
@@ -93,7 +93,7 @@ export const RegisterScreen = ({ navigation }) => {
 
             <TextInput
               style={styles.input}
-              placeholder="Email"
+              spotholder="Email"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -103,7 +103,7 @@ export const RegisterScreen = ({ navigation }) => {
 
             <TextInput
               style={styles.input}
-              placeholder="Password"
+              spotholder="Password"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -112,7 +112,7 @@ export const RegisterScreen = ({ navigation }) => {
 
             <TextInput
               style={styles.input}
-              placeholder="Confirm Password"
+              spotholder="Confirm Password"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry

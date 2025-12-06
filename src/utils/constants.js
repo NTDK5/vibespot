@@ -14,10 +14,10 @@ export const CATEGORIES = [
 ];
 
 export const PRICE_RANGES = [
-  { id: 'free', label: 'Free', value: 0 },
-  { id: 'low', label: '$', value: 1 },
-  { id: 'medium', label: '$$', value: 2 },
-  { id: 'high', label: '$$$', value: 3 },
+  { id: 'free', label: 'Free', value: "free" },
+  { id: 'low', label: 'low', value: "low" },
+  { id: 'medium', label: 'Medium', value: "medium"},
+  { id: 'high', label: 'High', value: "high" },
   { id: 'premium', label: '$$$$', value: 4 },
 ];
 

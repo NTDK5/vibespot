@@ -5,7 +5,7 @@ Your app is configured to work without Cloud Functions. Here's what you need to 
 ## ✅ What Works
 
 - ✅ User authentication (email/password)
-- ✅ Places management (add, view, edit, delete)
+- ✅ Spots management (add, view, edit, delete)
 - ✅ Reviews system (add, edit, delete reviews)
 - ✅ Rating calculation (automatic via client-side function)
 - ✅ Image uploads
@@ -54,8 +54,8 @@ This means ratings will update immediately without needing Cloud Functions.
    - Sign out and sign back in
 
 4. **Start using the app:**
-   - As admin, you'll see the "Add Place" option
-   - Add your first place
+   - As admin, you'll see the "Add Spot" option
+   - Add your first spot
    - Normal users can browse and leave reviews
 
 ## 📝 Notes
@@ -89,7 +89,7 @@ If you decide to upgrade to the Blaze plan later:
 - Verify reviews are being saved to Firestore
 - The rating calculation happens automatically, but you can manually trigger it if needed
 
-**Can't see "Add Place" option:**
+**Can't see "Add Spot" option:**
 - Verify your user role is set to "admin" in Firestore
 - Sign out and sign back in
 - Check that `useAuth` hook is detecting the admin role

@@ -117,13 +117,13 @@ For maps to work properly:
 
 1. Test authentication flow
 2. Create an admin user
-3. Add your first place
+3. Add your first spot
 4. Test reviews functionality
 5. Verify map functionality
 
 ## Production Checklist
 
-- [ ] Update all placeholder values (API keys, client IDs, etc.)
+- [ ] Update all spotholder values (API keys, client IDs, etc.)
 - [ ] Configure proper security rules
 - [ ] Set up error tracking (Sentry, etc.)
 - [ ] Configure app icons and splash screens

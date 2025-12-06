@@ -8,41 +8,41 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { PlaceCard } from '../components/PlaceCard';
-import { getAllPlaces, getPlacesByCategory, searchPlaces } from '../services/places';
+import { SpotCard } from '../components/SpotCard';
+import { getAllSpots, getSpotsByCategory, searchSpots } from '../services/spots';
 import { CATEGORIES } from '../utils/constants';
 
 /**
  * Explore Screen
- * Browse and search places by category
+ * Browse and search spots by category
  */
 export const ExploreScreen = ({ navigation }) => {
-  const [places, setPlaces] = useState([]);
+  const [spots, setSpots] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadPlaces();
+    loadSpots();
   }, [selectedCategory]);
 
   useEffect(() => {
     if (searchQuery.trim()) {
       handleSearch(searchQuery);
     } else {
-      loadPlaces();
+      loadSpots();
     }
   }, [searchQuery]);
 
-  const loadPlaces = async () => {
+  const loadSpots = async () => {
     setLoading(true);
     try {
       const data = selectedCategory
-        ? await getPlacesByCategory(selectedCategory)
-        : await getAllPlaces();
-      setPlaces(data);
+        ? await getSpotsByCategory(selectedCategory)
+        : await getAllSpots();
+      setSpots(data);
     } catch (error) {
-      console.error('Error loading places:', error);
+      console.error('Error loading spots:', error);
     } finally {
       setLoading(false);
     }
@@ -50,25 +50,25 @@ export const ExploreScreen = ({ navigation }) => {
 
   const handleSearch = async (query) => {
     if (!query.trim()) {
-      loadPlaces();
+      loadSpots();
       return;
     }
 
     setLoading(true);
     try {
-      const results = await searchPlaces(query);
-      setPlaces(results);
+      const results = await searchSpots(query);
+      setSpots(results);
     } catch (error) {
-      console.error('Error searching places:', error);
+      console.error('Error searching spots:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const renderPlace = ({ item }) => (
-    <PlaceCard
-      place={item}
-      onPress={() => navigation.navigate('PlaceDetail', { placeId: item.id })}
+  const renderSpot = ({ item }) => (
+    <SpotCard
+      spot={item}
+      onPress={() => navigation.navigate('SpotDetail', { spotId: item.id })}
     />
   );
 
@@ -78,7 +78,7 @@ export const ExploreScreen = ({ navigation }) => {
         <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search places..."
+          spotholder="Search spots..."
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -123,15 +123,15 @@ export const ExploreScreen = ({ navigation }) => {
       </View>
 
       <FlatList
-        data={places}
-        renderItem={renderPlace}
+        data={spots}
+        renderItem={renderSpot}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="search-outline" size={64} color="#ccc" />
             <Text style={styles.emptyText}>
-              {searchQuery ? 'No results found' : 'No places found'}
+              {searchQuery ? 'No results found' : 'No spots found'}
             </Text>
           </View>
         }

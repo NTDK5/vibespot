@@ -13,11 +13,11 @@ service firebase.storage {
              firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     
-    // Places images
-    match /places/{placeId}/{allPaths=**} {
-      // Only admins can upload place images
+    // Spots images
+    match /spots/{spotId}/{allPaths=**} {
+      // Only admins can upload spot images
       allow write: if isAdmin();
-      // Anyone authenticated can read place images
+      // Anyone authenticated can read spot images
       allow read: if isAuthenticated();
     }
     

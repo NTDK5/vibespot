@@ -28,11 +28,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // Places collection
-    match /places/{placeId} {
-      // Anyone authenticated can read places
+    // Spots collection
+    match /spots/{spotId} {
+      // Anyone authenticated can read spots
       allow read: if isAuthenticated();
-      // Only admins can create/update/delete places
+      // Only admins can create/update/delete spots
       allow create: if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
