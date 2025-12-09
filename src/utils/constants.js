@@ -3,7 +3,7 @@
  */
 
 export const CATEGORIES = [
-  { id: 'photoshoot', label: 'Photoshoot', icon: 'camera' },
+  { id: 'photo_spot', label: 'Photoshoot', icon: 'camera' },
   { id: 'sports', label: 'Sports', icon: 'football' },
   { id: 'art', label: 'Art', icon: 'brush' },
   { id: 'workspace', label: 'Workspace', icon: 'briefcase' },
@@ -11,6 +11,9 @@ export const CATEGORIES = [
   { id: 'food', label: 'Food & Dining', icon: 'restaurant' },
   { id: 'nature', label: 'Nature', icon: 'leaf' },
   { id: 'other', label: 'Other', icon: 'ellipse' },
+  { id: 'activity', label: 'Activity', icon: ''},
+  { id: 'gallery', label:'Gallery', icon:''},
+  {id: 'restaurant', label: 'restaurant', icon:''}
 ];
 
 export const PRICE_RANGES = [

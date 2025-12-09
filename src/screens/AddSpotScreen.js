@@ -36,7 +36,21 @@ export const AddSpotScreen = ({ navigation }) => {
   const [submitting, setSubmitting] = useState(false);
   const [address, setAddress] = useState('');
   const [bestTime, setBestTime] = useState('');
+  const [featureInput, setFeatureInput] = useState('');
+  const [features, setFeatures] = useState([]);
 
+  const addFeature = () => {
+    const trimmed = featureInput.trim();
+    if (!trimmed) return;
+  
+    setFeatures([...features, trimmed]);
+    setFeatureInput('');
+  };
+  
+  const removeFeature = (feature) => {
+    setFeatures(features.filter(f => f !== feature));
+  };
+  
 
   const handleSubmit = async () => {
     if (!title.trim()) return Alert.alert("Error", "Please enter a title");
@@ -59,7 +73,8 @@ export const AddSpotScreen = ({ navigation }) => {
         // latitude,
         // longitude,
         address,
-        bestTime
+        bestTime,
+        features
       };
   
       // Step 1 — Create spot
@@ -149,6 +164,51 @@ export const AddSpotScreen = ({ navigation }) => {
             </TouchableOpacity>
           ))}
         </View>
+        <Text style={styles.label}>Features</Text>
+
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TextInput
+            style={[styles.input, { flex: 1 }]}
+            placeholder="Add feature e.g. WiFi"
+            value={featureInput}
+            onChangeText={setFeatureInput}
+          />
+          <TouchableOpacity
+            onPress={addFeature}
+            style={{
+              backgroundColor: "#007AFF",
+              paddingHorizontal: 14,
+              justifyContent: "center",
+              borderRadius: 8,
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "600" }}>Add</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Selected Features */}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 12 }}>
+          {features.map((feature, index) => (
+            <View
+              key={index}
+              style={{
+                backgroundColor: "#e3f2fd",
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 20,
+                flexDirection: "row",
+                alignItems: "center",
+                marginRight: 8,
+                marginBottom: 8,
+              }}
+            >
+              <Text style={{ color: "#007AFF", marginRight: 8 }}>{feature}</Text>
+              <TouchableOpacity onPress={() => removeFeature(feature)}>
+                <Ionicons name="close-circle" size={18} color="#007AFF" />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
 
         <Text style={styles.label}>Tags (comma-separated)</Text>
         <TextInput
@@ -207,7 +267,7 @@ export const AddSpotScreen = ({ navigation }) => {
         transparent={true}
         onRequestClose={() => setCategoryModalVisible(false)}
       >
-        <View style={styles.modalContainer}>
+        <ScrollView style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Category</Text>
@@ -246,7 +306,7 @@ export const AddSpotScreen = ({ navigation }) => {
               </TouchableOpacity>
             ))}
           </View>
-        </View>
+        </ScrollView>
       </Modal>
 
       {/* Map Modal */}
@@ -380,7 +440,14 @@ const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    maxHeight:'70%',
+    width: '100%',
+    backgroundColor: '#fff',
+    // justifyContent: 'flex-end',
+    position : 'absolute',
+    bottom: 0
+
+    // justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: '#fff',

@@ -11,37 +11,8 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { getAllSpots, getSpotsByCategory, searchSpots } from '../services/spots';
 
-// SAMPLE SPOTS (respot with API later)
-const sampleSpots = [
-  {
-    id: "1",
-    title: "Skyline Rooftop",
-    category: "Nightlife",
-    address: "Bole, Addis Ababa",
-    price: "$20/hr",
-    image:
-    require("../../assets/spot2.jpg") ,
-  },
-  {
-    id: "2",
-    title: "Green Art Studio",
-    category: "Art",
-    address: "CMC, Addis Ababa",
-    price: "$15/hr",
-    image:
-    require("../../assets/spot3.jpg") ,
-  },
-  {
-    id: "3",
-    title: "Zen Workspace",
-    category: "Workspace",
-    address: "4 Kilo, Addis Ababa",
-    price: "$10/hr",
-    image:
-    require("../../assets/spot1.webp"),
-  },
-];
 // ---------------- NEARBY SPOTS ----------------
 const nearbySpots = [
   {
@@ -139,11 +110,32 @@ const categories = [
 ];
 
 export const HomeScreen = ({ navigation }) => {
+  const [spots, setSpots] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+
+  useEffect(() => {
+    loadSpots();
+  }, [selectedCategory]);
 
   const onRefresh = () => {
     setRefreshing(true);
     setTimeout(() => setRefreshing(false), 1200);
+  };
+
+  const loadSpots = async () => {
+    setLoading(true);
+    try {
+      const data = selectedCategory
+        ? await getSpotsByCategory(selectedCategory)
+        : await getAllSpots();
+      setSpots(data);
+    } catch (error) {
+      console.error('Error loading spots:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderSpotCard = ({ item }) => (
@@ -151,7 +143,11 @@ export const HomeScreen = ({ navigation }) => {
       style={styles.spotCard}
       onPress={() => navigation.navigate("SpotDetail", { spotId: item.id })}
     >
-      <Image source={item.image} style={styles.spotImage} />
+      <Image
+        source={{ uri: item.images[0] || '' }}
+        style={styles.spotImage} 
+        resizeMode="cover"
+      />
 
       <View style={styles.spotOverlay}>
         <Text style={styles.spotTitle}>{item.title}</Text>
@@ -252,10 +248,10 @@ export const HomeScreen = ({ navigation }) => {
             </View>
     
             <FlatList
-              data={sampleSpots}
+              data={spots}
               horizontal
               renderItem={renderSpotCard}
-              keyExtractor={(i) => i.id}
+              keyExtractor={(spot) => spot.id}
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: 16 }}
             />

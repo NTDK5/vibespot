@@ -5,6 +5,10 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../hooks/useAuth';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { Dimensions } from 'react-native';
+
+// Get device width
+const { width } = Dimensions.get('window');
 
 // Screens
 import { LoginScreen } from '../screens/LoginScreen';
@@ -12,7 +16,8 @@ import { RegisterScreen } from '../screens/RegisterScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { ExploreScreen } from '../screens/ExploreScreen';
 import { MapScreen } from '../screens/MapScreen';
-import { SpotDetailScreen } from '../screens/SpotDetailScreen';
+import SpotDetailsScreen from '../screens/SpotDetailScreen';
+
 import { AddSpotScreen } from '../screens/AddSpotScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 
@@ -93,17 +98,17 @@ export const AppNavigator = () => {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
 
-        {!user ? (
+        {/* {!user ? (
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
           </>
-        ) : (
+        ) : ( */}
           <>
             <Stack.Screen name="MainTabs" component={MainTabs} />
-            <Stack.Screen name="SpotDetail" component={SpotDetailScreen} />
+            <Stack.Screen name="SpotDetail" component={SpotDetailsScreen} />
           </>
-        )}
+        {/* )} */}
 
       </Stack.Navigator>
     </NavigationContainer>

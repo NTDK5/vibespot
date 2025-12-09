@@ -10,12 +10,21 @@ import { truncateText, getStars } from '../utils/helpers';
 export const SpotCard = ({ spot, onPress }) => {
   const stars = getStars(spot.averageRating || 0);
   const priceRange = spot.priceRange || 0;
-  const priceLabels = ['Free', '$', '$$', '$$$', '$$$$'];
-
+  const priceLabels = ['Free', 'Low', 'Medium', 'High', '$$$$'];
+  const priceMap = {
+    free: 0,
+    low: 1,
+    medium: 2,
+    high: 3,
+    premium: 4
+  };
+  
+  const priceIndex = priceMap[spot.priceRange] ?? 0;
+  
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
       <Image
-        source={{ uri: spot.mainImage || 'https://via.spotholder.com/300' }}
+        source={{ uri: spot.images[0] || 'https://res.cloudinary.com/dcnexryxw/image/upload/v1765284458/vibespot/fk2550ztkfhkstmcmhjc.jpg' }}
         style={styles.image}
         resizeMode="cover"
       />
@@ -25,7 +34,10 @@ export const SpotCard = ({ spot, onPress }) => {
             {spot.title}
           </Text>
           <View style={styles.priceBadge}>
-            <Text style={styles.priceText}>{priceLabels[priceRange] || 'Free'}</Text>
+          <Text style={styles.priceText}>
+  {priceLabels[priceIndex]}
+</Text>
+
           </View>
         </View>
         

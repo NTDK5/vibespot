@@ -1,503 +1,509 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  ScrollView,
   Image,
-  StyleSheet,
+  ScrollView,
   TouchableOpacity,
-  Alert,
-  TextInput,
-  Modal,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { getSpot } from '../services/spots';
-import {
-  getReviewsBySpot,
-  addReview,
-  updateReview,
-  deleteReview,
-  getUserReviewForSpot,
-} from '../services/reviews';
-import { uploadReviewImage } from '../services/upload';
-import { ReviewCard } from '../components/ReviewCard';
-import { Button } from '../components/Button';
-// import { useAuth } from '../hooks/useAuth';
-import { formatDate, getStars } from '../utils/helpers';
-import { pickImage } from '../services/upload';
+  StyleSheet,
+  Dimensions,
+  ActivityIndicator,
+} from "react-native";
+import Carousel from "react-native-snap-carousel";
+import Icon from "react-native-vector-icons/Ionicons";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { getSpotById } from '../services/spots';
 
-/**
- * Spot Detail Screen
- * Shows spot details and reviews
- */
-export const SpotDetailScreen = ({ route, navigation }) => {
+
+const { width } = Dimensions.get("window");
+
+export default function SpotDetailsScreen({ route, navigation }) {
   const { spotId } = route.params;
-  // const { user, isAdmin } = useAuth();
+
   const [spot, setSpot] = useState(null);
-  const [reviews, setReviews] = useState([]);
-  const [userReview, setUserReview] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [reviewModalVisible, setReviewModalVisible] = useState(false);
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState('');
-  const [reviewImage, setReviewImage] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
+
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [liked, setLiked] = useState(false);
+  const [showMore, setShowMore] = useState(false);
 
   useEffect(() => {
-    loadSpot();
-    loadReviews();
-  }, [spotId, user]);
+    const fetchSpot = async () => {
+      const data = await getSpotById(spotId);
 
-  const loadSpot = async () => {
-    try {
-      const data = await getSpot(spotId);
-      setSpot(data);
-    } catch (error) {
-      console.error('Error loading spot:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadReviews = async () => {
-    try {
-      const data = await getReviewsBySpot(spotId);
-      setReviews(data);
-
-      if (user) {
-        const review = await getUserReviewForSpot(spotId, user.uid);
-        setUserReview(review);
-      }
-    } catch (error) {
-      console.error('Error loading reviews:', error);
-    }
-  };
-
-  const handlePickReviewImage = async () => {
-    const image = await pickImage();
-    if (image) {
-      setReviewImage(image);
-    }
-  };
-
-  const handleSubmitReview = async () => {
-    if (!user) {
-      Alert.alert('Error', 'Please sign in to leave a review');
-      return;
-    }
-
-    if (!rating) {
-      Alert.alert('Error', 'Please select a rating');
-      return;
-    }
-
-    setSubmitting(true);
-
-    try {
-      let imageUrl = null;
-      if (reviewImage) {
-        const uploadResult = await uploadReviewImage(
-          reviewImage.uri,
-          userReview?.id || 'temp'
-        );
-        if (uploadResult.url) {
-          imageUrl = uploadResult.url;
-        }
-      }
-
-      if (userReview) {
-        // Update existing review
-        await updateReview(userReview.id, {
-          rating,
-          comment,
-          imageUrl: imageUrl || userReview.imageUrl,
-        });
-        Alert.alert('Success', 'Review updated successfully');
+      if (!data || data.error) {
+        setSpot(null);
       } else {
-        // Create new review
-        await addReview(spotId, user.uid, {
-          rating,
-          comment,
-          imageUrl,
-        });
-        Alert.alert('Success', 'Review added successfully');
+        setSpot(data);
       }
+      setLoading(false);
+    };
 
-      setReviewModalVisible(false);
-      setRating(5);
-      setComment('');
-      setReviewImage(null);
-      loadReviews();
-    } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to submit review');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    fetchSpot();
+  }, [spotId]);
 
-  const handleDeleteReview = async (reviewId) => {
-    Alert.alert(
-      'Delete Review',
-      'Are you sure you want to delete this review?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteReview(reviewId);
-            loadReviews();
-          },
-        },
-      ]
-    );
-  };
-
-  if (loading || !spot) {
+  if (loading) {
     return (
-      <View style={styles.loading}>
-        <Text>Loading...</Text>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#fff",
+        }}
+      >
+        <ActivityIndicator size="large" color="#ff9900" />
       </View>
     );
   }
 
-  const stars = getStars(spot.averageRating || 0);
-  const priceLabels = ['Free', '$', '$$', '$$$', '$$$$'];
+  if (!spot) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          padding: 20,
+        }}
+      >
+        <Text style={{ fontSize: 18, fontWeight: "700" }}>
+          Spot not found.
+        </Text>
+
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{
+            marginTop: 20,
+            backgroundColor: "#ffd54f",
+            padding: 12,
+            borderRadius: 10,
+          }}
+        >
+          <Text style={{ fontWeight: "700" }}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
-    <ScrollView style={styles.container}>
-      <Image
-        source={{ uri: spot.mainImage || 'https://via.spotholder.com/400' }}
-        style={styles.mainImage}
-        resizeMode="cover"
-      />
+    <SafeAreaView style={styles.container}>
+      {/* ---------- TOP HEADER ---------- */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
+          <Icon name="arrow-back" size={24} color="#000" />
+        </TouchableOpacity>
 
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.title}>{spot.title}</Text>
-          <View style={styles.priceBadge}>
-            <Text style={styles.priceText}>
-              {priceLabels[spot.priceRange] || 'Free'}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={styles.category}>{spot.category}</Text>
-
-        <View style={styles.ratingContainer}>
-          <View style={styles.stars}>
-            {[...Array(stars.full)].map((_, i) => (
-              <Ionicons key={i} name="star" size={20} color="#FFD700" />
-            ))}
-            {stars.half > 0 && (
-              <Ionicons name="star-half" size={20} color="#FFD700" />
-            )}
-            {[...Array(stars.empty)].map((_, i) => (
-              <Ionicons key={i} name="star-outline" size={20} color="#FFD700" />
-            ))}
-          </View>
-          <Text style={styles.ratingText}>
-            {spot.averageRating?.toFixed(1) || '0.0'} ({spot.reviewCount || 0} reviews)
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {spot.title}
           </Text>
-        </View>
-
-        {spot.description && (
-          <Text style={styles.description}>{spot.description}</Text>
-        )}
-
-        {spot.tags && spot.tags.length > 0 && (
-          <View style={styles.tagsContainer}>
-            {spot.tags.map((tag, index) => (
-              <View key={index} style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
-              </View>
-            ))}
+          <View style={styles.headerRatingRow}>
+            <Text style={styles.headerRating}>{spot.rating ? spot.rating : '4.5'}</Text>
+            <Icon name="star" size={16} color="#f5b84d" />
           </View>
-        )}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Reviews</Text>
-          {user && !userReview && (
-            <Button
-              title="Add Review"
-              onPress={() => setReviewModalVisible(true)}
-              style={styles.addReviewButton}
-            />
-          )}
-
-          {reviews.length === 0 ? (
-            <Text style={styles.noReviews}>No reviews yet. Be the first!</Text>
-          ) : (
-            reviews.map((review) => (
-              <ReviewCard
-                key={review.id}
-                review={review}
-                user={{ displayName: 'User' }} // TODO: Fetch user data
-                canEdit={user && review.userId === user.uid}
-                canDelete={user && (review.userId === user.uid || isAdmin)}
-                onEdit={() => {
-                  setRating(review.rating);
-                  setComment(review.comment || '');
-                  setReviewImage(review.imageUrl ? { uri: review.imageUrl } : null);
-                  setUserReview(review);
-                  setReviewModalVisible(true);
-                }}
-                onDelete={() => handleDeleteReview(review.id)}
-              />
-            ))
-          )}
         </View>
+
+        <TouchableOpacity style={styles.headerBtn}>
+          <Icon name="share-social-outline" size={22} color="#000" />
+        </TouchableOpacity>
       </View>
 
-      {/* Review Modal */}
-      <Modal
-        visible={reviewModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setReviewModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {userReview ? 'Edit Review' : 'Add Review'}
-              </Text>
-              <TouchableOpacity onPress={() => setReviewModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#333" />
-              </TouchableOpacity>
-            </View>
+      <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 90 }}>
+        {/* ---------- HERO / CAROUSEL ---------- */}
+        <View style={styles.hero}>
+          <Carousel
+            data={spot.images || []}
+            renderItem={({ item }) => (
+              <Image
+                source={{ uri: item }}
+                style={styles.heroImage}
+              />
+            )}
+            sliderWidth={width}
+            itemWidth={width}
+            onSnapToItem={(index) => setActiveIndex(index)}
+            autoplay
+            loop
+          />
 
-            <Text style={styles.label}>Rating</Text>
-            <View style={styles.ratingSelector}>
-              {[1, 2, 3, 4, 5].map((value) => (
-                <TouchableOpacity
-                  key={value}
-                  onPress={() => setRating(value)}
-                  style={styles.starButton}
-                >
-                  <Ionicons
-                    name={value <= rating ? 'star' : 'star-outline'}
-                    size={32}
-                    color="#FFD700"
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.label}>Comment</Text>
-            <TextInput
-              style={styles.commentInput}
-              spotholder="Write your review..."
-              value={comment}
-              onChangeText={setComment}
-              multiline
-              numberOfLines={4}
+          {/* Like Button */}
+          <TouchableOpacity
+            style={styles.likeButton}
+            onPress={() => setLiked(!liked)}
+          >
+            <Icon
+              name={liked ? "heart" : "heart-outline"}
+              size={28}
+              color={liked ? "#ff5a5f" : "#fff"}
             />
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.imagePicker}
-              onPress={handlePickReviewImage}
-            >
-              {reviewImage ? (
-                <Image
-                  source={{ uri: reviewImage.uri || reviewImage }}
-                  style={styles.reviewImagePreview}
-                />
-              ) : (
-                <View style={styles.imagePickerSpotholder}>
-                  <Ionicons name="camera" size={32} color="#007AFF" />
-                  <Text style={styles.imagePickerText}>Add Photo</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            <Button
-              title={userReview ? 'Update Review' : 'Submit Review'}
-              onPress={handleSubmitReview}
-              loading={submitting}
-              style={styles.submitButton}
-            />
+          {/* Pagination Dots */}
+          <View style={styles.pagination}>
+            {(spot.images || []).map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.dot,
+                  activeIndex === i && styles.activeDot,
+                ]}
+              />
+            ))}
           </View>
         </View>
-      </Modal>
-    </ScrollView>
-  );
-};
 
+        {/* ---------- DETAILS ---------- */}
+        <View style={styles.infoCard}>
+          <Text style={styles.title}>{spot.title}</Text>
+
+          <View style={styles.row}>
+            <Icon name="location" size={16} color="#777" />
+            <Text style={styles.location}>{spot.address}</Text>
+          </View>
+
+          <View style={[styles.row, { marginTop: 6 }]}>
+            <Icon name="star" size={18} color="#f5b84d" />
+            <Text style={styles.ratingText}>
+              {spot.rating} ({spot.totalReviews ? spot.totalReviews: "10" }  reviews)
+            </Text>
+          </View>
+
+          <Text style={styles.shortDesc}>{spot.description}</Text>
+
+          <Text style={styles.longDesc} numberOfLines={showMore ? 50 : 3}>
+            {spot.longDescription}
+          </Text>
+
+          <TouchableOpacity
+            onPress={() => setShowMore(!showMore)}
+          >
+            <Text style={styles.toggleText}>
+              {showMore ? "Show Less" : "Read More"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ---------- FEATURES ---------- */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Features</Text>
+
+          {(spot.features || []).map((feature, i) => (
+            <View key={i} style={styles.featureRow}>
+              <View style={styles.featureIcon}>
+                <Icon name="checkmark" size={18} color="#ff9900" />
+              </View>
+              <Text style={styles.featureText}>{feature}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* ---------- REVIEWS ---------- */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Reviews</Text>
+
+          {(spot.reviews || []).map((review, i) => (
+            <View key={i} style={styles.reviewCard}>
+              <View style={styles.reviewHeader}>
+                <View style={styles.userRow}>
+                  <View style={styles.avatar}>
+                    <Text style={{ fontWeight: "700", color: "#b85a00" }}>
+                      {review.user[0]}
+                    </Text>
+                  </View>
+                  <View>
+                    <Text style={styles.reviewName}>{review.user}</Text>
+                    <Text style={styles.reviewDate}>{review.date}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.reviewRating}>
+                  <Text>{review.rating}</Text>
+                  <Icon name="star" size={14} color="#f5b84d" />
+                </View>
+              </View>
+
+              <Text style={styles.reviewBody}>{review.comment}</Text>
+            </View>
+          ))}
+
+          <TouchableOpacity style={styles.addReviewBtn}>
+            <Text style={{ color: "#000", fontWeight: "700" }}>Add Review</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+
+
+
+// -------------------------------------------------------------------------
+//                                STYLES
+// -------------------------------------------------------------------------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#f7f7f7",
   },
-  loading: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    /* HEADER */
+    header: {
+      width: "100%",
+      paddingHorizontal: 12,
+      paddingTop: 50,
+      paddingBottom:20,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      backgroundColor: "#ffffffee",
+      backdropFilter: "blur(6px)",
+      zIndex: 50,
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+    },
+
+    headerBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: "#ffffffcc",
+      justifyContent: "center",
+      alignItems: "center",
+      elevation: 3,
+    },
+
+    headerCenter: {
+      flex: 1,
+      alignItems: "center",
+    },
+
+    headerTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      maxWidth: "70%",
+    },
+
+    headerRatingRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      marginTop: 2,
+    },
+
+    headerRating: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: "#444",
+    },
+
+
+  /* HERO */
+  hero: {
+    position: "relative",
   },
-  mainImage: {
-    width: '100%',
-    height: 300,
+  heroImage: {
+    width: "100%",
+    height: 260,
+    borderRadius: 14,
   },
-  content: {
+  likeButton: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    padding: 10,
+    borderRadius: 30,
+  },
+  reviewRating: {
+    flexDirection:"row",
+    gap: 5
+    ,
+    alignItems: "center"
+  },
+  /* THUMBNAILS */
+  thumbRow: {
+    paddingHorizontal: 10,
+    marginTop: 10,
+    flexDirection: "row",
+  },
+  thumb: {
+    width: 80,
+    height: 60,
+    marginRight: 10,
+    borderRadius: 10,
+    overflow: "hidden",
+    opacity: 0.8,
+  },
+  thumbActive: {
+    opacity: 1,
+    borderWidth: 2,
+    borderColor: "#ffda32",
+    transform: [{ scale: 1.04 }],
+  },
+  thumbImg: {
+    width: "100%",
+    height: "100%",
+  },
+
+  /* INFO */
+  infoCard: {
+    marginTop: 12,
+    backgroundColor: "#fff",
     padding: 16,
+    borderRadius: 12,
+    marginHorizontal: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    flex: 1,
-  },
-  priceBadge: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  priceText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  category: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 12,
-    textTransform: 'capitalize',
-  },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  stars: {
-    flexDirection: 'row',
-    marginRight: 8,
-  },
-  ratingText: {
-    fontSize: 16,
-    color: '#666',
-  },
-  description: {
-    fontSize: 16,
-    color: '#333',
-    lineHeight: 24,
-    marginBottom: 16,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 24,
-  },
-  tag: {
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  tagText: {
-    fontSize: 14,
-    color: '#666',
-  },
+  title: { fontSize: 22, fontWeight: "700" },
+  row: { flexDirection: "row", alignItems: "center", gap: 6 },
+  location: { color: "#555" },
+  ratingText: { color: "#555", fontSize: 14 },
+  shortDesc: { marginTop: 10, color: "#444", lineHeight: 20 },
+  longDesc: { marginTop: 6, color: "#555", lineHeight: 20 },
+  toggleText: { color: "#007aff", fontWeight: "600", marginTop: 4 },
+
+  /* SECTION BOX */
   section: {
-    marginTop: 24,
-    paddingTop: 24,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    marginHorizontal: 12,
+    backgroundColor: "#fff",
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 12,
+    elevation: 1,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 16,
-  },
-  addReviewButton: {
-    marginBottom: 16,
-  },
-  noReviews: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-    paddingVertical: 32,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: 18,
+    fontWeight: "700",
     marginBottom: 8,
   },
-  ratingSelector: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 24,
+
+  /* FEATURES */
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 10,
   },
-  starButton: {
+  featureIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: "#fff8dd",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  featureText: { fontSize: 15, fontWeight: "600", color: "#444" },
+
+  /* ITINERARY */
+  timelineItem: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 14,
+  },
+  timelineDot: {
+    width: 14,
+    height: 14,
+    backgroundColor: "#ffda32",
+    borderRadius: 7,
+    marginTop: 10,
+  },
+  timelineCard: {
+    flex: 1,
+    backgroundColor: "#fff",
+    padding: 12,
+    borderRadius: 10,
+    elevation: 1,
+  },
+  day: {
+    fontWeight: "700",
+    color: "#ff9900",
+    marginBottom: 4,
+  },
+  dayTitle: { fontSize: 16, fontWeight: "700", marginBottom: 4 },
+  dayDetails: { color: "#555", lineHeight: 20 },
+
+  /* REVIEWS */
+  reviewCard: {
+    backgroundColor: "#fff",
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 12,
+    elevation: 1,
+  },
+  reviewHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  userRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  avatar: {
+    width: 40,
+    height: 40,
+    backgroundColor: "#ffeccc",
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  reviewName: { fontWeight: "700" },
+  reviewDate: { color: "#999", fontSize: 12 },
+  reviewBody: { marginTop: 6, color: "#444" },
+
+  addReviewBtn: {
+    marginTop: 8,
+    backgroundColor: "#ffda32",
+    padding: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+
+  hero: {
+    width: "100%",
+    height: 260,
+    position: "relative",
+  },
+  
+  heroImage: {
+    width: "100%",
+    height: 260,
+    borderRadius: 12,
+  },
+  
+  pagination: {
+    flexDirection: "row",
+    justifyContent: "center",
+    position: "absolute",
+    bottom: 10,
+    width: "100%",
+  },
+  
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.4)",
     marginHorizontal: 4,
   },
-  commentInput: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    minHeight: 100,
-    textAlignVertical: 'top',
-    marginBottom: 16,
+  
+  activeDot: {
+    width: 10,
+    height: 10,
+    backgroundColor: "#fff",
   },
-  imagePicker: {
-    marginBottom: 24,
-  },
-  imagePickerSpotholder: {
-    borderWidth: 2,
-    borderColor: '#007AFF',
-    borderStyle: 'dashed',
-    borderRadius: 8,
-    padding: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  imagePickerText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#007AFF',
-  },
-  reviewImagePreview: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-  },
-  submitButton: {
-    marginTop: 8,
-  },
+  
+  likeButton: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    padding: 10,
+    borderRadius: 30,
+    zIndex: 10,
+  }
+  
 });
-
