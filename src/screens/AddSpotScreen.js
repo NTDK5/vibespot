@@ -17,20 +17,19 @@ import { addSpot } from '../services/spots';
 import { uploadSpotImages } from '../services/upload';
 import { useLocation } from '../hooks/useLocation';
 import { CATEGORIES, PRICE_RANGES } from '../utils/constants';
-
+import { useEffect } from 'react';
 /**
  * Add Spot Screen (Admin Only)
  */
 export const AddSpotScreen = ({ navigation }) => {
   const { location } = useLocation();
+  console.log(location)
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [priceRange, setPriceRange] = useState(0);
   const [tags, setTags] = useState('');
   const [images, setImages] = useState([]);
-  const [latitude, setLatitude] = useState(location?.latitude || 37.78825);
-  const [longitude, setLongitude] = useState(location?.longitude || -122.4324);
   const [mapModalVisible, setMapModalVisible] = useState(false);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -38,6 +37,17 @@ export const AddSpotScreen = ({ navigation }) => {
   const [bestTime, setBestTime] = useState('');
   const [featureInput, setFeatureInput] = useState('');
   const [features, setFeatures] = useState([]);
+  const [lat, setLatitude] = useState(location?.latitude ?? 37.78825);
+  const [lng, setLongitude] = useState(location?.longitude ?? -122.4324);
+
+  useEffect(() => {
+    if (location && typeof location.latitude === 'number' && typeof location.longitude === 'number') {
+    setLatitude(location.latitude);
+    setLongitude(location.longitude);
+    }}, [location]);
+
+
+
 
   const addFeature = () => {
     const trimmed = featureInput.trim();
@@ -70,8 +80,8 @@ export const AddSpotScreen = ({ navigation }) => {
           .split(",")
           .map((t) => t.trim())
           .filter((t) => t),
-        // latitude,
-        // longitude,
+        lat,
+        lng,
         address,
         bestTime,
         features
@@ -247,7 +257,7 @@ export const AddSpotScreen = ({ navigation }) => {
         >
           <Ionicons name="location" size={20} color="#007AFF" />
           <Text style={styles.mapButtonText}>
-            {latitude.toFixed(4)}, {longitude.toFixed(4)}
+            {lat.toFixed(4)}, {lng.toFixed(4)}
           </Text>
           <Ionicons name="chevron-forward" size={20} color="#666" />
         </TouchableOpacity>
@@ -325,15 +335,15 @@ export const AddSpotScreen = ({ navigation }) => {
           <MapView
             style={styles.map}
             initialRegion={{
-              latitude,
-              longitude,
+              latitude: lat,
+              longitude: lng,
               latitudeDelta: 0.0922,
               longitudeDelta: 0.0421,
             }}
             onPress={handleMapPress}
           >
             <Marker
-              coordinate={{ latitude, longitude }}
+              coordinate={{ latitude: lat, longitude: lng }}
               draggable
               onDragEnd={(e) => {
                 setLatitude(e.nativeEvent.coordinate.latitude);

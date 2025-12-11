@@ -100,3 +100,31 @@ export const rateSpot = async (id, rating) => {
     return { error: "Failed to rate spot" };
   }
 };
+
+// ----------------------------
+// Get Nearby Spots
+// ----------------------------
+export const getNearbySpots = async (lat, lng, radius = 5000) => {
+  try {
+    if (!lat || !lng) {
+      return { error: "Latitude and longitude are required" };
+    }
+
+    const response = await api.get(`/spot/nearby`, {
+      params: { lat, lng, radius }, // Axios handles query parameters cleanly
+    });
+
+    // Backend returns distance in meters → enrich here
+    const enriched = response.data.map((spot) => ({
+      ...spot,
+      distanceKm: spot.distance / 1000,
+      approxTimeMin: spot.distance / 80, // ~80m/min walking speed
+    }));
+
+    return enriched;
+  } catch (err) {
+    return {
+      error: err.response?.data?.message || "Failed to fetch nearby spots",
+    };
+  }
+};

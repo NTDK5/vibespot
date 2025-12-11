@@ -11,92 +11,10 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { getAllSpots, getSpotsByCategory, searchSpots } from '../services/spots';
+import { getAllSpots, getSpotsByCategory, searchSpots, getNearbySpots } from '../services/spots';
+import { LinearGradient } from "expo-linear-gradient";
+import { useLocation } from "../hooks/useLocation";
 
-// ---------------- NEARBY SPOTS ----------------
-const nearbySpots = [
-  {
-    id: "n1",
-    title: "Unity Park",
-    category: "Photoshot",
-    distance: "1.2 km",
-    time: "5 min",
-    rating: 4.8,
-    image: require("../../assets/nearby1.jpg"), // respot
-  },
-  {
-    id: "n2",
-    title: "Megenagna Sports Arena",
-    category: "Sports",
-    distance: "2.5 km",
-    time: "10 min",
-    rating: 4.6,
-    image: require("../../assets/nearby2.jpg"),
-  },
-  {
-    id: "n3",
-    title: "Artville Creative Hub",
-    category: "Art",
-    distance: "900 m",
-    time: "3 min",
-    rating: 4.9,
-    image: require("../../assets/nearby3.jpg"),
-  },
-  {
-    id: "n4",
-    title: "Blue Hills Workspace",
-    category: "Workspace",
-    distance: "1.8 km",
-    time: "7 min",
-    rating: 4.7,
-    image: require("../../assets/nearby5.jpg"),
-  },
-  {
-    id: "n5",
-    title: "Cinema Galaxy",
-    category: "Movies",
-    distance: "3.2 km",
-    time: "12 min",
-    rating: 4.5,
-    image: require("../../assets/nearby4.jpg"),
-  },
-  {
-    id: "n6",
-    title: "Mount Entoto Trail Start",
-    category: "Hiking",
-    distance: "4.6 km",
-    time: "15 min",
-    rating: 4.9,
-    image: require("../../assets/nearby7.jpg"),
-  },
-  {
-    id: "n7",
-    title: "Vibe Lounge Addis",
-    category: "Night Life",
-    distance: "1.5 km",
-    time: "6 min",
-    rating: 4.4,
-    image: require("../../assets/nearby8.jpg"),
-  },
-  {
-    id: "n8",
-    title: "Zen Garden Café",
-    category: "Photoshot",
-    distance: "700 m",
-    time: "2 min",
-    rating: 4.6,
-    image: require("../../assets/nearby3.jpg"),
-  },
-  {
-    id: "n9",
-    title: "Addis Skate Park",
-    category: "Sports",
-    distance: "2.1 km",
-    time: "8 min",
-    rating: 4.8,
-    image: require("../../assets/nearby10.jpg"),
-  },
-];
 
 const categories = [
   { id: "1", name: "Photoshot", icon: "camera" },
@@ -111,13 +29,31 @@ const categories = [
 
 export const HomeScreen = ({ navigation }) => {
   const [spots, setSpots] = useState([]);
+  const { location, loading: locationLoading, error: locationError } = useLocation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
-
+  const [nearbySpots, setNearbySpots] = useState([]);
   useEffect(() => {
+    if (location) {
+      loadNearby();
+    }
     loadSpots();
-  }, [selectedCategory]);
+  }, [selectedCategory, location]);
+  
+  
+  const loadNearby = async () => {
+    setLoading(true);
+    const result = await getNearbySpots(location.latitude, location.longitude, 5000);
+
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setNearbySpots(result);
+    }
+
+    setLoading(false);
+  };
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -148,11 +84,19 @@ export const HomeScreen = ({ navigation }) => {
         style={styles.spotImage} 
         resizeMode="cover"
       />
+      
+      <LinearGradient
+          colors={["rgba(0,0,0,0)", "rgba(215, 215, 215, 0.1)", "rgba(0, 0, 0, 0.8)"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 0.9 }}
+          style={styles.spotOverlay}
+        />
 
-      <View style={styles.spotOverlay}>
-        <Text style={styles.spotTitle}>{item.title}</Text>
-        <Text style={styles.spotCategory}>{item.category}</Text>
-        <Text style={styles.spotAddress}>{item.address}</Text>
+        <View style= {styles.spotcontent}>  
+          <Text style={styles.spotTitle}>{item.title}</Text>
+          <Text style={styles.spotCategory}>{item.category}</Text>
+          <Text style={styles.spotAddress}>{item.address}</Text>
+        </View>
 
         <View style={styles.spotFooter}>
           <Text style={styles.spotPrice}>{item.price}</Text>
@@ -161,7 +105,6 @@ export const HomeScreen = ({ navigation }) => {
             <Ionicons name="heart-outline" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
-      </View>
     </TouchableOpacity>
   );
   const renderNearbyCard = ({ item }) => (
@@ -169,7 +112,11 @@ export const HomeScreen = ({ navigation }) => {
       style={styles.nearCard}
       onPress={() => navigation.navigate("SpotDetail", { spotId: item.id })}
     >
-      <Image source={item.image} style={styles.nearImage} />
+            <Image
+        source={{ uri: item.images[0] || '' }}
+        style={styles.nearImage} 
+        resizeMode="cover"
+      />
   
       <View style={styles.nearInfo}>
         <View style={styles.nearTop}>
@@ -280,6 +227,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  
   },
   greeting: { fontSize: 22, fontWeight: "700", color: "#333" },
   notificationBtn: {
@@ -328,7 +276,7 @@ const styles = StyleSheet.create({
   // FEATURED CARD
   spotCard: {
     width: 240,
-    height: 320,
+    height: 280,
     borderRadius: 20,
     overflow: "hidden",
     marginRight: 16,
@@ -339,11 +287,17 @@ const styles = StyleSheet.create({
     position: "absolute",
   },
   spotOverlay: {
-    position: "absolute",
+    position: "relative",
     bottom: 0,
-    padding: 14,
+    height: "100%",
     width: "100%",
     backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  spotcontent:{
+    position: "absolute",
+    marginBottom:20,
+    bottom: 0,
+    padding: 14,
   },
   spotTitle: { fontSize: 18, fontWeight: "700", color: "#fff" },
   spotCategory: { fontSize: 13, color: "#eee", marginTop: 2 },
