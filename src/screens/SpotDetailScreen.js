@@ -13,7 +13,8 @@ import Carousel from "react-native-snap-carousel";
 import Icon from "react-native-vector-icons/Ionicons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getSpotById } from '../services/spots';
-
+import { Platform } from "react-native";
+import { Linking } from "react-native";
 
 const { width } = Dimensions.get("window");
 
@@ -27,6 +28,17 @@ export default function SpotDetailsScreen({ route, navigation }) {
   const [liked, setLiked] = useState(false);
   const [showMore, setShowMore] = useState(false);
 
+  const openMap = () => {
+    if (!spot?.lat || !spot?.lng) return;
+  
+    const url = Platform.select({
+      ios: `maps:0,0?q=${spot.lat},${spot.lng}`,
+      android: `geo:0,0?q=${spot.lat},${spot.lng}`,
+    });
+  
+    Linking.openURL(url);
+  };
+  
   useEffect(() => {
     const fetchSpot = async () => {
       const data = await getSpotById(spotId);
@@ -183,6 +195,19 @@ export default function SpotDetailsScreen({ route, navigation }) {
             </Text>
           </TouchableOpacity>
         </View>
+            {/* ---------- TAGS ---------- */}
+        {spot.tags && spot.tags.length > 0 && (
+          <View style={styles.tagsContainer}>
+            {spot.tags.map((tag, i) => (
+              <View key={i} style={styles.tagChip}>
+                <Text style={styles.tagText}>#{tag}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+
+        
 
         {/* ---------- FEATURES ---------- */}
         <View style={styles.section}>
@@ -198,6 +223,23 @@ export default function SpotDetailsScreen({ route, navigation }) {
           ))}
         </View>
 
+                {/* ---------- MAP BUTTON ---------- */}
+        <TouchableOpacity style={styles.mapBtn} onPress={openMap}>
+          <Icon name="map-outline" size={20} color="#000" />
+          <Text style={styles.mapBtnText}>View on Map</Text>
+        </TouchableOpacity>
+
+        <View style={styles.actionRow}>
+        <TouchableOpacity style={styles.actionBtn} onPress={openMap}>
+          <Icon name="navigate-outline" size={18} color="#000" />
+          <Text style={styles.actionText}>Directions</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionBtn}>
+          <Icon name="bookmark-outline" size={18} color="#000" />
+          <Text style={styles.actionText}>Save</Text>
+        </TouchableOpacity>
+      </View>
         {/* ---------- REVIEWS ---------- */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Reviews</Text>
@@ -504,6 +546,63 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 30,
     zIndex: 10,
-  }
+  },
+  /* TAGS */
+tagsContainer: {
+  padding: 16,
+  flexDirection: "row",
+  flexWrap: "wrap",
+  gap: 8,
+  marginTop: 10,
+},
+tagChip: {
+  backgroundColor: "#fff3c4",
+  paddingHorizontal: 12,
+  paddingVertical: 6,
+  borderRadius: 20,
+},
+tagText: {
+  fontSize: 13,
+  fontWeight: "600",
+  color: "#8a5a00",
+},
+
+/* MAP BUTTON */
+mapBtn: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  marginTop: 14,
+  marginHorizontal: 16,
+  backgroundColor: "#ffda32",
+  paddingVertical: 12,
+  borderRadius: 12,
+},
+mapBtnText: {
+  fontWeight: "700",
+  fontSize: 15,
+},
+
+/* ACTION BUTTONS */
+actionRow: {
+  flexDirection: "row",
+  gap: 10,
+  marginTop: 12,
+  marginHorizontal: 16,
+},
+actionBtn: {
+  flex: 1,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+  backgroundColor: "#f3f3f3",
+  paddingVertical: 10,
+  borderRadius: 10,
+},
+actionText: {
+  fontWeight: "600",
+},
   
 });

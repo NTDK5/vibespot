@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../hooks/useAuth';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Dimensions } from 'react-native';
-
+// import {isSuperAdmin} from useAuth
 // Get device width
 const { width } = Dimensions.get('window');
 
@@ -30,7 +30,7 @@ const Tab = createBottomTabNavigator();
 
 
 const MainTabs = () => {
-  // const { isAdmin } = useAuth();
+  const { isSuperAdmin } = useAuth();
 
   return (
     <Tab.Navigator
@@ -46,7 +46,10 @@ const MainTabs = () => {
             iconName = focused ? 'map' : 'map-outline';
           } else if (route.name === 'Profile') {
             iconName = focused ? 'person' : 'person-outline';
+          } else if (route.name === 'AddSpot') {
+            iconName = focused ? 'add-circle' : 'add-circle-outline';
           }
+
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
@@ -59,20 +62,13 @@ const MainTabs = () => {
       <Tab.Screen name="Explore" component={ExploreScreen} />
       <Tab.Screen name="Map" component={MapScreen} />
       
+      {isSuperAdmin && (
         <Tab.Screen
           name="AddSpot"
           component={AddSpotScreen}
-          options={{
-            tabBarLabel: 'Add Spot',
-            tabBarIcon: ({ focused, color, size }) => (
-              <Ionicons
-                name={focused ? 'add-circle' : 'add-circle-outline'}
-                size={size}
-                color={color}
-              />
-            ),
-          }}
+          options={{ tabBarLabel: 'Add Spot' }}
         />
+      )}
       
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
@@ -98,17 +94,17 @@ export const AppNavigator = () => {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
 
-        {/* {!user ? (
+        {!user ? (
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
           </>
-        ) : ( */}
+        ) : (
           <>
             <Stack.Screen name="MainTabs" component={MainTabs} />
             <Stack.Screen name="SpotDetail" component={SpotDetailsScreen} />
           </>
-        {/* )} */}
+        )} 
 
       </Stack.Navigator>
     </NavigationContainer>

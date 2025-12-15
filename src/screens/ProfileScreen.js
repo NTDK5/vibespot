@@ -16,7 +16,7 @@ import { signOutUser } from '../services/auth';
  * Profile Screen
  */
 export const ProfileScreen = ({ navigation }) => {
-  const { user, role, isAdmin } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
 
   const handleSignOut = async () => {
     Alert.alert(
@@ -35,27 +35,40 @@ export const ProfileScreen = ({ navigation }) => {
     );
   };
 
+  const displayName =
+    user?.name ||
+    'User';
+
   return (
     <ScrollView style={styles.container}>
+      {/* 👤 Header */}
       <View style={styles.header}>
         <View style={styles.avatar}>
           <Ionicons name="person" size={48} color="#666" />
         </View>
-        <Text style={styles.name}>{user?.displayName || user?.email || 'User'}</Text>
+
+        <Text style={styles.name}>{displayName}</Text>
         <Text style={styles.email}>{user?.email}</Text>
-        <View style={styles.roleBadge}>
+
+        <View
+          style={[
+            styles.roleBadge,
+            isSuperAdmin && styles.superAdminBadge,
+          ]}
+        >
           <Text style={styles.roleText}>
-            {isAdmin ? 'Admin' : 'User'}
+            {isSuperAdmin ? 'Superadmin' : 'User'}
           </Text>
         </View>
       </View>
 
+      {/* 📂 Menu */}
       <View style={styles.section}>
         <TouchableOpacity
           style={styles.menuItem}
           onPress={() => navigation.navigate('Home')}
         >
-          <Ionicons name="home" size={24} color="#333" />
+          <Ionicons name="home-outline" size={24} color="#333" />
           <Text style={styles.menuText}>Home</Text>
           <Ionicons name="chevron-forward" size={20} color="#999" />
         </TouchableOpacity>
@@ -64,7 +77,7 @@ export const ProfileScreen = ({ navigation }) => {
           style={styles.menuItem}
           onPress={() => navigation.navigate('Explore')}
         >
-          <Ionicons name="search" size={24} color="#333" />
+          <Ionicons name="search-outline" size={24} color="#333" />
           <Text style={styles.menuText}>Explore</Text>
           <Ionicons name="chevron-forward" size={20} color="#999" />
         </TouchableOpacity>
@@ -73,23 +86,27 @@ export const ProfileScreen = ({ navigation }) => {
           style={styles.menuItem}
           onPress={() => navigation.navigate('Map')}
         >
-          <Ionicons name="map" size={24} color="#333" />
+          <Ionicons name="map-outline" size={24} color="#333" />
           <Text style={styles.menuText}>Map View</Text>
           <Ionicons name="chevron-forward" size={20} color="#999" />
         </TouchableOpacity>
 
-        {isAdmin && (
+        {/* 🔒 Superadmin only */}
+        {isSuperAdmin && (
           <TouchableOpacity
             style={styles.menuItem}
             onPress={() => navigation.navigate('AddSpot')}
           >
-            <Ionicons name="add-circle" size={24} color="#007AFF" />
-            <Text style={[styles.menuText, styles.adminMenuText]}>Add Spot</Text>
+            <Ionicons name="add-circle-outline" size={24} color="#007AFF" />
+            <Text style={[styles.menuText, styles.adminMenuText]}>
+              Add Spot
+            </Text>
             <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
         )}
       </View>
 
+      {/* 🚪 Sign Out */}
       <View style={styles.section}>
         <Button
           title="Sign Out"

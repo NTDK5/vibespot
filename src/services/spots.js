@@ -128,3 +128,34 @@ export const getNearbySpots = async (lat, lng, radius = 5000) => {
     };
   }
 };
+// ----------------------------
+// Search Spots
+// ----------------------------
+export const searchSpots = async ({
+  q,
+  category,
+  minRating,
+  priceRange,
+  page = 1,
+  limit = 20,
+}) => {
+  try {
+    const response = await api.get("/spot/search", {
+      params: {
+        q,
+        category,
+        minRating,
+        priceRange,
+        page,
+        limit,
+      },
+    });
+
+    return response.data;
+  } catch (err) {
+    return {
+      error: err.response?.data?.message || "Failed to search spots",
+    };
+  }
+};
+

@@ -18,12 +18,12 @@ import { uploadSpotImages } from '../services/upload';
 import { useLocation } from '../hooks/useLocation';
 import { CATEGORIES, PRICE_RANGES } from '../utils/constants';
 import { useEffect } from 'react';
+import { useAuth } from '../hooks/useAuth';
 /**
  * Add Spot Screen (Admin Only)
  */
 export const AddSpotScreen = ({ navigation }) => {
   const { location } = useLocation();
-  console.log(location)
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
@@ -39,12 +39,19 @@ export const AddSpotScreen = ({ navigation }) => {
   const [features, setFeatures] = useState([]);
   const [lat, setLatitude] = useState(location?.latitude ?? 37.78825);
   const [lng, setLongitude] = useState(location?.longitude ?? -122.4324);
+  const { isSuperAdmin } = useAuth();
+
+
 
   useEffect(() => {
+    if (!isSuperAdmin) {
+      navigation.replace('Home');
+    }
     if (location && typeof location.latitude === 'number' && typeof location.longitude === 'number') {
     setLatitude(location.latitude);
     setLongitude(location.longitude);
-    }}, [location]);
+
+    }}, [location, isSuperAdmin]);
 
 
 
@@ -90,7 +97,6 @@ export const AddSpotScreen = ({ navigation }) => {
       // Step 1 — Create spot
       const { id: spotId, error: spotError } = await addSpot(spotData);
 
-      console.log(spotId)
   
       if (spotError || !spotId) {
         throw new Error(spotError || "Spot ID missing");

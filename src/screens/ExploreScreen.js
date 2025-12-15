@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,76 +9,84 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SpotCard } from '../components/SpotCard';
-import { getAllSpots, getSpotsByCategory, searchSpots } from '../services/spots';
+import { getAllSpots, searchSpots } from '../services/spots';
 import { CATEGORIES } from '../utils/constants';
 
 /**
  * Explore Screen
- * Browse and search spots by category
+ * Browse and search spots
  */
 export const ExploreScreen = ({ navigation }) => {
   const [spots, setSpots] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
+  /* ----------------------------------
+     Initial load (no filters)
+  ----------------------------------- */
   useEffect(() => {
-    loadSpots();
+    fetchSpots();
   }, [selectedCategory]);
 
+  /* ----------------------------------
+     Debounced Search
+  ----------------------------------- */
   useEffect(() => {
-    if (searchQuery.trim()) {
-      handleSearch(searchQuery);
-    } else {
-      loadSpots();
-    }
+    const timeout = setTimeout(() => {
+      fetchSpots();
+    }, 400);
+
+    return () => clearTimeout(timeout);
   }, [searchQuery]);
 
-  const loadSpots = async () => {
+  /* ----------------------------------
+     Fetch Spots (Search + Filters)
+  ----------------------------------- */
+  const fetchSpots = async () => {
     setLoading(true);
     try {
-      const data = selectedCategory
-        ? await getSpotsByCategory(selectedCategory)
-        : await getAllSpots();
-      setSpots(data);
+      // If no search and no category → fallback to all spots
+      if (!searchQuery.trim() && !selectedCategory) {
+        const data = await getAllSpots();
+        setSpots(data);
+        return;
+      }
+
+      const result = await searchSpots({
+        q: searchQuery || undefined,
+        category: selectedCategory || undefined,
+      });
+
+      setSpots(result?.data || []);
     } catch (error) {
-      console.error('Error loading spots:', error);
+      console.error('Error fetching spots:', error);
+      setSpots([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSearch = async (query) => {
-    if (!query.trim()) {
-      loadSpots();
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const results = await searchSpots(query);
-      setSpots(results);
-    } catch (error) {
-      console.error('Error searching spots:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  /* ----------------------------------
+     Render Spot Card
+  ----------------------------------- */
   const renderSpot = ({ item }) => (
     <SpotCard
       spot={item}
-      onPress={() => navigation.navigate('SpotDetail', { spotId: item.id })}
+      onPress={() =>
+        navigation.navigate('SpotDetail', { spotId: item.id })
+      }
     />
   );
 
   return (
     <View style={styles.container}>
+      {/* 🔍 Search Bar */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+        <Ionicons name="search" size={20} color="#666" />
         <TextInput
           style={styles.searchInput}
-          spotholder="Search spots..."
+          placeholder="Search spots..."
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -89,57 +97,74 @@ export const ExploreScreen = ({ navigation }) => {
         )}
       </View>
 
+      {/* 🏷️ Categories */}
       <View style={styles.categoriesContainer}>
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
           data={[{ id: 'all', label: 'All', icon: 'grid' }, ...CATEGORIES]}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[
-                styles.categoryChip,
-                selectedCategory === item.id && styles.categoryChipActive,
-              ]}
-              onPress={() => setSelectedCategory(item.id === 'all' ? null : item.id)}
-            >
-              <Ionicons
-                name={item.icon}
-                size={16}
-                color={selectedCategory === item.id ? '#fff' : '#666'}
-              />
-              <Text
-                style={[
-                  styles.categoryText,
-                  selectedCategory === item.id && styles.categoryTextActive,
-                ]}
-              >
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          )}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.categoriesList}
+          renderItem={({ item }) => {
+            const active =
+              (item.id === 'all' && !selectedCategory) ||
+              selectedCategory === item.id;
+
+            return (
+              <TouchableOpacity
+                style={[
+                  styles.categoryChip,
+                  active && styles.categoryChipActive,
+                ]}
+                onPress={() =>
+                  setSelectedCategory(item.id === 'all' ? null : item.id)
+                }
+              >
+                <Ionicons
+                  name={item.icon}
+                  size={16}
+                  color={active ? '#fff' : '#666'}
+                />
+                <Text
+                  style={[
+                    styles.categoryText,
+                    active && styles.categoryTextActive,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
         />
       </View>
 
+      {/* 📍 Spot List */}
       <FlatList
         data={spots}
         renderItem={renderSpot}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="search-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyText}>
-              {searchQuery ? 'No results found' : 'No spots found'}
-            </Text>
-          </View>
+          !loading && (
+            <View style={styles.empty}>
+              <Ionicons name="search-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyText}>
+                {searchQuery || selectedCategory
+                  ? 'No results found'
+                  : 'No spots available'}
+              </Text>
+            </View>
+          )
         }
       />
     </View>
   );
 };
 
+/* ----------------------------------
+   Styles
+----------------------------------- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -155,13 +180,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
-  searchIcon: {
-    marginRight: 8,
-  },
   searchInput: {
     flex: 1,
     paddingVertical: 12,
     fontSize: 16,
+    marginLeft: 8,
   },
   categoriesContainer: {
     backgroundColor: '#fff',
@@ -198,7 +221,6 @@ const styles = StyleSheet.create({
   },
   empty: {
     alignItems: 'center',
-    justifyContent: 'center',
     paddingVertical: 64,
   },
   emptyText: {
@@ -207,4 +229,3 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
 });
-

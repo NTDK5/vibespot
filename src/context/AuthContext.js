@@ -3,33 +3,35 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { loginUser } from "../services/auth";
 
 export const AuthContext = createContext();
-
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const login = async (email, password) => {
+    setLoading(true);
     try {
       const data = await loginUser({ email, password });
-  
-      console.log("LOGIN SUCCESS:", data);
-  
+
       await AsyncStorage.setItem("token", data.accessToken);
       setUser(data.user);
-  
+      console.log("login sucess: ", data)
       return { user: data.user, error: null };
     } catch (err) {
-      console.log("LOGIN ERROR:", err.response?.data || err.message);
-  
       return {
         user: null,
-        error: err.response?.data?.message || err.message || "Login failed",
+        error: err.response?.data?.message || "Login failed",
       };
+    } finally {
+      setLoading(false);
     }
   };
-  
+
+  const isSuperAdmin = user?.role === "superadmin";
 
   return (
-    <AuthContext.Provider value={{ user, login }}>
+    <AuthContext.Provider
+      value={{ user, login, loading, isSuperAdmin }}
+    >
       {children}
     </AuthContext.Provider>
   );
