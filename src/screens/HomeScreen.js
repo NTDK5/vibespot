@@ -76,36 +76,64 @@ export const HomeScreen = ({ navigation }) => {
 
   const renderSpotCard = ({ item }) => (
     <TouchableOpacity
+      activeOpacity={0.9}
       style={styles.spotCard}
       onPress={() => navigation.navigate("SpotDetail", { spotId: item.id })}
     >
       <Image
-        source={{ uri: item.images[0] || '' }}
-        style={styles.spotImage} 
+        source={{ uri: item.images?.[0] }}
+        style={styles.spotImage}
         resizeMode="cover"
       />
-      
+
+      {/* Dark gradient for readability */}
       <LinearGradient
-          colors={["rgba(0,0,0,0)", "rgba(215, 215, 215, 0.1)", "rgba(0, 0, 0, 0.8)"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 0.9 }}
-          style={styles.spotOverlay}
-        />
+        colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.2)", "rgba(0,0,0,0.85)"]}
+        style={styles.gradient}
+      />
 
-        <View style= {styles.spotcontent}>  
-          <Text style={styles.spotTitle}>{item.title}</Text>
-          <Text style={styles.spotCategory}>{item.category}</Text>
-          <Text style={styles.spotAddress}>{item.address}</Text>
+      {/* Floating Like Button */}
+      <TouchableOpacity style={styles.likeButton}>
+        <Ionicons name="heart-outline" size={20} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Category Pill */}
+      <View style={styles.categoryPill}>
+        <Text style={styles.categoryText}>{item.category}</Text>
+      </View>
+      
+
+      {/* Content */}
+      <View style={styles.content}>
+        <Text numberOfLines={1} style={styles.title}>
+          {item.title}
+        </Text>
+
+        <View style={styles.locationRow}>
+          <Ionicons name="location-outline" size={14} color="#ccc" />
+          <Text numberOfLines={1} style={styles.address}>
+            {item.address}
+          </Text>
         </View>
 
-        <View style={styles.spotFooter}>
-          <Text style={styles.spotPrice}>{item.price}</Text>
-
-          <TouchableOpacity style={styles.likeButton}>
-            <Ionicons name="heart-outline" size={20} color="#fff" />
-          </TouchableOpacity>
+        {/* Footer */}
+        <View style={styles.footer}>
+          <View style={styles.priceBadge}>
+            <Ionicons name="cash-outline" size={14} color="#fff" />
+            <Text style={styles.price}>{item.priceRange}</Text>
+          </View>
+          <View style={styles.imageCount}>
+            <Ionicons name="images-outline" size={14} color="#fff" />
+            <Text style={styles.imageCountText}>{item.images.length}</Text>
+          </View>
+          <View style={styles.vibeRow}>
+            <Ionicons name="sparkles-outline" size={14} color="#FFD54F" />
+            <Text style={styles.vibeText}>Top vibe</Text>
+          </View>
         </View>
+      </View>
     </TouchableOpacity>
+
   );
   const renderNearbyCard = ({ item }) => (
     <TouchableOpacity
@@ -123,21 +151,23 @@ export const HomeScreen = ({ navigation }) => {
           <Text style={styles.nearTitle}>{item.title}</Text>
           <Text style={styles.nearCategory}>{item.category}</Text>
         </View>
-  
-        {/* Distance + Time */}
-        <View style={styles.nearMetaRow}>
-          <Ionicons name="location" size={16} color="#6C63FF" />
-          <Text style={styles.nearMetaText}>{item.distance}</Text>
-  
-          <Ionicons name="time-outline" size={16} color="#6C63FF" style={{ marginLeft: 10 }} />
-          <Text style={styles.nearMetaText}>{item.time}</Text>
+
+
+        <View style={styles.nearBadges}>
+        <View style={styles.distancePill}>
+          <Ionicons name="navigate-outline" size={12} color="#fff" />
+          <Text style={styles.distanceText}>{item.distance || "2.3 km"}</Text>
         </View>
-  
+
+        <Text style={styles.priceRange}>{item.priceRange}</Text>
+
         {/* Rating */}
         <View style={styles.nearRatingRow}>
           <Ionicons name="star" size={16} color="#FFD700" />
           <Text style={styles.nearRating}>{item.rating}</Text>
         </View>
+
+      </View>
       </View>
     </TouchableOpacity>
   );
@@ -155,19 +185,25 @@ export const HomeScreen = ({ navigation }) => {
           <>
             {/* HEADER */}
             <View style={styles.header}>
-              <Text style={styles.greeting}>Good Morning, Nate 👋</Text>
-    
+              <View>
+                <Text style={styles.greetingSmall}>Welcome back</Text>
+                <Text style={styles.greeting}>Nate 👋</Text>
+              </View>
+
               <TouchableOpacity style={styles.notificationBtn}>
-                <Ionicons name="notifications-outline" size={26} color="#333" />
+                <Ionicons name="notifications-outline" size={24} color="#111" />
+                <View style={styles.notificationDot} />
               </TouchableOpacity>
             </View>
+
     
             {/* SEARCH */}
             <View style={styles.searchContainer}>
               <Ionicons name="search" size={20} color="#999" />
               <TextInput
                 style={styles.searchInput}
-                spotholder="Find your next vibe spot"
+                placeholder="Search cafes, vibes, activities…"
+                placeholderTextColor="#aaa"
               />
               <TouchableOpacity style={styles.filterBtn}>
                 <Ionicons name="options" size={22} color="#fff" />
@@ -175,22 +211,23 @@ export const HomeScreen = ({ navigation }) => {
             </View>
     
             {/* CATEGORIES */}
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Categories</Text>
-            </View>
-    
-            <View style={styles.categoriesContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesRow}
+            >
               {categories.map((cat) => (
-                <TouchableOpacity key={cat.id} style={styles.categoryItem}>
-                  <Ionicons name={cat.icon} size={26} color="#555" />
-                  <Text style={styles.categoryText}>{cat.name}</Text>
+                <TouchableOpacity key={cat.id} style={styles.categoryPillBig}>
+                  <Ionicons name={cat.icon} size={20} color="#111" />
+                  <Text style={styles.categoryLabel}>{cat.name}</Text>
                 </TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
+
     
             {/* FEATURED */}
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Featured Spots</Text>
+              <Text style={styles.sectionTitle}>Editor’s Picks</Text>
               <Text style={styles.seeAll}>See All</Text>
             </View>
     
@@ -205,7 +242,7 @@ export const HomeScreen = ({ navigation }) => {
     
             {/* SPOTS NEARBY TITLE */}
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Spots Nearby</Text>
+              <Text style={styles.sectionTitle}>Near You Now</Text>
               <TouchableOpacity style={styles.nearFilterBtn}>
                 <Ionicons name="options-outline" size={20} color="#333" />
               </TouchableOpacity>
@@ -217,7 +254,10 @@ export const HomeScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fdfdfd" },
+  container:  {
+    flex: 1,
+    backgroundColor: "#FAFAFA",
+  },
 
   // HEADER
   header: {
@@ -229,24 +269,60 @@ const styles = StyleSheet.create({
     alignItems: "center",
   
   },
-  greeting: { fontSize: 22, fontWeight: "700", color: "#333" },
-  notificationBtn: {
-    backgroundColor: "#eee",
-    padding: 8,
-    borderRadius: 12,
+  greetingSmall: {
+    fontSize: 14,
+    color: "#888",
+    fontWeight: "500",
   },
-
+  
+  greeting: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#111",
+  },
+  
+  notificationDot: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#FF4D4F",
+  },
+  
+  imageCount: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.45)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  
+  imageCountText: {
+    color: "#fff",
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  
   // SEARCH
   searchContainer: {
     marginHorizontal: 16,
-    marginTop: 10,
-    backgroundColor: "#f0f0f0",
+    marginTop: 16,
+    backgroundColor: "#fff",
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 18,
+  
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
   },
+  
   searchInput: {
     flex: 1,
     marginLeft: 10,
@@ -262,59 +338,167 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginLeft: 10,
   },
-
+  categoriesRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  
+  categoryPillBig: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginRight: 12,
+  
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  
+  categoryLabel: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#222",
+  },
+  
   // SECTION TITLES
   sectionHeader: {
     paddingHorizontal: 16,
     marginTop: 25,
     flexDirection: "row",
     justifyContent: "space-between",
+    marginBottom: 8,
+    paddingVertical : 10
   },
-  sectionTitle: { fontSize: 20, fontWeight: "700" },
+  sectionTitle: { fontSize: 20, fontWeight: "700"  },
   seeAll: { fontSize: 14, color: "#6C63FF", fontWeight: "600" },
 
   // FEATURED CARD
   spotCard: {
-    width: 240,
-    height: 280,
-    borderRadius: 20,
+    width: 250,
+    height: 300,
+    borderRadius: 24,
     overflow: "hidden",
     marginRight: 16,
+    backgroundColor: "#111",
+  
+    // iOS shadow
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+  
+    // Android
+    elevation: 8,
   },
+  
   spotImage: {
     width: "100%",
     height: "100%",
     position: "absolute",
   },
-  spotOverlay: {
-    position: "relative",
-    bottom: 0,
-    height: "100%",
-    width: "100%",
-    backgroundColor: "rgba(0,0,0,0.35)",
-  },
-  spotcontent:{
+  
+  gradient: {
     position: "absolute",
-    marginBottom:20,
-    bottom: 0,
-    padding: 14,
+    width: "100%",
+    height: "100%",
   },
-  spotTitle: { fontSize: 18, fontWeight: "700", color: "#fff" },
-  spotCategory: { fontSize: 13, color: "#eee", marginTop: 2 },
-  spotAddress: { fontSize: 12, color: "#ddd", marginTop: 2 },
-
-  spotFooter: {
-    marginTop: 10,
+  
+  /* Floating like */
+  likeButton: {
+    position: "absolute",
+    top: 14,
+    right: 14,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    padding: 8,
+    borderRadius: 20,
+    backdropFilter: "blur(10px)",
+  },
+  
+  /* Category pill */
+  categoryPill: {
+    position: "absolute",
+    top: 14,
+    left: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.69)",
+    textAlign: "center",
+    paddingHorizontal: 8,
+    paddingBottom: 3,
+    borderRadius: 14,
+  },
+  
+  categoryText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  
+  /* Content */
+  content: {
+    position: "absolute",
+    bottom: 0,
+    padding: 16,
+    width: "100%",
+  },
+  
+  title: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#fff",
+  },
+  
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+  },
+  
+  address: {
+    color: "#ddd",
+    fontSize: 13,
+    marginLeft: 4,
+    flexShrink: 1,
+  },
+  
+  footer: {
+    marginTop: 12,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  spotPrice: { fontSize: 14, fontWeight: "700", color: "#fff" },
-  likeButton: {
-    backgroundColor: "rgba(255,255,255,0.25)",
-    padding: 6,
-    borderRadius: 8,
+  
+  priceBadge: {
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
   },
+  
+  price: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+    marginLeft: 4,
+  },
+  
+  vibeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  
+  vibeText: {
+    color: "#FFD54F",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  
 
   // CATEGORIES
   categoriesContainer: {
@@ -346,6 +530,32 @@ nearCard: {
   elevation: 3,
   overflow: "hidden",
   flexDirection: "row",        // SIDE BY SIDE
+},
+nearBadges: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  marginTop: 8,
+},
+
+distancePill: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "#6C63FF",
+  paddingHorizontal: 8,
+  paddingVertical: 4,
+  borderRadius: 10,
+},
+
+distanceText: {
+  color: "#fff",
+  fontSize: 12,
+},
+
+priceRange: {
+  fontSize: 12,
+  fontWeight: "600",
+  color: "#555",
 },
 
 nearImage: {
@@ -388,18 +598,6 @@ nearMetaText: {
   fontSize: 13,
   color: "#555",
   fontWeight: "500",
-},
-
-nearRatingRow: {
-  flexDirection: "row",
-  alignItems: "center",
-  marginTop: 6,
-},
-
-nearRating: {
-  marginLeft: 4,
-  fontWeight: "700",
-  color: "#333",
 },
 
 

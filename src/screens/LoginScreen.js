@@ -69,7 +69,7 @@ export const LoginScreen = ({ navigation }) => {
           <View style={styles.form}>
             <TextInput
               style={styles.input}
-              spotholder="Email"
+              placeholder="Email"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -79,7 +79,7 @@ export const LoginScreen = ({ navigation }) => {
 
             <TextInput
               style={styles.input}
-              spotholder="Password"
+              placeholder="Password"
               value={password}
               onChangeText={setPassword}
               secureTextEntry

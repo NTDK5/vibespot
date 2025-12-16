@@ -17,10 +17,18 @@ import { Platform } from "react-native";
 import { Linking } from "react-native";
 
 const { width } = Dimensions.get("window");
+const SAMPLE_VIBES = [
+  { id: "chill", icon: "leaf-outline", label: "Chill", count: 124 },
+  { id: "productive", icon: "laptop-outline", label: "Productive", count: 89 },
+  { id: "romantic", icon: "heart-outline", label: "Romantic", count: 42 },
+  { id: "creative", icon: "color-palette-outline", label: "Creative", count: 67 },
+  { id: "social", icon: "people-outline", label: "Social", count: 58 },
+];
 
 export default function SpotDetailsScreen({ route, navigation }) {
   const { spotId } = route.params;
-
+  const [vibes, setVibes] = useState(SAMPLE_VIBES);
+  const [selectedVibe, setSelectedVibe] = useState(null);  
   const [spot, setSpot] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -127,45 +135,54 @@ export default function SpotDetailsScreen({ route, navigation }) {
           <Carousel
             data={spot.images || []}
             renderItem={({ item }) => (
-              <Image
-                source={{ uri: item }}
-                style={styles.heroImage}
-              />
+              <Image source={{ uri: item }} style={styles.heroImage} />
             )}
             sliderWidth={width}
             itemWidth={width}
-            onSnapToItem={(index) => setActiveIndex(index)}
-            autoplay
+            onSnapToItem={setActiveIndex}
             loop
           />
 
-          {/* Like Button */}
+          {/* Gradient overlay */}
+          <View style={styles.heroOverlay} />
+
+          {/* Title overlay */}
+          <View style={styles.heroText}>
+            <Text style={styles.heroTitle}>{spot.title}</Text>
+            <View style={styles.heroMeta}>
+              <Icon name="location-outline" size={14} color="#eee" />
+              <Text style={styles.heroAddress}>{spot.address}</Text>
+            </View>
+          </View>
+
+          {/* Like */}
           <TouchableOpacity
             style={styles.likeButton}
             onPress={() => setLiked(!liked)}
           >
             <Icon
               name={liked ? "heart" : "heart-outline"}
-              size={28}
+              size={26}
               color={liked ? "#ff5a5f" : "#fff"}
             />
           </TouchableOpacity>
-
-          {/* Pagination Dots */}
-          <View style={styles.pagination}>
-            {(spot.images || []).map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.dot,
-                  activeIndex === i && styles.activeDot,
-                ]}
-              />
-            ))}
-          </View>
         </View>
 
-        {/* ---------- DETAILS ---------- */}
+        <View style={styles.storyCard}>
+          <Text style={styles.storyTitle}>The Vibe</Text>
+
+          <Text style={styles.storyText} numberOfLines={showMore ? 20 : 4}>
+            {spot.description}
+          </Text>
+
+          <TouchableOpacity onPress={() => setShowMore(!showMore)}>
+            <Text style={styles.readMore}>
+              {showMore ? "Show less" : "Read the story"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ---------- DETAILS ----------
         <View style={styles.infoCard}>
           <Text style={styles.title}>{spot.title}</Text>
 
@@ -194,7 +211,7 @@ export default function SpotDetailsScreen({ route, navigation }) {
               {showMore ? "Show Less" : "Read More"}
             </Text>
           </TouchableOpacity>
-        </View>
+        </View> */}
             {/* ---------- TAGS ---------- */}
         {spot.tags && spot.tags.length > 0 && (
           <View style={styles.tagsContainer}>
@@ -241,7 +258,7 @@ export default function SpotDetailsScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
         {/* ---------- REVIEWS ---------- */}
-        <View style={styles.section}>
+        {/* <View style={styles.section}>
           <Text style={styles.sectionTitle}>Reviews</Text>
 
           {(spot.reviews || []).map((review, i) => (
@@ -272,7 +289,50 @@ export default function SpotDetailsScreen({ route, navigation }) {
           <TouchableOpacity style={styles.addReviewBtn}>
             <Text style={{ color: "#000", fontWeight: "700" }}>Add Review</Text>
           </TouchableOpacity>
-        </View>
+        </View> */}
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>How people feel here</Text>
+
+              <View style={styles.vibeGrid}>
+                {vibes.map((vibe) => {
+                  const active = selectedVibe === vibe.id;
+
+                  return (
+                    <TouchableOpacity
+                      key={vibe.id}
+                      style={[
+                        styles.vibeCard,
+                        active && styles.vibeCardActive,
+                      ]}
+                      onPress={() => {
+                        setSelectedVibe(vibe.id);
+                        setVibes((prev) =>
+                          prev.map((v) =>
+                            v.id === vibe.id
+                              ? { ...v, count: v.count + 1 }
+                              : v
+                          )
+                        );
+                      }}
+                    >
+                      <Icon
+                        name={vibe.icon}
+                        size={26}
+                        color={active ? "#fff" : "#333"}
+                      />
+                      <Text style={[styles.vibeLabel, active && { color: "#fff" }]}>
+                        {vibe.label}
+                      </Text>
+                      <Text style={[styles.vibeCount, active && { color: "#fff" }]}>
+                        {vibe.count}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -344,27 +404,47 @@ const styles = StyleSheet.create({
 
   /* HERO */
   hero: {
-    position: "relative",
+    height: 340,
   },
+  
   heroImage: {
     width: "100%",
-    height: 260,
-    borderRadius: 14,
+    height: 340,
   },
-  likeButton: {
+  
+  heroOverlay: {
     position: "absolute",
-    top: 16,
-    right: 16,
+    bottom: 0,
+    width: "100%",
+    height: "100%",
     backgroundColor: "rgba(0,0,0,0.35)",
-    padding: 10,
-    borderRadius: 30,
   },
-  reviewRating: {
-    flexDirection:"row",
-    gap: 5
-    ,
-    alignItems: "center"
+  
+  heroText: {
+    position: "absolute",
+    bottom: 30,
+    left: 16,
+    right: 16,
   },
+  
+  heroTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#fff",
+  },
+  
+  heroMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+    gap: 4,
+  },
+  
+  heroAddress: {
+    color: "#eee",
+    fontSize: 14,
+  },
+  
   /* THUMBNAILS */
   thumbRow: {
     paddingHorizontal: 10,
@@ -389,7 +469,33 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-
+  storyCard: {
+    backgroundColor: "#fff",
+    marginHorizontal: 16,
+    marginTop: -30,
+    padding: 18,
+    borderRadius: 20,
+    elevation: 6,
+  },
+  
+  storyTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  
+  storyText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: "#444",
+  },
+  
+  readMore: {
+    marginTop: 8,
+    color: "#6C63FF",
+    fontWeight: "600",
+  },
+  
   /* INFO */
   infoCard: {
     marginTop: 12,
@@ -471,39 +577,36 @@ const styles = StyleSheet.create({
   dayDetails: { color: "#555", lineHeight: 20 },
 
   /* REVIEWS */
-  reviewCard: {
-    backgroundColor: "#fff",
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 12,
-    elevation: 1,
-  },
-  reviewHeader: {
+  vibeGrid: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 12,
   },
-  userRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  avatar: {
-    width: 40,
-    height: 40,
-    backgroundColor: "#ffeccc",
-    borderRadius: 20,
-    justifyContent: "center",
+  
+  vibeCard: {
+    width: "30%",
+    backgroundColor: "#f4f4f4",
+    borderRadius: 16,
+    paddingVertical: 14,
     alignItems: "center",
+    gap: 6,
   },
-  reviewName: { fontWeight: "700" },
-  reviewDate: { color: "#999", fontSize: 12 },
-  reviewBody: { marginTop: 6, color: "#444" },
-
-  addReviewBtn: {
-    marginTop: 8,
-    backgroundColor: "#ffda32",
-    padding: 12,
-    borderRadius: 10,
-    alignItems: "center",
+  
+  vibeCardActive: {
+    backgroundColor: "#6C63FF",
   },
-
+  
+  vibeLabel: {
+    fontWeight: "600",
+    fontSize: 13,
+  },
+  
+  vibeCount: {
+    fontSize: 12,
+    color: "#777",
+  },
+  
   hero: {
     width: "100%",
     height: 260,
