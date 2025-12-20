@@ -13,6 +13,10 @@ import { getNearbySpots } from '../services/spots';
 import { useLocation } from '../hooks/useLocation';
 import { cleanMapStyle } from "../utils/mapStyle";
 import { Animated, Easing } from "react-native";
+import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useRef, useMemo, useCallback } from "react";
+
 
 export const MapScreen = ({ navigation }) => {
   const { location, loading: locationLoading, error } = useLocation();
@@ -20,6 +24,22 @@ export const MapScreen = ({ navigation }) => {
   const [mapRegion, setMapRegion] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dropdownHeight] = useState(new Animated.Value(0));
+  const [selectedSpot, setSelectedSpot] = useState(null);
+
+  const bottomSheetRef = useRef(null);
+
+  const snapPoints = useMemo(() => ["25%", "45%"], []);
+
+  const openBottomSheet = useCallback((spot) => {
+    setSelectedSpot(spot);
+    bottomSheetRef.current?.snapToIndex(0);
+  }, []);
+
+  const closeBottomSheet = () => {
+    bottomSheetRef.current?.close();
+    setSelectedSpot(null);
+  };
+
 
   const toggleDropdown = () => {
     if (dropdownOpen) {
@@ -123,7 +143,7 @@ export const MapScreen = ({ navigation }) => {
           latitude: spot.lat,
           longitude: spot.lng,
         }}
-        onPress={() => navigation.navigate("SpotDetail", { spotId: spot.id })}
+        onPress={() => openBottomSheet(spot)}
       >
         <View style={{
           alignItems: "center",
@@ -174,30 +194,94 @@ export const MapScreen = ({ navigation }) => {
       </TouchableOpacity>
 
       <View style={styles.infoBar}>
-  <TouchableOpacity onPress={toggleDropdown} style={styles.dropdownHeader}>
-    <Text style={styles.infoText}>
-      {spots.length} {spots.length === 1 ? "spot" : "spots"} nearby
-    </Text>
-    <Ionicons
-      name={dropdownOpen ? "chevron-up" : "chevron-down"}
-      size={20}
-      color="#333"
-    />
-  </TouchableOpacity>
+        <TouchableOpacity onPress={toggleDropdown} style={styles.dropdownHeader}>
+          <Text style={styles.infoText}>
+            {spots.length} {spots.length === 1 ? "spot" : "spots"} nearby
+          </Text>
+          <Ionicons
+            name={dropdownOpen ? "chevron-up" : "chevron-down"}
+            size={20}
+            color="#333"
+          />
+        </TouchableOpacity>
 
-  <Animated.View style={[styles.dropdown, { height: dropdownHeight }]}>
-    {spots.map((spot) => (
-      <TouchableOpacity
-        key={spot.id}
-        style={styles.dropdownItem}
-        onPress={() => centerOnSpot(spot)}
+        <Animated.View style={[styles.dropdown, { height: dropdownHeight }]}>
+          {spots.map((spot) => (
+            <TouchableOpacity
+              key={spot.id}
+              style={styles.dropdownItem}
+              onPress={() => centerOnSpot(spot)}
+            >
+              <Text style={styles.dropdownTitle}>{spot.title}</Text>
+              <Text style={styles.dropdownAddress}>{spot.address}</Text>
+            </TouchableOpacity>
+          ))}
+        </Animated.View>
+      </View>
+      <BottomSheet
+        ref={bottomSheetRef}
+        index={-1}
+        snapPoints={snapPoints}
+        enablePanDownToClose
+        backgroundStyle={styles.sheetBackground}
+        handleIndicatorStyle={styles.sheetHandle}
+        onClose={closeBottomSheet}
       >
-        <Text style={styles.dropdownTitle}>{spot.title}</Text>
-        <Text style={styles.dropdownAddress}>{spot.address}</Text>
-      </TouchableOpacity>
-    ))}
-  </Animated.View>
-</View>
+        {selectedSpot && (
+          <BottomSheetView style={styles.sheetContent}>
+            
+            {/* Thumbnail */}
+            <Image
+              source={{ uri: selectedSpot.thumbnail }}
+              style={styles.sheetImage}
+            />
+
+            {/* Title + Category */}
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>{selectedSpot.title}</Text>
+
+              <View style={styles.categoryBadge}>
+                <Text style={styles.categoryText}>
+                  {selectedSpot.category}
+                </Text>
+              </View>
+            </View>
+
+            {/* Address */}
+            <View style={styles.addressRow}>
+              <Ionicons name="location-outline" size={16} color="#666" />
+              <Text style={styles.sheetAddress}>
+                {selectedSpot.address}
+              </Text>
+            </View>
+
+            {/* Tags */}
+            <View style={styles.tagsContainer}>
+              {selectedSpot.tags?.slice(0, 4).map((tag) => (
+                <View key={tag} style={styles.tagChip}>
+                  <Text style={styles.tagText}>#{tag}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* CTA */}
+            <TouchableOpacity
+              style={styles.detailsButton}
+              onPress={() => {
+                closeBottomSheet();
+                navigation.navigate("SpotDetail", {
+                  spotId: selectedSpot.id,
+                });
+              }}
+            >
+              <Text style={styles.detailsButtonText}>
+                View details
+              </Text>
+            </TouchableOpacity>
+
+          </BottomSheetView>
+        )}
+      </BottomSheet>
 
     </View>
   );
@@ -265,6 +349,86 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#666",
     marginTop: 2,
+  },
+  sheetBackground: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  sheetHandle: {
+    backgroundColor: "#ddd",
+    width: 40,
+  },
+  sheetContent: {
+    padding: 16,
+  },
+  sheetImage: {
+    width: "100%",
+    height: 160,
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    flex: 1,
+    marginRight: 8,
+  },
+  categoryBadge: {
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#4F46E5",
+    textTransform: "capitalize",
+  },
+  addressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  sheetAddress: {
+    fontSize: 13,
+    color: "#666",
+    marginLeft: 4,
+  },
+  tagsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 12,
+  },
+  tagChip: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  tagText: {
+    fontSize: 12,
+    color: "#444",
+  },
+  detailsButton: {
+    marginTop: 12,
+    backgroundColor: "#000",
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: "center",
+  },
+  detailsButtonText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
   },
   
 });
