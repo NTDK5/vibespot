@@ -1,6 +1,6 @@
 import { createContext, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { loginUser } from "../services/auth";
+import { loginUser } from "../services/auth.service";
 
 export const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {

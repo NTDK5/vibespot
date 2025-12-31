@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
-import { getNearbySpots } from '../services/spots';
+import { getNearbySpots } from '../services/spots.service';
 import { useLocation } from '../hooks/useLocation';
 import { cleanMapStyle } from "../utils/mapStyle";
 import { Animated, Easing } from "react-native";

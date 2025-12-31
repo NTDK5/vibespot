@@ -10,7 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../components/Button';
 import { useAuth } from '../hooks/useAuth';
-import { signOutUser } from '../services/auth';
+import { signOutUser } from '../services/auth.service';
 
 /**
  * Profile Screen
