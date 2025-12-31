@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { getAllSpots, getSpotsByCategory, searchSpots, getNearbySpots } from '../services/spots';
+import { getAllSpots, getSpotsByCategory, searchSpots, getNearbySpots } from '../services/spots.service';
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocation } from "../hooks/useLocation";
 

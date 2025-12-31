@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker } from 'react-native-maps';
 import { Button } from '../components/Button';
 import { ImageUploader } from '../components/ImageUploader';
-import { addSpot } from '../services/spots';
+import { addSpot } from '../services/spots.service';
 import { uploadSpotImages } from '../services/upload';
 import { useLocation } from '../hooks/useLocation';
 import { CATEGORIES, PRICE_RANGES } from '../utils/constants';

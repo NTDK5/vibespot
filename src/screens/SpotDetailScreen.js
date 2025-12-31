@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -11,30 +11,46 @@ import {
 } from "react-native";
 import Carousel from "react-native-snap-carousel";
 import Icon from "react-native-vector-icons/Ionicons";
+import FontAwesome from "react-native-vector-icons/FontAwesome5";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getSpotById } from '../services/spots';
+import { getSpotById } from '../services/spots.service';
 import { Platform } from "react-native";
 import { Linking } from "react-native";
+import { useVibes } from "../hooks/useVibes";
+import { useSpotVibes } from "../hooks/useSpotVibes";
+import { useMySpotVibes } from "../hooks/useMySpotVibes";
+import { useUpdateSpotVibes } from "../hooks/useUpdateSpotVibes";
+import { Modal } from "react-native";
+
 
 const { width } = Dimensions.get("window");
-const SAMPLE_VIBES = [
-  { id: "chill", icon: "leaf-outline", label: "Chill", count: 124 },
-  { id: "productive", icon: "laptop-outline", label: "Productive", count: 89 },
-  { id: "romantic", icon: "heart-outline", label: "Romantic", count: 42 },
-  { id: "creative", icon: "color-palette-outline", label: "Creative", count: 67 },
-  { id: "social", icon: "people-outline", label: "Social", count: 58 },
-];
+
+const lightColor = (hex, opacity = 0.15) => {
+  let c = hex.replace("#", "");
+  if (c.length === 3) c = c.split("").map((x) => x + x).join("");
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${opacity})`;
+};
 
 export default function SpotDetailsScreen({ route, navigation }) {
-  const { spotId } = route.params;
-  const [vibes, setVibes] = useState(SAMPLE_VIBES);
-  const [selectedVibe, setSelectedVibe] = useState(null);  
+  const carouselRef = useRef(null);
+
+  const { spotId } = route.params; 
   const [spot, setSpot] = useState(null);
   const [loading, setLoading] = useState(true);
+  // --- VIBES (REAL DATA) ---
+  const { data: allVibes = [] } = useVibes();
+  const { data: spotVibes = [] } = useSpotVibes(spotId);
+  const { data: myVibes = [] } = useMySpotVibes(spotId);
+  const updateVibes = useUpdateSpotVibes(spotId);
+  const [vibeModalVisible, setVibeModalVisible] = useState(false);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [liked, setLiked] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [selectedVibes, setSelectedVibes] = useState(myVibes || []);
 
   const openMap = () => {
     if (!spot?.lat || !spot?.lng) return;
@@ -105,9 +121,11 @@ export default function SpotDetailsScreen({ route, navigation }) {
       </View>
     );
   }
-
+  const topVibe = spotVibes.length > 0
+  ? spotVibes.reduce((prev, current) => (current.count > prev.count ? current : prev))
+  : null;
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container,{backgroundColor: topVibe? lightColor(topVibe.color, 0.12) : "#f7f7f7"}]}>
       {/* ---------- TOP HEADER ---------- */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
@@ -119,8 +137,17 @@ export default function SpotDetailsScreen({ route, navigation }) {
             {spot.title}
           </Text>
           <View style={styles.headerRatingRow}>
-            <Text style={styles.headerRating}>{spot.rating ? spot.rating : '4.5'}</Text>
-            <Icon name="star" size={16} color="#f5b84d" />
+            {/* ---------- TOP VIBE ---------- */}
+            {topVibe && (
+              <View style={[styles.topVibe,{backgroundColor: topVibe.color} ]}>
+                <FontAwesome
+                  name={topVibe.icon}
+                  size={16}
+                  color="#fff"
+                />
+                <Text style={styles.topVibeText}>{topVibe.name}</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -132,16 +159,18 @@ export default function SpotDetailsScreen({ route, navigation }) {
       <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 90 }}>
         {/* ---------- HERO / CAROUSEL ---------- */}
         <View style={styles.hero}>
-          <Carousel
-            data={spot.images || []}
-            renderItem={({ item }) => (
-              <Image source={{ uri: item }} style={styles.heroImage} />
-            )}
-            sliderWidth={width}
-            itemWidth={width}
-            onSnapToItem={setActiveIndex}
-            loop
-          />
+        <Carousel
+          ref={carouselRef}
+          data={spot.images || []}
+          renderItem={({ item }) => (
+            <Image source={{ uri: item }} style={styles.heroImage} />
+          )}
+          sliderWidth={width}
+          itemWidth={width}
+          firstItem={activeIndex}
+          onSnapToItem={(index) => setActiveIndex(index)}
+        />
+
 
           {/* Gradient overlay */}
           <View style={styles.heroOverlay} />
@@ -168,6 +197,8 @@ export default function SpotDetailsScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
 
+
+
         <View style={styles.storyCard}>
           <Text style={styles.storyTitle}>The Vibe</Text>
 
@@ -176,52 +207,78 @@ export default function SpotDetailsScreen({ route, navigation }) {
           </Text>
 
           <TouchableOpacity onPress={() => setShowMore(!showMore)}>
-            <Text style={styles.readMore}>
+            <Text style={[styles.readMore,{color: topVibe ?topVibe.color : "#6C63FF" }]}>
               {showMore ? "Show less" : "Read the story"}
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* ---------- DETAILS ----------
-        <View style={styles.infoCard}>
-          <Text style={styles.title}>{spot.title}</Text>
 
-          <View style={styles.row}>
-            <Icon name="location" size={16} color="#777" />
-            <Text style={styles.location}>{spot.address}</Text>
-          </View>
-
-          <View style={[styles.row, { marginTop: 6 }]}>
-            <Icon name="star" size={18} color="#f5b84d" />
-            <Text style={styles.ratingText}>
-              {spot.rating} ({spot.totalReviews ? spot.totalReviews: "10" }  reviews)
-            </Text>
-          </View>
-
-          <Text style={styles.shortDesc}>{spot.description}</Text>
-
-          <Text style={styles.longDesc} numberOfLines={showMore ? 50 : 3}>
-            {spot.longDescription}
-          </Text>
-
-          <TouchableOpacity
-            onPress={() => setShowMore(!showMore)}
+        {/* ---------- IMAGE GALLERY THUMBNAILS ---------- */}
+        {spot.images?.length > 1 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.thumbRow}
           >
-            <Text style={styles.toggleText}>
-              {showMore ? "Show Less" : "Read More"}
-            </Text>
-          </TouchableOpacity>
-        </View> */}
-            {/* ---------- TAGS ---------- */}
-        {spot.tags && spot.tags.length > 0 && (
-          <View style={styles.tagsContainer}>
-            {spot.tags.map((tag, i) => (
-              <View key={i} style={styles.tagChip}>
-                <Text style={styles.tagText}>#{tag}</Text>
-              </View>
+            {spot.images.map((img, index) => (
+              <TouchableOpacity
+              key={index}
+              onPress={() => {
+                setActiveIndex(index);
+                carouselRef.current?.snapToItem(index);
+              }}
+            >
+                <Image
+                  source={{ uri: img }}
+                  style={[
+                    styles.thumb,
+                    activeIndex === index && styles.thumbActive,
+                  ]}
+                />
+              </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
         )}
+
+        <View style={styles.quickInfoContainer}>
+          <View style={styles.quickInfo}>
+            <View style={styles.infoItem}>
+              <Icon name="grid-outline" size={18} color="#ff9900" />
+              <Text style={styles.infoLabel}>Category</Text>
+              <Text style={styles.infoValue}>
+                {spot.category?.toUpperCase()}
+              </Text>
+            </View>
+
+            <View style={styles.infoItem}>
+              <Icon name="time-outline" size={18} color="#ff9900" />
+              <Text style={styles.infoLabel}>Best Time</Text>
+              <Text style={styles.infoValue}>{spot.bestTime}</Text>
+            </View>
+
+            <View style={styles.infoItem}>
+              <Icon name="pricetag-outline" size={18} color="#ff9900" />
+              <Text style={styles.infoLabel}>Price</Text>
+              <Text style={styles.infoValue}>
+                {spot.priceRange?.toUpperCase()}
+              </Text>
+            </View>
+          </View>
+          <Text style={{textAlign: "center", paddingTop: 16, fontSize:18, fontWeight:"bold"}}>Tags</Text>
+          {/* ---------- TAGS ---------- */}
+          {spot.tags && spot.tags.length > 0 && (
+            <View style={styles.tagsContainer}>
+              {spot.tags.map((tag, i) => (
+                <View key={i} style={[styles.tagChip, {backgroundColor: topVibe ?topVibe.color : "#FFDA32" }]}>
+                  <Text style={styles.tagText}>#{tag}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        
 
 
         
@@ -232,8 +289,8 @@ export default function SpotDetailsScreen({ route, navigation }) {
 
           {(spot.features || []).map((feature, i) => (
             <View key={i} style={styles.featureRow}>
-              <View style={styles.featureIcon}>
-                <Icon name="checkmark" size={18} color="#ff9900" />
+              <View style={[styles.featureIcon,{backgroundColor: topVibe? topVibe.color: "#fff8dd"}]}>
+                <Icon name="checkmark" size={22} color="#fff" />
               </View>
               <Text style={styles.featureText}>{feature}</Text>
             </View>
@@ -241,8 +298,8 @@ export default function SpotDetailsScreen({ route, navigation }) {
         </View>
 
                 {/* ---------- MAP BUTTON ---------- */}
-        <TouchableOpacity style={styles.mapBtn} onPress={openMap}>
-          <Icon name="map-outline" size={20} color="#000" />
+        <TouchableOpacity style={[styles.mapBtn,{backgroundColor: topVibe? topVibe.color: "#ffda32"}]} onPress={openMap}>
+          <Icon name="map-outline" size={20} color="#fff" />
           <Text style={styles.mapBtnText}>View on Map</Text>
         </TouchableOpacity>
 
@@ -257,83 +314,136 @@ export default function SpotDetailsScreen({ route, navigation }) {
           <Text style={styles.actionText}>Save</Text>
         </TouchableOpacity>
       </View>
-        {/* ---------- REVIEWS ---------- */}
-        {/* <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Reviews</Text>
 
-          {(spot.reviews || []).map((review, i) => (
-            <View key={i} style={styles.reviewCard}>
-              <View style={styles.reviewHeader}>
-                <View style={styles.userRow}>
-                  <View style={styles.avatar}>
-                    <Text style={{ fontWeight: "700", color: "#b85a00" }}>
-                      {review.user[0]}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text style={styles.reviewName}>{review.user}</Text>
-                    <Text style={styles.reviewDate}>{review.date}</Text>
-                  </View>
-                </View>
 
-                <View style={styles.reviewRating}>
-                  <Text>{review.rating}</Text>
-                  <Icon name="star" size={14} color="#f5b84d" />
-                </View>
-              </View>
 
-              <Text style={styles.reviewBody}>{review.comment}</Text>
+
+<View style={styles.section}>
+  <View style={styles.vibeHeader}>
+    <Text style={styles.sectionTitle}>How people feel here</Text>
+
+    <TouchableOpacity
+      style={styles.addVibeBtn}
+      onPress={() => setVibeModalVisible(true)}
+    >
+      <Icon name="add-circle-outline" size={18} />
+      <Text style={styles.addVibeText}>Add vibe</Text>
+    </TouchableOpacity>
+  </View>
+
+  {spotVibes.length === 0 ? (
+    <View style={styles.emptyVibes}>
+      <Text style={styles.emptyTitle}>No vibes yet ✨</Text>
+      <Text style={styles.emptySubtitle}>
+        Be the first to share how this place feels
+      </Text>
+
+      <TouchableOpacity
+        style={styles.emptyAction}
+        onPress={() => setVibeModalVisible(true)}
+      >
+        <Text style={styles.emptyActionText}>Add a vibe</Text>
+      </TouchableOpacity>
+    </View>
+  ) : (
+    <View style={styles.vibeGrid}>
+      {spotVibes.map((vibe) => {
+        const iconName = vibe.icon;
+
+        return(
+          <View key={vibe.id} style={[styles.vibeCard, { backgroundColor: vibe.color }]}>
+          <FontAwesome
+                        name={iconName}
+                        size={22}
+                        color={"#fff"}
+                      />
+          <Text style={[styles.vibeLabel, {color: "#fff"}]}>{vibe.name}</Text>
+          <Text style={[styles.vibeCount,{color: "#fff", fontWeight: "bold"}]}>{vibe.count}</Text>
+        </View>
+        )
+      }
+        
+      )}
+    </View>
+  )}
+</View>
+
+        
+
+      </ScrollView>
+
+      <Modal
+        visible={vibeModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setVibeModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add your vibe</Text>
+              <TouchableOpacity onPress={() => setVibeModalVisible(false)}>
+                <Icon name="close" size={22} />
+              </TouchableOpacity>
             </View>
-          ))}
-
-          <TouchableOpacity style={styles.addReviewBtn}>
-            <Text style={{ color: "#000", fontWeight: "700" }}>Add Review</Text>
-          </TouchableOpacity>
-        </View> */}
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>How people feel here</Text>
-
+            <ScrollView
+              style={{ flexGrow: 0 }}
+              contentContainerStyle={{ paddingBottom: 16 }}
+            >
               <View style={styles.vibeGrid}>
-                {vibes.map((vibe) => {
-                  const active = selectedVibe === vibe.id;
+                {allVibes.map((vibe) => {
+                  const active = selectedVibes.includes(vibe.id);
+                  const iconName = vibe.icon.replace(/^Fa/, '').toLowerCase();
+
+                  const toggleVibe = () => {
+                    if (active) {
+                      setSelectedVibes(selectedVibes.filter((id) => id !== vibe.id));
+                    } else if (selectedVibes.length < 3) {
+                      setSelectedVibes([...selectedVibes, vibe.id]);
+                    }
+                  };
 
                   return (
                     <TouchableOpacity
                       key={vibe.id}
-                      style={[
-                        styles.vibeCard,
-                        active && styles.vibeCardActive,
-                      ]}
-                      onPress={() => {
-                        setSelectedVibe(vibe.id);
-                        setVibes((prev) =>
-                          prev.map((v) =>
-                            v.id === vibe.id
-                              ? { ...v, count: v.count + 1 }
-                              : v
-                          )
-                        );
-                      }}
+                      style={[styles.vibeCard, active && { backgroundColor: vibe.color }]}
+                      onPress={toggleVibe}
                     >
-                      <Icon
-                        name={vibe.icon}
-                        size={26}
-                        color={active ? "#fff" : "#333"}
+                      <FontAwesome
+                        name={iconName}
+                        size={22}
+                        color={active ? "#fff" : vibe.color}
                       />
                       <Text style={[styles.vibeLabel, active && { color: "#fff" }]}>
-                        {vibe.label}
-                      </Text>
-                      <Text style={[styles.vibeCount, active && { color: "#fff" }]}>
-                        {vibe.count}
+                        {vibe.name}
                       </Text>
                     </TouchableOpacity>
                   );
                 })}
               </View>
-            </View>
 
-      </ScrollView>
+              <TouchableOpacity
+                style={{
+                  marginTop: 16,
+                  backgroundColor: "#ff9900",
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  alignItems: "center",
+                }}
+                onPress={() => {
+                  updateVibes.mutate(selectedVibes);
+                  setVibeModalVisible(false);
+                }}
+                disabled={selectedVibes.length === 0}
+              >
+                <Text style={{ fontWeight: "700", color: "#fff" }}>
+                  Continue ({selectedVibes.length}/3)
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -387,7 +497,22 @@ const styles = StyleSheet.create({
       fontWeight: "700",
       maxWidth: "70%",
     },
-
+    topVibe: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginLeft: 10,
+      // backgroundColor: "#fff3c4",
+      paddingHorizontal: 15,
+      paddingVertical: 2,
+      borderRadius: 12,
+    },
+    
+    topVibeText: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: "#fff",
+      marginLeft: 4,
+    },    
     headerRatingRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -496,6 +621,38 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   
+  quickInfoContainer:{
+    flexDirection: "column",
+    marginHorizontal: 16,
+    marginTop: 16,
+    backgroundColor: "#fff",
+    padding: 14,
+    borderRadius: 16,
+    elevation: 2,
+  },
+  quickInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginHorizontal: 16,
+  },
+  
+  infoItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  
+  infoLabel: {
+    fontSize: 12,
+    color: "#777",
+    marginTop: 4,
+  },
+  
+  infoValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  
   /* INFO */
   infoCard: {
     marginTop: 12,
@@ -542,7 +699,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 8,
-    backgroundColor: "#fff8dd",
+    // backgroundColor: "#fff8dd",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -650,25 +807,33 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     zIndex: 10,
   },
-  /* TAGS */
-tagsContainer: {
-  padding: 16,
-  flexDirection: "row",
-  flexWrap: "wrap",
-  gap: 8,
-  marginTop: 10,
-},
-tagChip: {
-  backgroundColor: "#fff3c4",
-  paddingHorizontal: 12,
-  paddingVertical: 6,
-  borderRadius: 20,
-},
-tagText: {
-  fontSize: 13,
-  fontWeight: "600",
-  color: "#8a5a00",
-},
+  tagsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    marginHorizontal: 16,
+    marginTop: 12,
+    gap: 8, // spacing between chips
+  },
+  
+  tagChip: {
+    // backgroundColor: "#FFDA32", // bright yellow
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 20, // rounded pill shape
+    elevation: 2, // shadow for Android
+    shadowColor: "#000", // shadow for iOS
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  
+  tagText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#fff", // dark text for contrast
+  },
+  
 
 /* MAP BUTTON */
 mapBtn: {
@@ -681,10 +846,12 @@ mapBtn: {
   backgroundColor: "#ffda32",
   paddingVertical: 12,
   borderRadius: 12,
+  color: "#fff"
 },
 mapBtnText: {
   fontWeight: "700",
   fontSize: 15,
+  color:"#fff"
 },
 
 /* ACTION BUTTONS */
@@ -707,5 +874,75 @@ actionBtn: {
 actionText: {
   fontWeight: "600",
 },
-  
+vibeHeader: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+},
+
+addVibeBtn: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 4,
+},
+
+addVibeText: {
+  fontWeight: "600",
+},
+
+emptyVibes: {
+  alignItems: "center",
+  paddingVertical: 30,
+},
+
+emptyTitle: {
+  fontSize: 16,
+  fontWeight: "700",
+  marginBottom: 4,
+},
+
+emptySubtitle: {
+  fontSize: 14,
+  color: "#666",
+  textAlign: "center",
+},
+
+emptyAction: {
+  marginTop: 12,
+  backgroundColor: "#ffda32",
+  paddingHorizontal: 18,
+  paddingVertical: 8,
+  borderRadius: 20,
+},
+
+emptyActionText: {
+  fontWeight: "700",
+},
+
+modalBackdrop: {
+  flex: 1,
+  backgroundColor: "rgba(0,0,0,0.4)",
+  justifyContent: "flex-end",
+},
+
+modalSheet: {
+  backgroundColor: "#fff",
+  padding: 16,
+  borderTopLeftRadius: 20,
+  borderTopRightRadius: 20,
+  maxHeight: "70%",
+},
+
+modalHeader: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 12,
+},
+
+modalTitle: {
+  fontSize: 18,
+  fontWeight: "700",
+},
+
 });

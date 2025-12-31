@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SpotCard } from '../components/SpotCard';
-import { getAllSpots, searchSpots } from '../services/spots';
+import { getAllSpots, searchSpots } from '../services/spots.service';
 import { CATEGORIES } from '../utils/constants';
 
 /**
