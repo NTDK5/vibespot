@@ -8,151 +8,204 @@ import {
   Platform,
   ScrollView,
   Alert,
-  Image
+  Image,
+  ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../components/Button';
-// import { registerWithEmail, signInWithGoogle } from '../services/auth';
-import { isValidEmail, isValidPassword } from '../utils/helpers';
+import { registerUser } from '../services/auth.service';
+import { useAuth } from '../hooks/useAuth';
+import { isValidEmail } from '../utils/helpers';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-/**
- * Register Screen
- */
 export const RegisterScreen = ({ navigation }) => {
+  const { login } = useAuth();
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const handleRegister = async () => {
-    // if (!displayName || !email || !password || !confirmPassword) {
-    //   Alert.alert('Error', 'Please fill in all fields');
-    //   return;
-    // }
+    // Validation
+    if (!displayName.trim()) {
+      Alert.alert('Error', 'Please enter your name');
+      return;
+    }
 
-    // if (!isValidEmail(email)) {
-    //   Alert.alert('Error', 'Please enter a valid email address');
-    //   return;
-    // }
+    if (!email.trim()) {
+      Alert.alert('Error', 'Please enter your email');
+      return;
+    }
 
-    // if (!isValidPassword(password)) {
-    //   Alert.alert('Error', 'Password must be at least 6 characters');
-    //   return;
-    // }
+    if (!isValidEmail(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
 
-    // if (password !== confirmPassword) {
-    //   Alert.alert('Error', 'Passwords do not match');
-    //   return;
-    // }
+    if (!password) {
+      Alert.alert('Error', 'Please enter a password');
+      return;
+    }
 
-    // setLoading(true);
-    // const { user, error } = await registerWithEmail(email, password, displayName);
-    // setLoading(false);
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return;
+    }
 
-    // if (error) {
-    //   Alert.alert('Registration Failed', error);
-    // } else {
-    //   Alert.alert('Success', 'Account created successfully!');
-    // }
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
 
-    Alert.alert('Register', 'Registration disabled');
-  };
+    setLoading(true);
+    try {
+      const result = await registerUser({
+        name: displayName.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+      });
 
-  const handleGoogleSignUp = async () => {
-    // setLoading(true);
-    // const { user, error } = await signInWithGoogle();
-    // setLoading(false);
-
-    // if (error) {
-    //   Alert.alert('Registration Failed', error);
-    // }
-    Alert.alert('Google Sign Up', 'Google sign up disabled');
+      if (result.user && result.accessToken) {
+        // Update auth context
+        await login(email.trim().toLowerCase(), password);
+        Alert.alert('Success', 'Account created successfully!');
+        navigation.navigate('Home');
+      } else {
+        Alert.alert('Error', result.message || 'Registration failed');
+      }
+    } catch (error) {
+      Alert.alert(
+        'Registration Failed',
+        error.message || 'An error occurred during registration'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.content}>
-        <Image
-        source={require("../../assets/logo.png")}
-        style={styles.logo}
-      />
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join VibeSpot and discover amazing spots</Text>
-
-          <View style={styles.form}>
-            <TextInput
-              style={styles.input}
-              placeholder="Full Name"
-              value={displayName}
-              onChangeText={setDisplayName}
-              autoCapitalize="words"
-            />
-
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-            />
-
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoCapitalize="none"
-            />
-
-            <TextInput
-              style={styles.input}
-              placeholder="Confirm Password"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              secureTextEntry
-              autoCapitalize="none"
-            />
-
-            <Button
-              title="Sign Up"
-              onPress={handleRegister}
-              loading={loading}
-              style={styles.button}
-            />
-
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>OR</Text>
-              <View style={styles.dividerLine} />
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.content}>
+            <View style={styles.logoContainer}>
+              <Ionicons name="location" size={64} color="#6C5CE7" />
             </View>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>
+              Join VibeSpot and discover amazing spots
+            </Text>
 
-            <Button
-              title="Sign up with Google"
-              onPress={handleGoogleSignUp}
-              variant="secondary"
-              loading={loading}
-              style={styles.button}
-            />
+            <View style={styles.form}>
+              <View style={styles.inputContainer}>
+                <Ionicons name="person-outline" size={20} color="#999" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Full Name"
+                  placeholderTextColor="#999"
+                  value={displayName}
+                  onChangeText={setDisplayName}
+                  autoCapitalize="words"
+                  autoComplete="name"
+                />
+              </View>
 
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Already have an account? </Text>
-              <Text
-                style={styles.footerLink}
-                onPress={() => navigation.navigate('Login')}
-              >
-                Sign In
-              </Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="mail-outline" size={20} color="#999" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email"
+                  placeholderTextColor="#999"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  autoCorrect={false}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Ionicons name="lock-closed-outline" size={20} color="#999" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Password"
+                  placeholderTextColor="#999"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoComplete="password-new"
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeIcon}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                    size={20}
+                    color="#999"
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Ionicons name="lock-closed-outline" size={20} color="#999" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Confirm Password"
+                  placeholderTextColor="#999"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry={!showConfirmPassword}
+                  autoCapitalize="none"
+                  autoComplete="password-new"
+                />
+                <TouchableOpacity
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={styles.eyeIcon}
+                >
+                  <Ionicons
+                    name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
+                    size={20}
+                    color="#999"
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <Button
+                title={loading ? 'Creating Account...' : 'Sign Up'}
+                onPress={handleRegister}
+                loading={loading}
+                style={styles.button}
+                disabled={loading}
+              />
+
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>Already have an account? </Text>
+                <Text
+                  style={styles.footerLink}
+                  onPress={() => navigation.navigate('Login')}
+                >
+                  Sign In
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
@@ -160,6 +213,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  keyboardView: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
@@ -169,17 +225,14 @@ const styles = StyleSheet.create({
   content: {
     padding: 24,
   },
-  logo: {
-    width: 150,
-    height: 150,
-    alignSelf: 'center',
-    marginBottom: 10,
-    resizeMode: 'contain',
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
   },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '800',
+    color: '#1A1A1A',
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -192,32 +245,30 @@ const styles = StyleSheet.create({
   form: {
     width: '100%',
   },
-  input: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  button: {
-    marginBottom: 16,
-  },
-  divider: {
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 24,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
-  dividerLine: {
+  inputIcon: {
+    marginLeft: 16,
+  },
+  input: {
     flex: 1,
-    height: 1,
-    backgroundColor: '#e0e0e0',
+    padding: 16,
+    fontSize: 16,
+    color: '#333',
   },
-  dividerText: {
-    marginHorizontal: 16,
-    color: '#999',
-    fontSize: 14,
+  eyeIcon: {
+    padding: 16,
+  },
+  button: {
+    marginTop: 8,
+    marginBottom: 24,
   },
   footer: {
     flexDirection: 'row',
@@ -230,7 +281,7 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '600',
+    color: '#6C5CE7',
+    fontWeight: '700',
   },
 });

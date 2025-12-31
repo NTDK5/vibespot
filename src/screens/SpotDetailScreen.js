@@ -20,7 +20,10 @@ import { useVibes } from "../hooks/useVibes";
 import { useSpotVibes } from "../hooks/useSpotVibes";
 import { useMySpotVibes } from "../hooks/useMySpotVibes";
 import { useUpdateSpotVibes } from "../hooks/useUpdateSpotVibes";
-import { Modal } from "react-native";
+import { Modal, TextInput, Alert } from "react-native";
+import { useAuth } from "../hooks/useAuth";
+import { getSpotComments, createComment, deleteComment } from "../services/comments.service";
+import { saveSpot, unsaveSpot, isSpotSaved } from "../services/savedSpots.service";
 
 
 const { width } = Dimensions.get("window");
@@ -50,7 +53,18 @@ export default function SpotDetailsScreen({ route, navigation }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [liked, setLiked] = useState(false);
   const [showMore, setShowMore] = useState(false);
-  const [selectedVibes, setSelectedVibes] = useState(myVibes || []);
+  const [selectedVibes, setSelectedVibes] = useState([]);
+  const { user } = useAuth();
+  
+  // Comments state
+  const [comments, setComments] = useState([]);
+  const [commentText, setCommentText] = useState("");
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  
+  // Saved spot state
+  const [isSaved, setIsSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const openMap = () => {
     if (!spot?.lat || !spot?.lng) return;
@@ -77,6 +91,109 @@ export default function SpotDetailsScreen({ route, navigation }) {
 
     fetchSpot();
   }, [spotId]);
+
+  useEffect(() => {
+    if (showComments) {
+      loadComments();
+    }
+  }, [showComments, spotId]);
+
+  useEffect(() => {
+    if (user && spotId) {
+      checkIfSaved();
+    }
+  }, [user, spotId]);
+
+  const checkIfSaved = async () => {
+    const saved = await isSpotSaved(spotId);
+    setIsSaved(saved);
+  };
+
+  const handleSaveToggle = async () => {
+    if (!user) {
+      Alert.alert("Login Required", "Please login to save spots");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (isSaved) {
+        const result = await unsaveSpot(spotId);
+        if (!result.error) {
+          setIsSaved(false);
+        } else {
+          Alert.alert("Error", result.error);
+        }
+      } else {
+        const result = await saveSpot(spotId);
+        if (!result.error) {
+          setIsSaved(true);
+        } else {
+          Alert.alert("Error", result.error);
+        }
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to update saved status");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Reset selectedVibes to user's existing vibes when modal opens
+  useEffect(() => {
+    if (vibeModalVisible) {
+      // Always reset to user's existing vibes when modal opens
+      const existingVibes = Array.isArray(myVibes) ? myVibes : [];
+      setSelectedVibes([...existingVibes]);
+    }
+  }, [vibeModalVisible, myVibes]);
+
+  const loadComments = async () => {
+    setLoadingComments(true);
+    const result = await getSpotComments(spotId);
+    if (!result.error) {
+      setComments(result.comments || []);
+    }
+    setLoadingComments(false);
+  };
+
+  const handleAddComment = async () => {
+    if (!commentText.trim()) return;
+    if (!user?.id) {
+      Alert.alert("Login Required", "Please login to add a comment");
+      return;
+    }
+
+    const result = await createComment(spotId, commentText, user.id);
+    if (!result.error) {
+      setCommentText("");
+      loadComments();
+    } else {
+      Alert.alert("Error", result.error);
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    Alert.alert(
+      "Delete Comment",
+      "Are you sure you want to delete this comment?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            const result = await deleteComment(spotId, commentId);
+            if (!result.error) {
+              loadComments();
+            } else {
+              Alert.alert("Error", result.error);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   if (loading) {
     return (
@@ -140,7 +257,7 @@ export default function SpotDetailsScreen({ route, navigation }) {
             {/* ---------- TOP VIBE ---------- */}
             {topVibe && (
               <View style={[styles.topVibe,{backgroundColor: topVibe.color} ]}>
-                <FontAwesome
+                <Icon
                   name={topVibe.icon}
                   size={16}
                   color="#fff"
@@ -289,7 +406,7 @@ export default function SpotDetailsScreen({ route, navigation }) {
 
           {(spot.features || []).map((feature, i) => (
             <View key={i} style={styles.featureRow}>
-              <View style={[styles.featureIcon,{backgroundColor: topVibe? topVibe.color: "#fff8dd"}]}>
+              <View style={[styles.featureIcon,{backgroundColor: topVibe? topVibe.color: "#ffda32"}]}>
                 <Icon name="checkmark" size={22} color="#fff" />
               </View>
               <Text style={styles.featureText}>{feature}</Text>
@@ -309,9 +426,19 @@ export default function SpotDetailsScreen({ route, navigation }) {
           <Text style={styles.actionText}>Directions</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtn}>
-          <Icon name="bookmark-outline" size={18} color="#000" />
-          <Text style={styles.actionText}>Save</Text>
+        <TouchableOpacity 
+          style={styles.actionBtn}
+          onPress={handleSaveToggle}
+          disabled={saving}
+        >
+          <Icon 
+            name={isSaved ? "bookmark" : "bookmark-outline"} 
+            size={18} 
+            color={isSaved ? "#ff9900" : "#000"} 
+          />
+          <Text style={[styles.actionText, isSaved && { color: "#ff9900" }]}>
+            {isSaved ? "Saved" : "Save"}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -352,11 +479,11 @@ export default function SpotDetailsScreen({ route, navigation }) {
 
         return(
           <View key={vibe.id} style={[styles.vibeCard, { backgroundColor: vibe.color }]}>
-          <FontAwesome
-                        name={iconName}
-                        size={22}
-                        color={"#fff"}
-                      />
+          <Icon
+            name={iconName}
+            size={22}
+            color={"#fff"}
+          />
           <Text style={[styles.vibeLabel, {color: "#fff"}]}>{vibe.name}</Text>
           <Text style={[styles.vibeCount,{color: "#fff", fontWeight: "bold"}]}>{vibe.count}</Text>
         </View>
@@ -367,6 +494,97 @@ export default function SpotDetailsScreen({ route, navigation }) {
     </View>
   )}
 </View>
+
+        {/* ---------- COMMENTS SECTION ---------- */}
+        <View style={styles.section}>
+          <View style={styles.commentHeader}>
+            <Text style={styles.sectionTitle}>Comments ({comments.length})</Text>
+            <TouchableOpacity onPress={() => setShowComments(!showComments)}>
+              <Icon 
+                name={showComments ? "chevron-up-outline" : "chevron-down-outline"} 
+                size={20} 
+                color="#666" 
+              />
+            </TouchableOpacity>
+          </View>
+
+          {showComments && (
+            <>
+              {/* Add Comment Input */}
+              {user && (
+                <View style={styles.commentInputContainer}>
+                  <TextInput
+                    style={styles.commentInput}
+                    placeholder="Write a comment..."
+                    placeholderTextColor="#999"
+                    value={commentText}
+                    onChangeText={setCommentText}
+                    multiline
+                    maxLength={500}
+                  />
+                  <TouchableOpacity
+                    style={[
+                      styles.commentSubmitBtn,
+                      !commentText.trim() && styles.commentSubmitBtnDisabled
+                    ]}
+                    onPress={handleAddComment}
+                    disabled={!commentText.trim()}
+                  >
+                    <Icon name="send" size={18} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {loadingComments ? (
+                <ActivityIndicator size="small" color="#ff9900" style={{ marginVertical: 20 }} />
+              ) : comments.length === 0 ? (
+                <View style={styles.emptyComments}>
+                  <Text style={styles.emptyCommentsText}>No comments yet. Be the first to comment!</Text>
+                </View>
+              ) : (
+                <View style={styles.commentsList}>
+                  {comments.map((comment) => (
+                    <View key={comment.id} style={styles.commentCard}>
+                      <View style={styles.commentHeaderRow}>
+                        <View style={styles.commentUserInfo}>
+                          {comment.user?.profileImage ? (
+                            <Image
+                              source={{ uri: comment.user.profileImage }}
+                              style={styles.commentAvatar}
+                            />
+                          ) : (
+                            <View style={[styles.commentAvatar, styles.commentAvatarPlaceholder]}>
+                              <Text style={styles.commentAvatarText}>
+                                {comment.user?.name?.charAt(0)?.toUpperCase() || "U"}
+                              </Text>
+                            </View>
+                          )}
+                          <View>
+                            <Text style={styles.commentUserName}>
+                              {comment.user?.name || "Anonymous"}
+                            </Text>
+                            <Text style={styles.commentDate}>
+                              {new Date(comment.createdAt).toLocaleDateString()}
+                            </Text>
+                          </View>
+                        </View>
+                        {user?.id === comment.userId && (
+                          <TouchableOpacity
+                            onPress={() => handleDeleteComment(comment.id)}
+                            style={styles.commentDeleteBtn}
+                          >
+                            <Icon name="trash-outline" size={18} color="#ff4444" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      <Text style={styles.commentText}>{comment.text}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+        </View>
 
         
 
@@ -393,6 +611,7 @@ export default function SpotDetailsScreen({ route, navigation }) {
               <View style={styles.vibeGrid}>
                 {allVibes.map((vibe) => {
                   const active = selectedVibes.includes(vibe.id);
+                  const isExistingVibe = myVibes && myVibes.includes(vibe.id);
                   const iconName = vibe.icon.replace(/^Fa/, '').toLowerCase();
 
                   const toggleVibe = () => {
@@ -406,17 +625,47 @@ export default function SpotDetailsScreen({ route, navigation }) {
                   return (
                     <TouchableOpacity
                       key={vibe.id}
-                      style={[styles.vibeCard, active && { backgroundColor: vibe.color }]}
+                      style={[
+                        styles.vibeCard,
+                        active && { backgroundColor: vibe.color },
+                        isExistingVibe && styles.existingVibeCard,
+                        isExistingVibe && !active && styles.existingVibeCardUnselected,
+                      ]}
                       onPress={toggleVibe}
+                      activeOpacity={0.7}
                     >
-                      <FontAwesome
-                        name={iconName}
-                        size={22}
-                        color={active ? "#fff" : vibe.color}
-                      />
-                      <Text style={[styles.vibeLabel, active && { color: "#fff" }]}>
-                        {vibe.name}
-                      </Text>
+                      <View style={styles.vibeCardContent}>
+                        <Icon
+                          name={iconName}
+                          size={22}
+                          color={active ? "#fff" : vibe.color}
+                        />
+                        <Text style={[
+                          styles.vibeLabel,
+                          active && { color: "#fff" },
+                          !active && { color: "#333" }
+                        ]}>
+                          {vibe.name}
+                        </Text>
+                        {isExistingVibe && active && (
+                          <View style={styles.existingBadge}>
+                            <Icon name="checkmark-circle" size={16} color="#fff" />
+                            <Text style={styles.existingBadgeText}>Your vibe</Text>
+                          </View>
+                        )}
+                        {isExistingVibe && !active && (
+                          <View style={styles.existingBadgeUnselected}>
+                            <Icon name="checkmark-circle" size={14} color="#FFD700" />
+                            <Text style={styles.existingBadgeTextUnselected}>Previously added</Text>
+                          </View>
+                        )}
+                      </View>
+                      {isExistingVibe && (
+                        <View style={[
+                          styles.existingIndicator,
+                          !active && styles.existingIndicatorUnselected
+                        ]} />
+                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -748,15 +997,94 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
     gap: 6,
+    position: "relative",
+    overflow: "hidden",
   },
   
   vibeCardActive: {
     backgroundColor: "#6C63FF",
   },
+
+  existingVibeCard: {
+    borderWidth: 2,
+    borderColor: "#FFD700",
+    shadowColor: "#FFD700",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+
+  existingVibeCardUnselected: {
+    borderWidth: 2,
+    borderColor: "#FFD700",
+    borderStyle: "dashed",
+    backgroundColor: "#fff",
+  },
+
+  vibeCardContent: {
+    alignItems: "center",
+    gap: 6,
+    width: "100%",
+  },
   
   vibeLabel: {
     fontWeight: "600",
     fontSize: 13,
+  },
+
+  existingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 215, 0, 0.9)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginTop: 4,
+    gap: 4,
+  },
+
+  existingBadgeText: {
+    color: "#000",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+
+  existingIndicator: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#FFD700",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+
+  existingIndicatorUnselected: {
+    backgroundColor: "#FFD700",
+    borderColor: "#fff",
+    opacity: 0.8,
+  },
+
+  existingBadgeUnselected: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 215, 0, 0.15)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginTop: 4,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: "#FFD700",
+  },
+
+  existingBadgeTextUnselected: {
+    color: "#FFD700",
+    fontSize: 9,
+    fontWeight: "700",
   },
   
   vibeCount: {
@@ -943,6 +1271,121 @@ modalHeader: {
 modalTitle: {
   fontSize: 18,
   fontWeight: "700",
+},
+
+// COMMENTS
+commentHeader: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 12,
+},
+
+commentInputContainer: {
+  flexDirection: "row",
+  alignItems: "flex-end",
+  marginBottom: 16,
+  gap: 8,
+},
+
+commentInput: {
+  flex: 1,
+  backgroundColor: "#f5f5f5",
+  borderRadius: 12,
+  paddingHorizontal: 12,
+  paddingVertical: 10,
+  fontSize: 14,
+  maxHeight: 100,
+  minHeight: 40,
+},
+
+commentSubmitBtn: {
+  backgroundColor: "#ff9900",
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  justifyContent: "center",
+  alignItems: "center",
+},
+
+commentSubmitBtnDisabled: {
+  backgroundColor: "#ccc",
+  opacity: 0.5,
+},
+
+commentsList: {
+  gap: 12,
+},
+
+commentCard: {
+  backgroundColor: "#f9f9f9",
+  borderRadius: 12,
+  padding: 12,
+},
+
+commentHeaderRow: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  marginBottom: 8,
+},
+
+commentUserInfo: {
+  flexDirection: "row",
+  alignItems: "center",
+  flex: 1,
+  gap: 10,
+},
+
+commentAvatar: {
+  width: 36,
+  height: 36,
+  borderRadius: 18,
+},
+
+commentAvatarPlaceholder: {
+  backgroundColor: "#ff9900",
+  justifyContent: "center",
+  alignItems: "center",
+},
+
+commentAvatarText: {
+  color: "#fff",
+  fontWeight: "700",
+  fontSize: 16,
+},
+
+commentUserName: {
+  fontWeight: "700",
+  fontSize: 14,
+  color: "#333",
+},
+
+commentDate: {
+  fontSize: 12,
+  color: "#999",
+  marginTop: 2,
+},
+
+commentDeleteBtn: {
+  padding: 4,
+},
+
+commentText: {
+  fontSize: 14,
+  color: "#444",
+  lineHeight: 20,
+},
+
+emptyComments: {
+  paddingVertical: 20,
+  alignItems: "center",
+},
+
+emptyCommentsText: {
+  color: "#999",
+  fontSize: 14,
+  textAlign: "center",
 },
 
 });
