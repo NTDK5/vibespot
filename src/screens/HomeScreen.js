@@ -20,6 +20,10 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocation } from "../hooks/useLocation";
 import { useAuth } from "../hooks/useAuth";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {SpotCard} from "../components/SpotCard";
+import { NearbySpotCard } from "../components/NearbySpotCard";
+import { RankSpotCard } from "../components/RankSpotCard";
+
 
 const { width } = Dimensions.get("window");
 
@@ -153,153 +157,15 @@ export const HomeScreen = ({ navigation }) => {
   });
 
   const renderSpotCard = ({ item, index }) => (
-    <Animated.View
-      style={{
-        opacity: scrollY.interpolate({
-          inputRange: [0, 100, 200],
-          outputRange: [1, 1, 0.8],
-          extrapolate: 'clamp',
-        }),
-      }}
-    >
-      <TouchableOpacity
-        activeOpacity={0.9}
-        style={styles.spotCard}
-        onPress={() => navigation.navigate("SpotDetail", { spotId: item.id })}
-      >
-        <Image
-          source={{ uri: item.images?.[0] || item.thumbnail }}
-          style={styles.spotImage}
-          resizeMode="cover"
-        />
-        <LinearGradient
-          colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.9)"]}
-          style={styles.gradient}
-        />
-        
-        <TouchableOpacity style={styles.likeButton}>
-          <Ionicons name="heart-outline" size={20} color="#fff" />
-        </TouchableOpacity>
-
-        <View style={styles.categoryPill}>
-          <Text style={styles.categoryText}>{item.category?.replace('_', ' ').toUpperCase()}</Text>
-        </View>
-
-        <View style={styles.content}>
-          <Text numberOfLines={1} style={styles.title}>{item.title}</Text>
-          <View style={styles.locationRow}>
-            <Ionicons name="location" size={12} color="#fff" />
-            <Text numberOfLines={1} style={styles.address}>{item.address}</Text>
-          </View>
-          <View style={styles.footer}>
-            <View style={styles.priceBadge}>
-              <Ionicons name="cash" size={12} color="#fff" />
-              <Text style={styles.price}>{item.priceRange?.toUpperCase()}</Text>
-            </View>
-            {item.ratingAvg > 0 && (
-              <View style={styles.ratingBadge}>
-                <Ionicons name="star" size={12} color="#FFD700" />
-                <Text style={styles.ratingText}>{item.ratingAvg.toFixed(1)}</Text>
-              </View>
-            )}
-            <View style={styles.imageCount}>
-              <Ionicons name="images" size={12} color="#fff" />
-              <Text style={styles.imageCountText}>{item.images?.length || 0}</Text>
-            </View>
-          </View>
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
+    <SpotCard spot={item} onPress={() => navigation.navigate("SpotDetail", { spotId: item.id })} />
   );
 
   const renderNearbyCard = ({ item, index }) => (
-    <TouchableOpacity
-      style={styles.nearCard}
-      onPress={() => navigation.navigate("SpotDetail", { spotId: item.id })}
-      activeOpacity={0.8}
-    >
-      <Image
-        source={{ uri: item.images?.[0] || item.thumbnail }}
-        style={styles.nearImage}
-        resizeMode="cover"
-      />
-      <View style={styles.nearInfo}>
-        <View style={styles.nearTop}>
-          <Text style={styles.nearTitle} numberOfLines={1}>{item.title}</Text>
-          <Text style={styles.nearCategory}>{item.category?.replace('_', ' ')}</Text>
-        </View>
-        <View style={styles.nearBadges}>
-          {item.distance && (
-            <View style={styles.distancePill}>
-              <Ionicons name="navigate" size={10} color="#fff" />
-              <Text style={styles.distanceText}>
-                {(item.distance / 1000).toFixed(1)} km
-              </Text>
-            </View>
-          )}
-          <View style={styles.priceBadgeSmall}>
-            <Text style={styles.priceRange}>{item.priceRange?.toUpperCase()}</Text>
-          </View>
-          {item.ratingAvg > 0 && (
-            <View style={styles.nearRatingRow}>
-              <Ionicons name="star" size={12} color="#FFD700" />
-              <Text style={styles.nearRating}>{item.ratingAvg.toFixed(1)}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
+    <NearbySpotCard spot={item} onPress={() => navigation.navigate("SpotDetail", { spotId: item.id })} />
   );
 
-  const renderRankCard = (rankedSpot, index) => {
-    const spot = rankedSpot.spot;
-    if (!spot) return null;
-    
-    const rankColors = ['#FFD700', '#C0C0C0', '#CD7F32', '#6C5CE7', '#A29BFE'];
-    
-    return (
-      <TouchableOpacity
-        key={rankedSpot.spotId}
-        activeOpacity={0.9}
-        style={[styles.rankCard, { width: width * 0.75 }]}
-        onPress={() => navigation.navigate("SpotDetail", { spotId: rankedSpot.spotId })}
-      >
-        <LinearGradient
-          colors={[rankColors[index] || '#6C5CE7', rankColors[index] + '80' || '#6C5CE780']}
-          style={styles.rankGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
-        <View style={styles.rankBadge}>
-          <Ionicons name="trophy" size={20} color="#fff" />
-          <Text style={styles.rankNumber}>#{rankedSpot.rank}</Text>
-        </View>
-        <Image
-          source={{ uri: spot.images?.[0] || spot.thumbnail }}
-          style={styles.rankImage}
-          resizeMode="cover"
-        />
-        <LinearGradient
-          colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.9)"]}
-          style={styles.gradient}
-        />
-        <View style={styles.rankContent}>
-          <Text numberOfLines={1} style={styles.rankTitle}>{spot.title}</Text>
-          <View style={styles.rankMeta}>
-            {rankedSpot.topVibes && rankedSpot.topVibes.length > 0 && (
-              <View style={styles.rankVibes}>
-                <Ionicons name="sparkles" size={14} color="#FFD54F" />
-                <Text style={styles.rankVibeText}>{rankedSpot.topVibes[0]}</Text>
-              </View>
-            )}
-            <View style={styles.rankScore}>
-              <Ionicons name="star" size={14} color="#FFD700" />
-              <Text style={styles.rankScoreText}>{rankedSpot.score.toFixed(1)}</Text>
-            </View>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
+  const renderRankCard = ({rankedSpot, index}) => {
+    return <RankSpotCard spot={rankedSpot} navigation={navigation} key={index}/>
   };
 
   const renderStatsCard = () => (
@@ -450,7 +316,7 @@ export const HomeScreen = ({ navigation }) => {
               contentContainerStyle={styles.ranksRow}
               pagingEnabled
             >
-              {weeklyRanks.map((rankedSpot, index) => renderRankCard(rankedSpot, index))}
+              {weeklyRanks.map((rankedSpot, index) => renderRankCard({rankedSpot, index}))}
             </ScrollView>
           </View>
         )}
@@ -858,73 +724,10 @@ const styles = StyleSheet.create({
     width: "100%",
     zIndex: 5,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#fff",
-    marginBottom: 8,
-  },
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    gap: 6,
-  },
-  address: {
-    color: "#fff",
-    fontSize: 13,
-    flex: 1,
-  },
-  footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  priceBadge: {
-    backgroundColor: "rgba(0,0,0,0.6)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  price: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  ratingBadge: {
-    backgroundColor: "rgba(255, 215, 0, 0.3)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  ratingText: {
-    color: "#FFD700",
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  imageCount: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.6)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    gap: 4,
-  },
-  imageCountText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
-  },
+  
   nearbyList: {
     paddingHorizontal: 20,
-    gap: 12,
+    gap: 4,
   },
   nearCard: {
     width: "100%",

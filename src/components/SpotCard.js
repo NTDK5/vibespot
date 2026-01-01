@@ -1,170 +1,259 @@
-import React from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { truncateText, getStars } from '../utils/helpers';
+import React, { useRef } from "react";
+import {
+  View,
+  Text,
+  Image,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  Dimensions,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useSpotVibes } from "../hooks/useSpotVibes";
+import { LinearGradient } from "expo-linear-gradient";
+import { getStars } from "../utils/helpers";
 
-/**
- * Spot Card Component
- * Displays a spot in list/grid view
- */
+const { width } = Dimensions.get("window");
+const safeHex = (color, fallback = "#111111") => {
+  if (!color) return fallback;
+  if (/^#([0-9A-F]{6})$/i.test(color)) return color;
+  return fallback;
+};
+
+const hexToRgba = (hex, alpha = 1) => {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+};
+
 export const SpotCard = ({ spot, onPress }) => {
-  const stars = getStars(spot.averageRating || 0);
-  const priceRange = spot.priceRange || 0;
-  const priceLabels = ['Free', 'Low', 'Medium', 'High', '$$$$'];
-  const priceMap = {
-    free: 0,
-    low: 1,
-    medium: 2,
-    high: 3,
-    premium: 4
-  };
-  
-  const priceIndex = priceMap[spot.priceRange] ?? 0;
-  
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  const { data: spotVibes = [] } = useSpotVibes(spot.id);
+
+  const topVibe =
+    spotVibes.length > 0
+      ? spotVibes.reduce((a, b) => (b.count > a.count ? b : a))
+      : null;
+
+  const rawVibeColor = topVibe?.color;
+  const vibeColor = safeHex(rawVibeColor, "#1a1a1a");
+
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
-      <Image
-        source={{ uri: spot.images[0] || 'https://res.cloudinary.com/dcnexryxw/image/upload/v1765284458/vibespot/fk2550ztkfhkstmcmhjc.jpg' }}
-        style={styles.image}
-        resizeMode="cover"
-      />
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.title} numberOfLines={1}>
+    <Animated.View
+      style={[
+        styles.wrapper,
+        {
+          shadowColor: vibeColor,
+          opacity: scrollY.interpolate({
+            inputRange: [0, 200],
+            outputRange: [1, 0.9],
+            extrapolate: "clamp",
+          }),
+        },
+      ]}
+    >
+      <TouchableOpacity
+        activeOpacity={0.9}
+        style={[styles.spotCard, { backgroundColor: vibeColor }]}
+        onPress={onPress}
+      >
+        {/* Image */}
+        <Image
+          source={{ uri: spot.images?.[0] || spot.thumbnail }}
+          style={styles.spotImage}
+        />
+
+        {/* Vibe-tinted overlay */}
+        <LinearGradient
+          colors={[
+            "rgba(0,0,0,0)",
+            hexToRgba(vibeColor, 0.45),
+            "rgba(0,0,0,0.95)",
+          ]}
+          style={styles.gradient}
+        />
+
+
+        {/* Like */}
+        <TouchableOpacity style={styles.likeButton}>
+          <Ionicons name="heart-outline" size={20} color="#fff" />
+        </TouchableOpacity>
+
+        {/* Category */}
+        <View
+        style={[
+          styles.categoryPill,
+          { backgroundColor: hexToRgba(vibeColor, 0.85) },
+        ]}
+        >
+          <Text style={styles.categoryText}>
+            {spot.category?.replace("_", " ").toUpperCase()}
+          </Text>
+        </View>
+
+        {/* Content */}
+        <View style={styles.content}>
+          <Text numberOfLines={1} style={styles.title}>
             {spot.title}
           </Text>
-          <View style={styles.priceBadge}>
-          <Text style={styles.priceText}>
-  {priceLabels[priceIndex]}
-</Text>
 
+          <View style={styles.locationRow}>
+            <Ionicons name="location" size={13} color="#fff" />
+            <Text numberOfLines={1} style={styles.address}>
+              {spot.address}
+            </Text>
           </View>
-        </View>
-        
-        <Text style={styles.category}>{spot.category}</Text>
-        
-        <View style={styles.ratingContainer}>
-          <View style={styles.stars}>
-            {[...Array(stars.full)].map((_, i) => (
-              <Ionicons key={i} name="star" size={14} color="#FFD700" />
-            ))}
-            {stars.half > 0 && (
-              <Ionicons name="star-half" size={14} color="#FFD700" />
-            )}
-            {[...Array(stars.empty)].map((_, i) => (
-              <Ionicons key={i} name="star-outline" size={14} color="#FFD700" />
-            ))}
-          </View>
-          <Text style={styles.ratingText}>
-            {spot.averageRating?.toFixed(1) || '0.0'} ({spot.reviewCount || 0})
-          </Text>
-        </View>
 
-        {spot.description && (
-          <Text style={styles.description} numberOfLines={2}>
-            {truncateText(spot.description, 80)}
-          </Text>
-        )}
+          {/* Footer */}
+          <View style={styles.footer}>
+            <View
+              style={[
+                styles.glassBadge,
+                {borderColor: hexToRgba(vibeColor, 0.6),},
+              ]}
+            >
+              <Ionicons name="cash" size={12} color="#fff" />
+              <Text style={styles.badgeText}>
+                {spot.priceRange?.toUpperCase()}
+              </Text>
+            </View>
 
-        {spot.tags && spot.tags.length > 0 && (
-          <View style={styles.tagsContainer}>
-            {spot.tags.slice(0, 3).map((tag, index) => (
-              <View key={index} style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
+            {spot.ratingAvg > 0 && (
+              <View style={styles.ratingBadge}>
+                <Ionicons name="star" size={12} color="#FFD700" />
+                <Text style={styles.ratingText}>
+                  {spot.ratingAvg.toFixed(1)}
+                </Text>
               </View>
-            ))}
+            )}
+
+            <View style={styles.glassBadge}>
+              <Ionicons name="images" size={12} color="#fff" />
+              <Text style={styles.badgeText}>
+                {spot.images?.length || 0}
+              </Text>
+            </View>
           </View>
-        )}
-      </View>
-    </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
 
+
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  wrapper: {
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 10,
   },
-  image: {
-    width: '100%',
-    height: 200,
-    backgroundColor: '#f0f0f0',
+
+  spotCard: {
+    width: width * 0.6,
+    height: 280,
+    borderRadius: 28,
+    overflow: "hidden",
   },
+
+  spotImage: {
+    ...StyleSheet.absoluteFillObject,
+  },
+
+  gradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+
+  likeButton: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    padding: 10,
+    borderRadius: 18,
+  },
+
+  categoryPill: {
+    position: "absolute",
+    top: 16,
+    left: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+
+  categoryText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+  },
+
   content: {
-    padding: 12,
+    position: "absolute",
+    bottom: 0,
+    padding: 16,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
+
   title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#fff",
+    marginBottom: 6,
+  },
+
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 12,
+  },
+
+  address: {
+    color: "#eee",
+    fontSize: 13,
     flex: 1,
-    marginRight: 8,
   },
-  priceBadge: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
-  priceText: {
-    color: '#fff',
+
+  glassBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+  },
+
+  badgeText: {
+    color: "#fff",
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "700",
   },
-  category: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-    textTransform: 'capitalize',
+
+  ratingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(255,215,0,0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
   },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  stars: {
-    flexDirection: 'row',
-    marginRight: 8,
-  },
+
   ratingText: {
+    color: "#FFD700",
+    fontWeight: "800",
     fontSize: 12,
-    color: '#666',
-  },
-  description: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 4,
-  },
-  tag: {
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginRight: 6,
-    marginBottom: 4,
-  },
-  tagText: {
-    fontSize: 12,
-    color: '#666',
   },
 });
-

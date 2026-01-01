@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SpotCard } from '../components/SpotCard';
 import { getAllSpots, searchSpots } from '../services/spots.service';
 import { CATEGORIES } from '../utils/constants';
+import { NearbySpotCard } from '../components/NearbySpotCard';
 
 /**
  * Explore Screen
@@ -71,7 +72,7 @@ export const ExploreScreen = ({ navigation }) => {
      Render Spot Card
   ----------------------------------- */
   const renderSpot = ({ item }) => (
-    <SpotCard
+    <NearbySpotCard
       spot={item}
       onPress={() =>
         navigation.navigate('SpotDetail', { spotId: item.id })
