@@ -100,7 +100,7 @@ export const NearbySpotCard = ({ spot, onPress }) => {
                 key={tag}
                 style={[
                   styles.tag,
-                  { borderColor: hexToRgba(vibeColor, 0.6) },
+                  { backgroundColor: hexToRgba(vibeColor, 0.9),borderRadius: 14 },
                 ]}
               >
                 <Text style={styles.tagText}>{tag}</Text>
@@ -272,5 +272,31 @@ const styles = StyleSheet.create({
         color: "#e0e0e0",
         flex: 1,
       },
+      bestTime:{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 14,
+      },
+      bestTimeText: {
+        color: "#fff",
+        fontSize: 12,
+        fontWeight: "800",
+      },
+      tag:{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 14,
+      },
+      tagText: {
+        color: "#fff",
+        fontSize: 12,
+        fontWeight: "800",
+      }
   });
   

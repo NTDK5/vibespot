@@ -20,6 +20,9 @@ import SpotDetailsScreen from '../screens/SpotDetailScreen';
 
 import { AddSpotScreen } from '../screens/AddSpotScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { EditSpotScreen } from '../screens/EditSpotScreen';
+import { CollectionsScreen } from '../screens/CollectionsScreen';
+import { CollectionDetailScreen } from '../screens/CollectionDetailScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -48,6 +51,8 @@ const MainTabs = () => {
             iconName = focused ? 'person' : 'person-outline';
           } else if (route.name === 'AddSpot') {
             iconName = focused ? 'add-circle' : 'add-circle-outline';
+          } else if (route.name === 'Collections') {
+            iconName = focused ? 'albums' : 'albums-outline';
           }
 
 
@@ -61,7 +66,11 @@ const MainTabs = () => {
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Explore" component={ExploreScreen} />
       <Tab.Screen name="Map" component={MapScreen} />
-      
+      <Tab.Screen 
+        name="Collections" 
+        component={CollectionsScreen}
+        options={{ tabBarLabel: 'Collections' }}
+      />
       {isSuperAdmin && (
         <Tab.Screen
           name="AddSpot"
@@ -69,7 +78,6 @@ const MainTabs = () => {
           options={{ tabBarLabel: 'Add Spot' }}
         />
       )}
-      
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
@@ -103,6 +111,8 @@ export const AppNavigator = () => {
           <>
             <Stack.Screen name="MainTabs" component={MainTabs} />
             <Stack.Screen name="SpotDetail" component={SpotDetailsScreen} />
+            <Stack.Screen name="EditSpot" component={EditSpotScreen} />
+            <Stack.Screen name="CollectionDetail" component={CollectionDetailScreen} />
           </>
         )} 
 

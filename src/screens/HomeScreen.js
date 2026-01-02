@@ -12,9 +12,11 @@ import {
   Dimensions,
   Animated,
   ActivityIndicator,
+  Alert,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { getAllSpots, getSpotsByCategory, searchSpots, getNearbySpots } from '../services/spots.service';
+import { getAllSpots, searchSpots, getNearbySpots, getSurpriseMeSpot } from '../services/spots.service';
 import { getWeeklySpotRanks } from '../services/weeklyRank.service';
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocation } from "../hooks/useLocation";
@@ -23,20 +25,21 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {SpotCard} from "../components/SpotCard";
 import { NearbySpotCard } from "../components/NearbySpotCard";
 import { RankSpotCard } from "../components/RankSpotCard";
+import { CATEGORIES } from "../utils/constants";
 
 
 const { width } = Dimensions.get("window");
 
-const categories = [
-  { id: "1", name: "Photo Spots", icon: "camera", color: "#FF6B6B" },
-  { id: "2", name: "Sports", icon: "football", color: "#4ECDC4" },
-  { id: "3", name: "Art", icon: "color-palette", color: "#FFE66D" },
-  { id: "4", name: "Workspace", icon: "briefcase", color: "#95E1D3" },
-  { id: "5", name: "Entertainment", icon: "film", color: "#F38181" },
-  { id: "6", name: "Nature", icon: "leaf", color: "#AAE3E2" },
-  { id: "7", name: "Nightlife", icon: "moon", color: "#6C5CE7" },
-  { id: "8", name: "Restaurant", icon: "restaurant", color: "#FF7675" },
-];
+// Map categories with colors for display
+const categories = CATEGORIES.map((cat, index) => {
+  const colors = ["#FF6B6B", "#4ECDC4", "#FFE66D", "#95E1D3", "#F38181", "#AAE3E2", "#6C5CE7", "#FF7675"];
+  return {
+    id: cat.id,
+    name: cat.label,
+    icon: cat.icon || "ellipse",
+    color: colors[index % colors.length],
+  };
+});
 
 export const HomeScreen = ({ navigation }) => {
   const { user } = useAuth();
@@ -51,6 +54,8 @@ export const HomeScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
+  const [searchCategory, setSearchCategory] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
   const [stats, setStats] = useState({
     visitedSpots: 0,
@@ -69,11 +74,11 @@ export const HomeScreen = ({ navigation }) => {
 
   useEffect(() => {
     if (searchQuery.length > 2) {
-      handleSearch(searchQuery);
+      handleSearch(searchQuery, searchCategory);
     } else {
       setSearchResults([]);
     }
-  }, [searchQuery]);
+  }, [searchQuery, searchCategory]);
 
   const loadStats = () => {
     setStats({
@@ -108,9 +113,9 @@ export const HomeScreen = ({ navigation }) => {
   const loadSpots = async () => {
     try {
       const data = selectedCategory
-        ? await getSpotsByCategory(selectedCategory)
+        ? await searchSpots({ category: selectedCategory })
         : await getAllSpots();
-      setSpots(data || []);
+      setSpots(data?.data || data || []);
       loadStats();
     } catch (error) {
       console.error('Error loading spots:', error);
@@ -133,14 +138,20 @@ export const HomeScreen = ({ navigation }) => {
     }
   };
 
-  const handleSearch = async (query) => {
+  const handleSearch = async (query, category = null) => {
+    setIsSearching(true);
     try {
-      const results = await searchSpots({ q: query });
+      const results = await searchSpots({ 
+        q: query,
+        category: category || undefined,
+      });
       if (!results.error) {
-        setSearchResults(results.data || []);
+        setSearchResults(results.data || results || []);
       }
     } catch (error) {
       console.error('Search error:', error);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -233,6 +244,23 @@ export const HomeScreen = ({ navigation }) => {
               </Text>
             </View>
             <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.surpriseMeButton}
+                onPress={async () => {
+                  try {
+                    const spot = await getSurpriseMeSpot();
+                    if (!spot.error && spot.id) {
+                      navigation.navigate("SpotDetail", { spotId: spot.id });
+                    } else {
+                      Alert.alert("Error", spot.error || "Failed to get surprise spot");
+                    }
+                  } catch (error) {
+                    Alert.alert("Error", "Failed to get surprise spot");
+                  }
+                }}
+              >
+                <Ionicons name="sparkles" size={18} color="#fff" />
+              </TouchableOpacity>
               <TouchableOpacity style={styles.iconButton}>
                 <Ionicons name="notifications-outline" size={24} color="#333" />
                 <View style={styles.notificationDot} />
@@ -255,8 +283,13 @@ export const HomeScreen = ({ navigation }) => {
             activeOpacity={0.8}
           >
             <Ionicons name="search" size={20} color="#999" />
-            <Text style={styles.searchPlaceholder}>Search spots, vibes, activities...</Text>
-            <TouchableOpacity style={styles.filterBtn}>
+            <Text style={styles.searchPlaceholder}>
+              {searchQuery || "Search spots, vibes, activities..."}
+            </Text>
+            <TouchableOpacity 
+              style={styles.filterBtn}
+              onPress={() => setShowSearch(true)}
+            >
               <Ionicons name="options" size={20} color="#fff" />
             </TouchableOpacity>
           </TouchableOpacity>
@@ -378,7 +411,7 @@ export const HomeScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
           <FlatList
-            data={spots.slice(0, 10)}
+            data={spots?.slice(0, 10)}
             horizontal
             renderItem={renderSpotCard}
             keyExtractor={(spot) => spot.id}
@@ -413,6 +446,163 @@ export const HomeScreen = ({ navigation }) => {
 
         <View style={{ height: 100 }} />
       </Animated.ScrollView>
+
+      {/* Search Modal */}
+      <Modal
+        visible={showSearch}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => {
+          setShowSearch(false);
+          setSearchQuery("");
+          setSearchResults([]);
+          setSearchCategory(null);
+        }}
+      >
+        <SafeAreaView style={styles.searchModalContainer}>
+          <View style={styles.searchHeader}>
+            <TouchableOpacity
+              onPress={() => {
+                setShowSearch(false);
+                setSearchQuery("");
+                setSearchResults([]);
+                setSearchCategory(null);
+              }}
+              style={styles.searchBackButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#333" />
+            </TouchableOpacity>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search spots, vibes, activities..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoFocus
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => {
+                  setSearchQuery("");
+                  setSearchResults([]);
+                }}
+                style={styles.searchClearButton}
+              >
+                <Ionicons name="close-circle" size={24} color="#999" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Category Filter */}
+          <View style={styles.searchCategoryContainer}>
+            <Text style={styles.searchCategoryTitle}>Filter by Category</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.searchCategoriesRow}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.searchCategoryChip,
+                  !searchCategory && styles.searchCategoryChipActive,
+                ]}
+                onPress={() => setSearchCategory(null)}
+              >
+                <Text
+                  style={[
+                    styles.searchCategoryChipText,
+                    !searchCategory && styles.searchCategoryChipTextActive,
+                  ]}
+                >
+                  All
+                </Text>
+              </TouchableOpacity>
+              {categories.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[
+                    styles.searchCategoryChip,
+                    searchCategory === cat.id && styles.searchCategoryChipActive,
+                  ]}
+                  onPress={() => setSearchCategory(cat.id)}
+                >
+                  <Text
+                    style={[
+                      styles.searchCategoryChipText,
+                      searchCategory === cat.id && styles.searchCategoryChipTextActive,
+                    ]}
+                  >
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Search Results */}
+          <View style={styles.searchResultsContainer}>
+            {isSearching ? (
+              <View style={styles.searchLoadingContainer}>
+                <ActivityIndicator size="large" color="#6C5CE7" />
+                <Text style={styles.searchLoadingText}>Searching...</Text>
+              </View>
+            ) : searchQuery.length > 2 && searchResults.length > 0 ? (
+              <FlatList
+                data={searchResults}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.searchResultItem}
+                    onPress={() => {
+                      setShowSearch(false);
+                      navigation.navigate("SpotDetail", { spotId: item.id });
+                    }}
+                  >
+                    <Image
+                      source={{ uri: item.thumbnail || item.images?.[0] }}
+                      style={styles.searchResultImage}
+                    />
+                    <View style={styles.searchResultInfo}>
+                      <Text style={styles.searchResultTitle}>{item.title}</Text>
+                      <Text style={styles.searchResultCategory}>
+                        {item.category?.replace("_", " ")}
+                      </Text>
+                      <View style={styles.searchResultMeta}>
+                        <View style={styles.searchResultRating}>
+                          <Ionicons name="star" size={14} color="#FFD700" />
+                          <Text style={styles.searchResultRatingText}>
+                            {item.ratingAvg?.toFixed(1) || "0.0"}
+                          </Text>
+                        </View>
+                        <Text style={styles.searchResultPrice}>
+                          {item.priceRange?.toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                )}
+                contentContainerStyle={styles.searchResultsList}
+              />
+            ) : searchQuery.length > 2 && !isSearching ? (
+              <View style={styles.searchEmptyContainer}>
+                <Ionicons name="search-outline" size={64} color="#ccc" />
+                <Text style={styles.searchEmptyText}>No results found</Text>
+                <Text style={styles.searchEmptySubtext}>
+                  Try a different search term
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.searchEmptyContainer}>
+                <Ionicons name="search-outline" size={64} color="#ccc" />
+                <Text style={styles.searchEmptyText}>Start typing to search</Text>
+                <Text style={styles.searchEmptySubtext}>
+                  Search for spots, categories, or activities
+                </Text>
+              </View>
+            )}
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -479,6 +669,19 @@ const styles = StyleSheet.create({
     backgroundColor: "#6C5CE720",
     justifyContent: "center",
     alignItems: "center",
+  },
+  surpriseMeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#6C5CE7",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#6C5CE7",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   notificationDot: {
     position: "absolute",
@@ -860,5 +1063,154 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#333",
+  },
+  searchModalContainer: {
+    flex: 1,
+    backgroundColor: "#F8F9FA",
+  },
+  searchHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+  },
+  searchBackButton: {
+    padding: 8,
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: "#333",
+    paddingVertical: 8,
+  },
+  searchClearButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  searchCategoryContainer: {
+    backgroundColor: "#fff",
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+  },
+  searchCategoryTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#666",
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  searchCategoriesRow: {
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  searchCategoryChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#f0f0f0",
+    marginRight: 8,
+  },
+  searchCategoryChipActive: {
+    backgroundColor: "#6C5CE7",
+  },
+  searchCategoryChipText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#666",
+  },
+  searchCategoryChipTextActive: {
+    color: "#fff",
+  },
+  searchResultsContainer: {
+    flex: 1,
+  },
+  searchLoadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  searchLoadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: "#666",
+  },
+  searchResultsList: {
+    padding: 16,
+  },
+  searchResultItem: {
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    marginBottom: 12,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  searchResultImage: {
+    width: 100,
+    height: 100,
+  },
+  searchResultInfo: {
+    flex: 1,
+    padding: 12,
+    justifyContent: "space-between",
+  },
+  searchResultTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 4,
+  },
+  searchResultCategory: {
+    fontSize: 13,
+    color: "#666",
+    marginBottom: 8,
+    textTransform: "capitalize",
+  },
+  searchResultMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  searchResultRating: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  searchResultRatingText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#333",
+  },
+  searchResultPrice: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#666",
+  },
+  searchEmptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 60,
+  },
+  searchEmptyText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#666",
+    marginTop: 16,
+  },
+  searchEmptySubtext: {
+    fontSize: 14,
+    color: "#999",
+    marginTop: 8,
   },
 });

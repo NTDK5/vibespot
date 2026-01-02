@@ -17,13 +17,16 @@ import { useAuth } from '../hooks/useAuth';
 import { signOutUser, changePassword } from '../services/auth.service';
 import { getSavedSpots, unsaveSpot } from '../services/savedSpots.service';
 import { getSpotById } from '../services/spots.service';
+import { getVisitedSpots } from '../services/visitedSpots.service';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export const ProfileScreen = ({ navigation }) => {
   const { user, isSuperAdmin } = useAuth();
   const [savedSpots, setSavedSpots] = useState([]);
+  const [visitedSpots, setVisitedSpots] = useState([]);
   const [loadingSpots, setLoadingSpots] = useState(false);
+  const [loadingVisitedSpots, setLoadingVisitedSpots] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -35,6 +38,7 @@ export const ProfileScreen = ({ navigation }) => {
   useEffect(() => {
     if (user) {
       loadSavedSpots();
+      loadVisitedSpots();
     }
   }, [user]);
 
@@ -49,6 +53,20 @@ export const ProfileScreen = ({ navigation }) => {
       console.error('Error loading saved spots:', error);
     } finally {
       setLoadingSpots(false);
+    }
+  };
+
+  const loadVisitedSpots = async () => {
+    setLoadingVisitedSpots(true);
+    try {
+      const spots = await getVisitedSpots();
+      if (!spots.error) {
+        setVisitedSpots(Array.isArray(spots) ? spots : []);
+      }
+    } catch (error) {
+      console.error('Error loading visited spots:', error);
+    } finally {
+      setLoadingVisitedSpots(false);
     }
   };
 
@@ -261,6 +279,62 @@ export const ProfileScreen = ({ navigation }) => {
                   >
                     <Ionicons name="bookmark" size={20} color="#ff9900" />
                   </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Visited Spots */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Visited Spots</Text>
+            <Text style={styles.sectionCount}>({visitedSpots.length})</Text>
+          </View>
+
+          {loadingVisitedSpots ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#6C5CE7" />
+            </View>
+          ) : visitedSpots.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="checkmark-circle-outline" size={48} color="#ccc" />
+              <Text style={styles.emptyText}>No visited spots yet</Text>
+              <Text style={styles.emptySubtext}>Mark spots as visited to see them here</Text>
+            </View>
+          ) : (
+            <View style={styles.spotsList}>
+              {visitedSpots.map((spot) => (
+                <TouchableOpacity
+                  key={spot.id}
+                  style={styles.spotCard}
+                  onPress={() => navigation.navigate('SpotDetail', { spotId: spot.id })}
+                >
+                  <Image
+                    source={{ uri: spot.images?.[0] || spot.thumbnail }}
+                    style={styles.spotImage}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.spotInfo}>
+                    <Text style={styles.spotTitle} numberOfLines={1}>
+                      {spot.title}
+                    </Text>
+                    <Text style={styles.spotCategory} numberOfLines={1}>
+                      {spot.category?.replace('_', ' ')}
+                    </Text>
+                    <View style={styles.spotMeta}>
+                      <View style={styles.spotRating}>
+                        <Ionicons name="star" size={14} color="#FFD700" />
+                        <Text style={styles.spotRatingText}>
+                          {spot.ratingAvg?.toFixed(1) || '0.0'}
+                        </Text>
+                      </View>
+                      <View style={styles.visitedBadge}>
+                        <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
+                        <Text style={styles.visitedBadgeText}>Visited</Text>
+                      </View>
+                    </View>
+                  </View>
                 </TouchableOpacity>
               ))}
             </View>
@@ -564,5 +638,19 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     marginTop: 8,
+  },
+  visitedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  visitedBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#4CAF50',
   },
 });

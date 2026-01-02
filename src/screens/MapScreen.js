@@ -5,18 +5,30 @@ import {
   Text,
   TouchableOpacity,
   Alert,
-  Image
+  Image,
+  ActivityIndicator
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
-import { getNearbySpots } from '../services/spots.service';
+import { getNearbySpots, getSurpriseMeSpot } from '../services/spots.service';
 import { useLocation } from '../hooks/useLocation';
 import { cleanMapStyle } from "../utils/mapStyle";
-import { Animated, Easing } from "react-native";
+import { Animated, Easing, Modal } from "react-native";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useRef, useMemo, useCallback } from "react";
 import { useSpotVibes } from "../hooks/useSpotVibes";
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  withRepeat,
+  withSequence,
+  interpolate,
+  Extrapolate,
+  runOnJS,
+} from "react-native-reanimated";
 
 const safeHex = (color, fallback = "#1f1f1f") => {
   if (!color) return fallback;
@@ -39,6 +51,23 @@ export const MapScreen = ({ navigation }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dropdownHeight] = useState(new Animated.Value(0));
   const [selectedSpot, setSelectedSpot] = useState(null);
+  const [surpriseSpot, setSurpriseSpot] = useState(null);
+  const [revealing, setRevealing] = useState(false);
+  const [showRevealModal, setShowRevealModal] = useState(false);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const revealAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const mapRef = useRef(null);
+  const isRegionChanging = useRef(false);
+  const shouldUpdateRegion = useRef(true);
+
+  // Reanimated values for advanced animations
+  const revealProgress = useSharedValue(0);
+  const sparkleRotation = useSharedValue(0);
+  const particleScale = useSharedValue(0);
+  const modalOpacity = useSharedValue(0);
+  const spotCardScale = useSharedValue(0);
+  const spotCardRotation = useSharedValue(0);
 
   const bottomSheetRef = useRef(null);
 
@@ -93,6 +122,8 @@ export const MapScreen = ({ navigation }) => {
     const lat = Number(spot.lat);
     const lng = Number(spot.lng);
   
+    shouldUpdateRegion.current = true;
+    isRegionChanging.current = true;
     setMapRegion({
       latitude: lat,
       longitude: lng,
@@ -101,11 +132,15 @@ export const MapScreen = ({ navigation }) => {
     });
   
     toggleDropdown(); // closes dropdown
+    setTimeout(() => {
+      isRegionChanging.current = false;
+    }, 500);
   };
   
   
   useEffect(() => {
-    if (location) {
+    if (location && !mapRegion) {
+      shouldUpdateRegion.current = true;
       setMapRegion({
         latitude: location.latitude,
         longitude: location.longitude,
@@ -135,13 +170,219 @@ export const MapScreen = ({ navigation }) => {
       return;
     }
 
+    shouldUpdateRegion.current = true;
+    isRegionChanging.current = true;
     setMapRegion({
       latitude: location.latitude,
       longitude: location.longitude,
       latitudeDelta: 0.01,
       longitudeDelta: 0.01,
     });
+    setTimeout(() => {
+      isRegionChanging.current = false;
+    }, 500);
   };
+
+  const handleSurpriseMe = async () => {
+    try {
+      setRevealing(true);
+      setShowRevealModal(true);
+      
+      // Reset animations for new reveal
+      revealProgress.value = 0;
+      particleScale.value = 0;
+      spotCardScale.value = 0;
+      spotCardRotation.value = -10;
+      pulseAnim.setValue(1);
+      revealAnim.setValue(0);
+      scaleAnim.setValue(0);
+      
+      // Start sparkle rotation animation
+      sparkleRotation.value = withRepeat(
+        withTiming(360, { duration: 2000 }),
+        -1,
+        false
+      );
+
+      // Show modal with fade in
+      modalOpacity.value = withTiming(1, { duration: 300 });
+
+      const spot = await getSurpriseMeSpot();
+      
+      if (spot.error) {
+        Alert.alert("Error", spot.error);
+        setRevealing(false);
+        setShowRevealModal(false);
+        modalOpacity.value = withTiming(0, { duration: 300 });
+        return;
+      }
+
+      setSurpriseSpot(spot);
+
+      // Stage 1: Particle explosion
+      particleScale.value = withSequence(
+        withTiming(1, { duration: 400 }),
+        withTiming(1.5, { duration: 300 }),
+        withTiming(0, { duration: 200 })
+      );
+
+      // Stage 2: Reveal progress
+      revealProgress.value = withTiming(1, { 
+        duration: 1500 
+      }, (finished) => {
+        if (finished) {
+          'worklet';
+          spotCardScale.value = withSpring(1, {
+            damping: 10,
+            stiffness: 100,
+          });
+          spotCardRotation.value = withSpring(0, {
+            damping: 10,
+            stiffness: 100,
+          });
+        }
+      });
+
+      // Center map on surprise spot
+      if (spot.lat && spot.lng) {
+        setTimeout(() => {
+          shouldUpdateRegion.current = true;
+          isRegionChanging.current = true;
+          setMapRegion({
+            latitude: spot.lat,
+            longitude: spot.lng,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          });
+          setTimeout(() => {
+            isRegionChanging.current = false;
+          }, 500);
+        }, 500);
+      }
+
+      // Start pulse animation for map marker
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.5,
+            duration: 800,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 800,
+            easing: Easing.in(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      // Reveal animation for marker
+      Animated.parallel([
+        Animated.timing(revealAnim, {
+          toValue: 1,
+          duration: 1500,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 4,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Close modal and open bottom sheet after reveal (increased from 3s to 6s)
+      setTimeout(() => {
+        modalOpacity.value = withTiming(0, { duration: 400 }, (finished) => {
+          if (finished) {
+            'worklet';
+            runOnJS(setShowRevealModal)(false);
+            runOnJS(openBottomSheet)(spot);
+            runOnJS(setRevealing)(false);
+          }
+        });
+      }, 6000);
+    } catch (error) {
+      console.error("Surprise me error:", error);
+      Alert.alert("Error", "Failed to get surprise spot");
+      setRevealing(false);
+      setShowRevealModal(false);
+      modalOpacity.value = withTiming(0, { duration: 300 });
+    }
+  };
+
+  // Animated styles for reveal modal
+  const modalAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: modalOpacity.value,
+    };
+  });
+
+  const sparkleAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ rotate: `${sparkleRotation.value}deg` }],
+    };
+  });
+
+  const particleAnimatedStyle = useAnimatedStyle(() => {
+    const scale = interpolate(
+      particleScale.value,
+      [0, 1, 1.5],
+      [0, 1, 0],
+      Extrapolate.CLAMP
+    );
+    const opacity = interpolate(
+      particleScale.value,
+      [0, 1, 1.5],
+      [1, 1, 0],
+      Extrapolate.CLAMP
+    );
+    return {
+      transform: [{ scale }],
+      opacity,
+    };
+  });
+
+  const revealCircleStyle = useAnimatedStyle(() => {
+    const scale = interpolate(
+      revealProgress.value,
+      [0, 1],
+      [0, 3],
+      Extrapolate.CLAMP
+    );
+    const opacity = interpolate(
+      revealProgress.value,
+      [0, 0.5, 1],
+      [0.8, 0.4, 0],
+      Extrapolate.CLAMP
+    );
+    return {
+      transform: [{ scale }],
+      opacity,
+    };
+  });
+
+  const spotCardAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { scale: spotCardScale.value },
+        { rotate: `${spotCardRotation.value}deg` },
+      ],
+      opacity: spotCardScale.value,
+    };
+  });
+
+  const handleRegionChangeComplete = useCallback((region) => {
+    // Only update state if we're not in the middle of a programmatic region change
+    // This prevents the map from vibrating due to constant re-renders
+    if (!isRegionChanging.current && shouldUpdateRegion.current) {
+      shouldUpdateRegion.current = false;
+      setMapRegion(region);
+    }
+  }, []);
 
   if (locationLoading || !mapRegion) {
     return (
@@ -154,9 +395,10 @@ export const MapScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
     <MapView
+      ref={mapRef}
       style={styles.map}
       region={mapRegion}
-      onRegionChangeComplete={setMapRegion}
+      onRegionChangeComplete={handleRegionChangeComplete}
       customMapStyle={cleanMapStyle} 
       showsUserLocation={true}
       showsMyLocationButton={false}
@@ -164,63 +406,211 @@ export const MapScreen = ({ navigation }) => {
       showsBuildings={false}
       showsIndoorLevelPicker={false}
       toolbarEnabled={false}
+      moveOnMarkerPress={false}
     >
-      {spots.map((spot) => (
-        <Marker
-        key={spot.id}
-        coordinate={{
-          latitude: spot.lat,
-          longitude: spot.lng,
-        }}
-        onPress={() => openBottomSheet(spot)}
-      >
-        <View style={{
-          alignItems: "center",
-        }}>
-          {/* Pin head */}
-          <View style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            // backgroundColor: "#fff",
-            alignItems: "center",
-            justifyContent: "center",
-            elevation: 3,
-            shadowColor: "#000",
-            // shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.3,
-            shadowRadius: 2,
-          }}>
-            <Image
-              source={require("../../assets/logo.png")}
-              style={{ width: 80, height: 80 }}
-              resizeMode="cover"
-            />
-          </View>
-      
-          {/* Pin pointer */}
-          <View style={{
-            width: 0,
-            height: 0,
-            borderLeftWidth: 10,
-            borderRightWidth: 10,
-            borderTopWidth: 15,
-            borderLeftColor: "transparent",
-            borderRightColor: "transparent",
-            borderTopColor: "#fff",
-            marginTop: -1,
-          }} />
-        </View>
-      </Marker>      
-      
-      
-      ))}
+      {spots.map((spot) => {
+        const isSurpriseSpot = surpriseSpot?.id === spot.id;
+        return (
+          <Marker
+            key={spot.id}
+            coordinate={{
+              latitude: spot.lat,
+              longitude: spot.lng,
+            }}
+            onPress={() => openBottomSheet(spot)}
+          >
+            <Animated.View
+              style={{
+                alignItems: "center",
+                transform: isSurpriseSpot ? [
+                  { scale: pulseAnim },
+                  { scale: scaleAnim }
+                ] : [],
+                opacity: isSurpriseSpot ? revealAnim : 1,
+              }}
+            >
+              {/* Pulse rings for surprise spot */}
+              {isSurpriseSpot && (
+                <>
+                  <Animated.View
+                    style={{
+                      position: "absolute",
+                      width: 80,
+                      height: 80,
+                      borderRadius: 40,
+                      borderWidth: 2,
+                      borderColor: vibeColor,
+                      opacity: pulseAnim.interpolate({
+                        inputRange: [1, 1.3],
+                        outputRange: [0.6, 0],
+                      }),
+                      transform: [
+                        {
+                          scale: pulseAnim.interpolate({
+                            inputRange: [1, 1.3],
+                            outputRange: [1, 2],
+                          }),
+                        },
+                      ],
+                    }}
+                  />
+                  <Animated.View
+                    style={{
+                      position: "absolute",
+                      width: 100,
+                      height: 100,
+                      borderRadius: 50,
+                      borderWidth: 2,
+                      borderColor: vibeColor,
+                      opacity: pulseAnim.interpolate({
+                        inputRange: [1, 1.3],
+                        outputRange: [0.4, 0],
+                      }),
+                      transform: [
+                        {
+                          scale: pulseAnim.interpolate({
+                            inputRange: [1, 1.3],
+                            outputRange: [1, 2.5],
+                          }),
+                        },
+                      ],
+                    }}
+                  />
+                </>
+              )}
+              {/* Pin head */}
+              <View style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                alignItems: "center",
+                justifyContent: "center",
+                elevation: 3,
+                shadowColor: "#000",
+                shadowOpacity: 0.3,
+                shadowRadius: 2,
+                backgroundColor: isSurpriseSpot ? vibeColor : "transparent",
+              }}>
+                <Image
+                  source={require("../../assets/logo.png")}
+                  style={{ width: 80, height: 80 }}
+                  resizeMode="cover"
+                />
+              </View>
+        
+              {/* Pin pointer */}
+              <View style={{
+                width: 0,
+                height: 0,
+                borderLeftWidth: 10,
+                borderRightWidth: 10,
+                borderTopWidth: 15,
+                borderLeftColor: "transparent",
+                borderRightColor: "transparent",
+                borderTopColor: isSurpriseSpot ? vibeColor : "#fff",
+                marginTop: -1,
+              }} />
+            </Animated.View>
+          </Marker>
+        );
+      })}
     </MapView>
 
 
       <TouchableOpacity style={styles.centerButton} onPress={centerOnUser}>
         <Ionicons name="locate" size={24} color="#007AFF" />
       </TouchableOpacity>
+
+      {/* Surprise Me Button */}
+      <TouchableOpacity
+        style={[styles.surpriseButton, { backgroundColor: vibeColor }]}
+        onPress={handleSurpriseMe}
+        disabled={revealing}
+      >
+        {revealing ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <>
+            <Ionicons name="sparkles" size={20} color="#fff" />
+            <Text style={styles.surpriseButtonText}>Surprise Me!</Text>
+          </>
+        )}
+      </TouchableOpacity>
+
+      {/* Advanced Reveal Modal */}
+      <Modal
+        visible={showRevealModal}
+        transparent
+        animationType="none"
+        onRequestClose={() => {
+          setShowRevealModal(false);
+          setRevealing(false);
+        }}
+      >
+        <Reanimated.View style={[styles.revealModalContainer, modalAnimatedStyle]}>
+          {/* Background gradient overlay */}
+          <View style={styles.revealModalBackground} />
+
+          {/* Particle effects */}
+          {[...Array(20)].map((_, i) => {
+            const angle = (i * 360) / 20;
+            const distance = 150;
+            const x = Math.cos((angle * Math.PI) / 180) * distance;
+            const y = Math.sin((angle * Math.PI) / 180) * distance;
+            
+            return (
+              <Reanimated.View
+                key={i}
+                style={[
+                  styles.particle,
+                  {
+                    left: '50%',
+                    top: '50%',
+                    marginLeft: x,
+                    marginTop: y,
+                  },
+                  particleAnimatedStyle,
+                ]}
+              >
+                <Ionicons name="star" size={12} color={vibeColor} />
+              </Reanimated.View>
+            );
+          })}
+
+          {/* Expanding reveal circles */}
+          <Reanimated.View style={[styles.revealCircle, revealCircleStyle, { borderColor: vibeColor }]} />
+          <Reanimated.View style={[styles.revealCircle, revealCircleStyle, { borderColor: vibeColor, borderWidth: 3 }]} />
+
+          {/* Sparkle icon */}
+          <Reanimated.View style={[styles.sparkleContainer, sparkleAnimatedStyle]}>
+            <Ionicons name="sparkles" size={80} color={vibeColor} />
+          </Reanimated.View>
+
+          {/* Revealed spot card */}
+          {surpriseSpot && (
+            <Reanimated.View style={[styles.revealedSpotCard, spotCardAnimatedStyle]}>
+              <Image
+                source={{ uri: surpriseSpot.thumbnail || surpriseSpot.images?.[0] }}
+                style={styles.revealedSpotImage}
+              />
+              <View style={[styles.revealedSpotOverlay, { backgroundColor: hexToRgba(vibeColor, 0.9) }]}>
+                <Text style={styles.revealedSpotTitle}>{surpriseSpot.title}</Text>
+                <View style={styles.revealedSpotBadge}>
+                  <Ionicons name="location" size={16} color="#fff" />
+                  <Text style={styles.revealedSpotAddress} numberOfLines={1}>
+                    {surpriseSpot.address}
+                  </Text>
+                </View>
+              </View>
+            </Reanimated.View>
+          )}
+
+          {/* Loading text */}
+          {!surpriseSpot && (
+            <Text style={styles.revealLoadingText}>Discovering your surprise...</Text>
+          )}
+        </Reanimated.View>
+      </Modal>
 
       <View style={styles.infoBar}>
         <TouchableOpacity onPress={toggleDropdown} style={styles.dropdownHeader}>
@@ -304,14 +694,14 @@ export const MapScreen = ({ navigation }) => {
             <View style={styles.statItem}>
               <Ionicons name="walk-outline" size={18} color={vibeStrong} />
               <Text style={styles.statText}>
-                {selectedSpot.distanceKm?.toFixed(2)} km
+                {selectedSpot.distanceKm ? selectedSpot.distanceKm.toFixed(2) : '0.00'} km
               </Text>
             </View>
         
             <View style={styles.statItem}>
               <Ionicons name="time-outline" size={18} color={vibeStrong} />
               <Text style={styles.statText}>
-                ~{Math.max(1, selectedSpot.approxTimeMin.toFixed(0))} min
+                ~{selectedSpot.approxTimeMin ? Math.max(1, selectedSpot.approxTimeMin.toFixed(0)) : '1'} min
               </Text>
             </View>
         
@@ -373,6 +763,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     elevation: 5,
+  },
+  surpriseButton: {
+    position: "absolute",
+    bottom: 100,
+    left: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#6C5CE7",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  surpriseButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
   },
   infoBar: {
     position: "absolute",
@@ -529,5 +942,93 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontWeight:"600"
   },
-  
+  revealModalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  },
+  revealModalBackground: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+  },
+  particle: {
+    position: "absolute",
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  revealCircle: {
+    position: "absolute",
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  sparkleContainer: {
+    position: "absolute",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  revealedSpotCard: {
+    width: 300,
+    height: 200,
+    borderRadius: 20,
+    overflow: "hidden",
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    zIndex: 20,
+    marginTop: 100,
+  },
+  revealedSpotImage: {
+    width: "100%",
+    height: "100%",
+    position: "absolute",
+  },
+  revealedSpotOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+  },
+  revealedSpotTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#fff",
+    marginBottom: 8,
+  },
+  revealedSpotBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    alignSelf: "flex-start",
+  },
+  revealedSpotAddress: {
+    fontSize: 12,
+    color: "#fff",
+    fontWeight: "600",
+    flex: 1,
+  },
+  revealLoadingText: {
+    fontSize: 18,
+    color: "#fff",
+    fontWeight: "600",
+    marginTop: 200,
+    zIndex: 15,
+  },
 });

@@ -24,6 +24,9 @@ import { Modal, TextInput, Alert } from "react-native";
 import { useAuth } from "../hooks/useAuth";
 import { getSpotComments, createComment, deleteComment } from "../services/comments.service";
 import { saveSpot, unsaveSpot, isSpotSaved } from "../services/savedSpots.service";
+import { markSpotAsVisited, isSpotVisited } from "../services/visitedSpots.service";
+import { useLocation } from "../hooks/useLocation";
+import * as Location from 'expo-location';
 
 
 const { width } = Dimensions.get("window");
@@ -54,7 +57,7 @@ export default function SpotDetailsScreen({ route, navigation }) {
   const [liked, setLiked] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [selectedVibes, setSelectedVibes] = useState([]);
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   
   // Comments state
   const [comments, setComments] = useState([]);
@@ -65,6 +68,16 @@ export default function SpotDetailsScreen({ route, navigation }) {
   // Saved spot state
   const [isSaved, setIsSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Visited spot state
+  const [isVisited, setIsVisited] = useState(false);
+  const [checkingVisited, setCheckingVisited] = useState(false);
+  const [countdown, setCountdown] = useState(0); // in seconds
+  const [countdownActive, setCountdownActive] = useState(false);
+  const [locationError, setLocationError] = useState(null);
+  const countdownIntervalRef = useRef(null);
+  const locationWatchRef = useRef(null);
+  const { location, refresh: refreshLocation } = useLocation();
 
   const openMap = () => {
     if (!spot?.lat || !spot?.lng) return;
@@ -101,12 +114,195 @@ export default function SpotDetailsScreen({ route, navigation }) {
   useEffect(() => {
     if (user && spotId) {
       checkIfSaved();
+      checkIfVisited();
     }
   }, [user, spotId]);
+
+  useEffect(() => {
+    // Cleanup on unmount
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+      }
+      if (locationWatchRef.current) {
+        Location.stopLocationUpdatesAsync(locationWatchRef.current);
+      }
+    };
+  }, []);
 
   const checkIfSaved = async () => {
     const saved = await isSpotSaved(spotId);
     setIsSaved(saved);
+  };
+
+  const checkIfVisited = async () => {
+    if (!user) return;
+    const visited = await isSpotVisited(spotId);
+    setIsVisited(visited);
+  };
+
+  // Calculate distance between two coordinates (Haversine formula)
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371e3; // Earth radius in meters
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+  };
+
+  const handleMarkAsVisited = async () => {
+    if (!user) {
+      Alert.alert("Login Required", "Please login to mark spots as visited");
+      return;
+    }
+
+    if (!spot?.lat || !spot?.lng) {
+      Alert.alert("Error", "Spot location is not available");
+      return;
+    }
+
+    if (!location) {
+      Alert.alert("Location Required", "Please enable location services");
+      return;
+    }
+
+    // Check if user is within 1km radius
+    const distance = calculateDistance(
+      location.latitude,
+      location.longitude,
+      spot.lat,
+      spot.lng
+    );
+
+    if (distance > 1000) {
+      Alert.alert(
+        "Too Far Away",
+        `You need to be within 1km of the spot. You are currently ${(distance / 1000).toFixed(2)}km away.`
+      );
+      return;
+    }
+
+    // Start countdown and location monitoring
+    setCountdownActive(true);
+    setCountdown(180); // 3 minutes = 180 seconds
+    setLocationError(null);
+    setCheckingVisited(true);
+
+    // Start countdown timer
+    countdownIntervalRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(countdownIntervalRef.current);
+          handleCountdownComplete();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // Start location watching
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert("Permission Denied", "Location permission is required");
+        stopCountdown();
+        return;
+      }
+
+      locationWatchRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 5000, // Check every 5 seconds
+          distanceInterval: 10, // Check if moved 10 meters
+        },
+        (currentLocation) => {
+          const currentDistance = calculateDistance(
+            currentLocation.coords.latitude,
+            currentLocation.coords.longitude,
+            spot.lat,
+            spot.lng
+          );
+
+          // If user moves outside 1km radius, stop countdown
+          if (currentDistance > 1000) {
+            Alert.alert(
+              "Location Changed",
+              "You moved too far from the spot. Countdown cancelled."
+            );
+            stopCountdown();
+          }
+        }
+      );
+    } catch (error) {
+      console.error("Location watch error:", error);
+      setLocationError("Failed to monitor location");
+    }
+  };
+
+  const stopCountdown = () => {
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    if (locationWatchRef.current) {
+      locationWatchRef.current.remove();
+      locationWatchRef.current = null;
+    }
+    setCountdownActive(false);
+    setCountdown(0);
+    setCheckingVisited(false);
+  };
+
+  const handleCountdownComplete = async () => {
+    stopCountdown();
+
+    // Final location check
+    try {
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const distance = calculateDistance(
+        currentLocation.coords.latitude,
+        currentLocation.coords.longitude,
+        spot.lat,
+        spot.lng
+      );
+
+      if (distance > 1000) {
+        Alert.alert(
+          "Verification Failed",
+          "You are no longer within 1km of the spot."
+        );
+        return;
+      }
+
+      // Mark as visited
+      const result = await markSpotAsVisited(spotId);
+      if (!result.error) {
+        setIsVisited(true);
+        Alert.alert("Success!", "Spot marked as visited! 🎉");
+      } else {
+        Alert.alert("Error", result.error);
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to verify location");
+    } finally {
+      setCheckingVisited(false);
+    }
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const handleSaveToggle = async () => {
@@ -257,7 +453,7 @@ export default function SpotDetailsScreen({ route, navigation }) {
             {/* ---------- TOP VIBE ---------- */}
             {topVibe && (
               <View style={[styles.topVibe,{backgroundColor: topVibe.color} ]}>
-                <FontAwesome
+                <Icon
                   name={topVibe.icon}
                   size={16}
                   color="#fff"
@@ -268,9 +464,19 @@ export default function SpotDetailsScreen({ route, navigation }) {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.headerBtn}>
-          <Icon name="share-social-outline" size={22} color="#000" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {isSuperAdmin && (
+            <TouchableOpacity 
+              style={styles.headerBtn}
+              onPress={() => navigation.navigate('EditSpot', { spotId: spot.id })}
+            >
+              <Icon name="create-outline" size={22} color="#007AFF" />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.headerBtn}>
+            <Icon name="share-social-outline" size={22} color="#000" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 90 }}>
@@ -442,6 +648,38 @@ export default function SpotDetailsScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
+      {/* Visited Button */}
+      <View style={styles.section}>
+        {isVisited ? (
+          <View style={[styles.visitedBadge, { backgroundColor: topVibe ? topVibe.color : "#4CAF50" }]}>
+            <Icon name="checkmark-circle" size={24} color="#fff" />
+            <Text style={styles.visitedBadgeText}>You've visited this spot!</Text>
+          </View>
+        ) : countdownActive ? (
+          <View style={styles.countdownContainer}>
+            <Text style={styles.countdownLabel}>Stay within 1km for:</Text>
+            <Text style={styles.countdownTime}>{formatTime(countdown)}</Text>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={stopCountdown}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[styles.visitedButton, { backgroundColor: topVibe ? topVibe.color : "#4CAF50" }]}
+            onPress={handleMarkAsVisited}
+            disabled={checkingVisited}
+          >
+            <Icon name="checkmark-circle-outline" size={20} color="#fff" />
+            <Text style={styles.visitedButtonText}>
+              {checkingVisited ? "Checking..." : "Mark as Visited"}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
 
 
 
@@ -479,7 +717,7 @@ export default function SpotDetailsScreen({ route, navigation }) {
 
         return(
           <View key={vibe.id} style={[styles.vibeCard, { backgroundColor: vibe.color }]}>
-          <FontAwesome
+          <Icon
             name={iconName}
             size={22}
             color={"#fff"}
@@ -635,7 +873,7 @@ export default function SpotDetailsScreen({ route, navigation }) {
                       activeOpacity={0.7}
                     >
                       <View style={styles.vibeCardContent}>
-                        <FontAwesome
+                        <Icon
                           name={iconName}
                           size={22}
                           color={active ? "#fff" : vibe.color}
@@ -1386,6 +1624,87 @@ emptyCommentsText: {
   color: "#999",
   fontSize: 14,
   textAlign: "center",
+},
+
+visitedButton: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  backgroundColor: "#4CAF50",
+  paddingVertical: 14,
+  borderRadius: 12,
+  marginHorizontal: 16,
+  marginTop: 12,
+  elevation: 3,
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.2,
+  shadowRadius: 4,
+},
+
+visitedButtonText: {
+  color: "#fff",
+  fontSize: 16,
+  fontWeight: "700",
+},
+
+visitedBadge: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  backgroundColor: "#4CAF50",
+  paddingVertical: 14,
+  borderRadius: 12,
+  marginHorizontal: 16,
+  marginTop: 12,
+},
+
+visitedBadgeText: {
+  color: "#fff",
+  fontSize: 16,
+  fontWeight: "700",
+},
+
+countdownContainer: {
+  alignItems: "center",
+  backgroundColor: "#fff",
+  paddingVertical: 20,
+  borderRadius: 12,
+  marginHorizontal: 16,
+  marginTop: 12,
+  elevation: 3,
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+},
+
+countdownLabel: {
+  fontSize: 14,
+  color: "#666",
+  marginBottom: 8,
+},
+
+countdownTime: {
+  fontSize: 36,
+  fontWeight: "800",
+  color: "#4CAF50",
+  marginBottom: 12,
+},
+
+cancelButton: {
+  paddingHorizontal: 20,
+  paddingVertical: 8,
+  borderRadius: 8,
+  backgroundColor: "#f0f0f0",
+},
+
+cancelButtonText: {
+  color: "#666",
+  fontSize: 14,
+  fontWeight: "600",
 },
 
 });

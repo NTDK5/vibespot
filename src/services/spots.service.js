@@ -159,3 +159,15 @@ export const searchSpots = async ({
   }
 };
 
+// ----------------------------
+// Get Surprise Me Spot
+// ----------------------------
+export const getSurpriseMeSpot = async () => {
+  try {
+    const response = await api.get("/spot/surprise-me");
+    return response.data;
+  } catch (err) {
+    return { error: err.response?.data?.message || "Failed to get surprise spot" };
+  }
+};
+
