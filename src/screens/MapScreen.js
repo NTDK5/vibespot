@@ -16,7 +16,21 @@ import { Animated, Easing } from "react-native";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useRef, useMemo, useCallback } from "react";
+import { useSpotVibes } from "../hooks/useSpotVibes";
 
+const safeHex = (color, fallback = "#1f1f1f") => {
+  if (!color) return fallback;
+  if (/^#([0-9A-F]{6})$/i.test(color)) return color;
+  return fallback;
+};
+
+const hexToRgba = (hex, alpha = 1) => {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+};
 
 export const MapScreen = ({ navigation }) => {
   const { location, loading: locationLoading, error } = useLocation();
@@ -29,7 +43,22 @@ export const MapScreen = ({ navigation }) => {
   const bottomSheetRef = useRef(null);
 
   const snapPoints = useMemo(() => ["25%", "45%"], []);
+  const spotId = selectedSpot?.id;
 
+  const { data: spotVibes = [] } = useSpotVibes(spotId, {
+    enabled: !!spotId,
+  });
+  
+
+  const topVibe =
+    spotVibes.length > 0
+      ? spotVibes.reduce((a, b) => (b.count > a.count ? b : a))
+      : null;
+
+  const vibeColor = safeHex(topVibe?.color, "#242424");
+  const vibeBg = hexToRgba(vibeColor, 0.85);   // soft background
+  const vibeSoft = hexToRgba(vibeColor, 0.15);
+  const vibeStrong = hexToRgba(vibeColor, 1);
   const openBottomSheet = useCallback((spot) => {
     setSelectedSpot(spot);
     bottomSheetRef.current?.snapToIndex(0);
@@ -219,67 +248,105 @@ export const MapScreen = ({ navigation }) => {
         </Animated.View>
       </View>
       <BottomSheet
-        ref={bottomSheetRef}
-        index={-1}
-        snapPoints={snapPoints}
-        enablePanDownToClose
-        backgroundStyle={styles.sheetBackground}
-        handleIndicatorStyle={styles.sheetHandle}
-        onClose={closeBottomSheet}
-      >
+          ref={bottomSheetRef}
+          index={-1}
+          snapPoints={snapPoints}
+          enablePanDownToClose
+          backgroundStyle={{
+            backgroundColor: vibeBg,
+            borderTopLeftRadius: 28,
+            borderTopRightRadius: 28,
+          }}
+          handleIndicatorStyle={{
+            backgroundColor: vibeStrong,
+            width: 48,
+            height: 5,
+          }}
+          onClose={closeBottomSheet}
+        >
+
         {selectedSpot && (
           <BottomSheetView style={styles.sheetContent}>
-            
-            {/* Thumbnail */}
-            <Image
-              source={{ uri: selectedSpot.thumbnail }}
-              style={styles.sheetImage}
-            />
 
-            {/* Title + Category */}
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>{selectedSpot.title}</Text>
-
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryText}>
-                  {selectedSpot.category}
-                </Text>
-              </View>
-            </View>
-
-            {/* Address */}
-            <View style={styles.addressRow}>
-              <Ionicons name="location-outline" size={16} color="#666" />
-              <Text style={styles.sheetAddress}>
-                {selectedSpot.address}
+          {/* HERO IMAGE */}
+          <Image
+            source={{ uri: selectedSpot.thumbnail }}
+            style={[
+              styles.sheetImage,
+              { borderColor: vibeSoft, borderWidth: 1 }
+            ]}
+          />
+        
+          {/* TITLE + VIBE BADGE */}
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>{selectedSpot.title}</Text>
+        
+            <View style={[
+              styles.categoryBadge,
+              { backgroundColor: vibeStrong }
+            ]}>
+              <Text style={styles.categoryText}>
+                {topVibe?.name || selectedSpot.category}
               </Text>
             </View>
-
-            {/* Tags */}
-            <View style={styles.tagsContainer}>
-              {selectedSpot.tags?.slice(0, 4).map((tag) => (
-                <View key={tag} style={styles.tagChip}>
-                  <Text style={styles.tagText}>#{tag}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* CTA */}
-            <TouchableOpacity
-              style={styles.detailsButton}
-              onPress={() => {
-                closeBottomSheet();
-                navigation.navigate("SpotDetail", {
-                  spotId: selectedSpot.id,
-                });
-              }}
-            >
-              <Text style={styles.detailsButtonText}>
-                View details
+          </View>
+        
+          {/* ADDRESS */}
+          <View style={styles.addressRow}>
+            <Ionicons name="location-outline" size={16} color="#fff" />
+            <Text style={styles.sheetAddress}>
+              {selectedSpot.address}
+            </Text>
+          </View>
+        
+          {/* QUICK STATS */}
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Ionicons name="walk-outline" size={18} color={vibeStrong} />
+              <Text style={styles.statText}>
+                {selectedSpot.distanceKm?.toFixed(2)} km
               </Text>
-            </TouchableOpacity>
-
-          </BottomSheetView>
+            </View>
+        
+            <View style={styles.statItem}>
+              <Ionicons name="time-outline" size={18} color={vibeStrong} />
+              <Text style={styles.statText}>
+                ~{Math.max(1, selectedSpot.approxTimeMin.toFixed(0))} min
+              </Text>
+            </View>
+        
+            <View style={styles.statItem}>
+              <Ionicons name="pricetag-outline" size={18} color={vibeStrong} />
+              <Text style={styles.statText}>
+                {selectedSpot.priceRange}
+              </Text>
+            </View>
+          </View>
+        
+          {/* DESCRIPTION */}
+          <Text style={styles.description}>
+            {selectedSpot.description}
+          </Text>
+        
+          {/* CTA */}
+          <TouchableOpacity
+            style={[
+              styles.detailsButton,
+              { backgroundColor: vibeStrong }
+            ]}
+            onPress={() => {
+              closeBottomSheet();
+              navigation.navigate("SpotDetail", {
+                spotId: selectedSpot.id,
+              });
+            }}
+          >
+            <Text style={styles.detailsButtonText}>
+              Explore this spot
+            </Text>
+          </TouchableOpacity>
+        
+        </BottomSheetView>        
         )}
       </BottomSheet>
 
@@ -378,6 +445,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     flex: 1,
     marginRight: 8,
+    color: "#fff"
+
   },
   categoryBadge: {
     backgroundColor: "#EEF2FF",
@@ -387,8 +456,8 @@ const styles = StyleSheet.create({
   },
   categoryText: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#4F46E5",
+    fontWeight: "800",
+    color: "#fff",
     textTransform: "capitalize",
   },
   addressRow: {
@@ -398,8 +467,8 @@ const styles = StyleSheet.create({
   },
   sheetAddress: {
     fontSize: 13,
-    color: "#666",
     marginLeft: 4,
+    color: "#fff"
   },
   tagsContainer: {
     flexDirection: "row",
@@ -416,7 +485,7 @@ const styles = StyleSheet.create({
   },
   tagText: {
     fontSize: 12,
-    color: "#444",
+    color: "#fff"
   },
   detailsButton: {
     marginTop: 12,
@@ -424,11 +493,41 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: "center",
+    elevation: 5
   },
   detailsButtonText: {
     color: "#fff",
     fontSize: 15,
     fontWeight: "600",
+  },
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 14,
+    marginBottom: 10,
+    backgroundColor: "#fff",
+    padding: 12,
+    borderRadius: 16,
+  },
+  
+  statItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  
+  statText: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#333",
+  },
+  
+  description: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#fff",
+    marginTop: 10,
+    fontWeight:"600"
   },
   
 });

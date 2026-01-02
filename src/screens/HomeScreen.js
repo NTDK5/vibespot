@@ -53,9 +53,9 @@ export const HomeScreen = ({ navigation }) => {
   const [showSearch, setShowSearch] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
   const [stats, setStats] = useState({
-    totalSpots: 0,
+    visitedSpots: 0,
     nearbyCount: 0,
-    topRated: 0,
+    savedSpots: 0,
   });
 
   useEffect(() => {
@@ -77,9 +77,9 @@ export const HomeScreen = ({ navigation }) => {
 
   const loadStats = () => {
     setStats({
-      totalSpots: spots.length,
+      visitedSpots: spots.length,
       nearbyCount: nearbySpots.length,
-      topRated: spots.filter(s => s.ratingAvg >= 4).length,
+      savedSpots: 7,
     });
   };
 
@@ -177,13 +177,13 @@ export const HomeScreen = ({ navigation }) => {
       </View>
       <View style={styles.statCard}>
         <Ionicons name="star" size={24} color="#FFD700" />
-        <Text style={styles.statNumber}>{stats.topRated}</Text>
-        <Text style={styles.statLabel}>Top Rated</Text>
+        <Text style={styles.statNumber}>{stats.visitedSpots}</Text>
+        <Text style={styles.statLabel}>Visited</Text>
       </View>
       <View style={styles.statCard}>
         <Ionicons name="map" size={24} color="#FF6B6B" />
-        <Text style={styles.statNumber}>{stats.totalSpots}</Text>
-        <Text style={styles.statLabel}>Total Spots</Text>
+        <Text style={styles.statNumber}>{stats.savedSpots}</Text>
+        <Text style={styles.statLabel}>Saved</Text>
       </View>
     </View>
   );
@@ -266,32 +266,77 @@ export const HomeScreen = ({ navigation }) => {
         {renderStatsCard()}
 
         {/* CATEGORIES */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Explore Categories</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesRow}
-          >
-            {categories.map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryCard,
-                  selectedCategory === cat.id && styles.categoryCardActive,
-                  { borderLeftColor: cat.color },
-                ]}
-                onPress={() => setSelectedCategory(selectedCategory === cat.id ? null : cat.id)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.categoryIcon, { backgroundColor: cat.color + '20' }]}>
-                  <Ionicons name={cat.icon} size={24} color={cat.color} />
-                </View>
-                <Text style={styles.categoryLabel}>{cat.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+       {/* CATEGORIES */}
+          <View style={styles.section}>
+            {/* Header */}
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={styles.sectionTitle}>Explore</Text>
+                <Text style={styles.sectionSubtitle}>Find spots by vibe</Text>
+              </View>
+            </View>
+
+            {/* Horizontal Rail */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesRow}
+            >
+              {categories.map((cat) => {
+                const isActive = selectedCategory === cat.id;
+
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    activeOpacity={0.85}
+                    onPress={() =>
+                      setSelectedCategory(isActive ? null : cat.id)
+                    }
+                    style={[
+                      styles.categoryCard,
+                      isActive && {
+                        backgroundColor: cat.color,
+                        shadowColor: cat.color,
+                      },
+                    ]}
+                  >
+                    {/* Icon */}
+                    <View
+                      style={[
+                        styles.categoryIcon,
+                        {
+                          backgroundColor: isActive
+                            ? "rgba(255,255,255,0.25)"
+                            : cat.color + "22",
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={cat.icon}
+                        size={26}
+                        color={isActive ? "#fff" : cat.color}
+                      />
+                    </View>
+
+                    {/* Label */}
+                    <Text
+                      style={[
+                        styles.categoryLabel,
+                        isActive && { color: "#fff" },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {cat.name}
+                    </Text>
+
+                    {/* Active Indicator */}
+                    {isActive && <View style={styles.activeDot} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+
 
         {/* WEEKLY RANKS */}
         {weeklyRanks.length > 0 && (
@@ -502,6 +547,18 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: "500",
   },
+  seeAll: {
+    fontSize: 15,
+    color: "#6C5CE7",
+    fontWeight: "700",
+  },
+  trophyIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   section: {
     marginTop: 24,
   },
@@ -527,53 +584,52 @@ const styles = StyleSheet.create({
     color: "#666",
     marginTop: 2,
   },
-  seeAll: {
-    fontSize: 15,
-    color: "#6C5CE7",
-    fontWeight: "700",
-  },
-  trophyIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+
+  
   categoriesRow: {
     paddingHorizontal: 20,
-    gap: 12,
+    paddingVertical: 6,
+    gap: 14,
   },
+  
   categoryCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
+    width: 110,
+    height: 130,
+    borderRadius: 22,
+    paddingVertical: 18,
     alignItems: "center",
-    width: 100,
-    borderLeftWidth: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    justifyContent: "space-between",
+    backgroundColor: "#fff",
+  
+    // shadowOffset: { width: 0, height: 10 },
+    // shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 4,
   },
-  categoryCardActive: {
-    backgroundColor: "#6C5CE710",
-    transform: [{ scale: 1.05 }],
-  },
+  
   categoryIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8,
   },
+  
   categoryLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#333",
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#222",
     textAlign: "center",
   },
+  
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#fff",
+    marginTop: 6,
+  },
+
   ranksRow: {
     paddingHorizontal: 20,
     gap: 16,
