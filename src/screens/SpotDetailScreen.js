@@ -453,7 +453,7 @@ export default function SpotDetailsScreen({ route, navigation }) {
             {/* ---------- TOP VIBE ---------- */}
             {topVibe && (
               <View style={[styles.topVibe,{backgroundColor: topVibe.color} ]}>
-                <Icon
+                <FontAwesome
                   name={topVibe.icon}
                   size={16}
                   color="#fff"
@@ -717,7 +717,7 @@ export default function SpotDetailsScreen({ route, navigation }) {
 
         return(
           <View key={vibe.id} style={[styles.vibeCard, { backgroundColor: vibe.color }]}>
-          <Icon
+          <FontAwesome
             name={iconName}
             size={22}
             color={"#fff"}
@@ -873,7 +873,7 @@ export default function SpotDetailsScreen({ route, navigation }) {
                       activeOpacity={0.7}
                     >
                       <View style={styles.vibeCardContent}>
-                        <Icon
+                        <FontAwesome
                           name={iconName}
                           size={22}
                           color={active ? "#fff" : vibe.color}

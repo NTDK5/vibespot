@@ -201,82 +201,91 @@ export const CollectionsScreen = ({ navigation }) => {
       item.coverImage ||
       item.spots?.[0]?.spot?.thumbnail ||
       item.spots?.[0]?.spot?.images?.[0];
-
+  
     return (
       <TouchableOpacity
-        style={styles.collectionCard}
-        onPress={() => navigation.navigate("CollectionDetail", { collectionId: item.id })}
+        style={styles.fullCard}
+        activeOpacity={0.9}
+        onPress={() =>
+          navigation.navigate("CollectionDetail", {
+            collectionId: item.id,
+          })
+        }
       >
-        <View style={styles.collectionImageContainer}>
-          {coverImage ? (
-            <Image source={{ uri: coverImage }} style={styles.collectionImage} />
-          ) : (
-            <View style={styles.collectionImagePlaceholder}>
-              <Ionicons name="images-outline" size={40} color="#ccc" />
-            </View>
+        <Image
+          source={{ uri: coverImage }}
+          style={styles.fullCardImage}
+        />
+  
+        <LinearGradient
+          colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.85)"]}
+          style={styles.fullCardGradient}
+        />
+  
+        {/* Top actions */}
+        <View style={styles.fullCardTop}>
+          <View style={styles.authorRow}>
+            {item.user?.profileImage ? (
+              <Image
+                source={{ uri: item.user.profileImage }}
+                style={styles.authorAvatar}
+              />
+            ) : (
+              <View style={styles.authorAvatarPlaceholder}>
+                <Ionicons name="person" size={14} color="#666" />
+              </View>
+            )}
+            <Text style={styles.authorName} numberOfLines={1}>
+              {item.user?.name || "Unknown"}
+            </Text>
+          </View>
+  
+          {isMine && (
+            <TouchableOpacity onPress={() => handleDelete(item.id)}>
+              <Ionicons name="trash-outline" size={20} color="#fff" />
+            </TouchableOpacity>
           )}
-          <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.7)"]}
-            style={styles.collectionGradient}
-          />
-          <View style={styles.collectionOverlay}>
-            <View style={styles.collectionHeader}>
-              <View style={styles.collectionUserInfo}>
-                {item.user?.profileImage ? (
-                  <Image
-                    source={{ uri: item.user.profileImage }}
-                    style={styles.userAvatar}
-                  />
-                ) : (
-                  <View style={styles.userAvatarPlaceholder}>
-                    <Ionicons name="person" size={16} color="#666" />
-                  </View>
-                )}
-                <Text style={styles.collectionAuthor} numberOfLines={1}>
-                  {item.user?.name || "Unknown"}
-                </Text>
-              </View>
-              {isMine && (
-                <TouchableOpacity
-                  onPress={() => handleDelete(item.id)}
-                  style={styles.deleteButton}
-                >
-                  <Ionicons name="trash-outline" size={20} color="#ff4444" />
-                </TouchableOpacity>
-              )}
-            </View>
-            <View style={styles.collectionFooter}>
-              <Text style={styles.collectionTitle} numberOfLines={2}>
-                {item.title}
+        </View>
+  
+        {/* Bottom content */}
+        <View style={styles.fullCardBottom}>
+          <Text style={styles.fullCardTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+  
+          {item.description && (
+            <Text style={styles.fullCardDesc} numberOfLines={1}>
+              {item.description}
+            </Text>
+          )}
+  
+          <View style={styles.fullMetaRow}>
+            <View style={styles.metaLeft}>
+              <Ionicons name="location" size={14} color="#fff" />
+              <Text style={styles.metaText}>
+                {item.spotCount || 0} spots
               </Text>
-              {item.description && (
-                <Text style={styles.collectionDescription} numberOfLines={1}>
-                  {item.description}
-                </Text>
-              )}
-              <View style={styles.collectionMeta}>
-                <View style={styles.metaItem}>
-                  <Ionicons name="location" size={14} color="#fff" />
-                  <Text style={styles.metaText}>{item.spotCount || 0} spots</Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.likeButton}
-                  onPress={() => handleLike(item.id, item.isLiked)}
-                >
-                  <Ionicons
-                    name={item.isLiked ? "heart" : "heart-outline"}
-                    size={18}
-                    color={item.isLiked ? "#ff4444" : "#fff"}
-                  />
-                  <Text style={styles.likeCount}>{item.likeCount || 0}</Text>
-                </TouchableOpacity>
-              </View>
             </View>
+  
+            <TouchableOpacity
+              style={styles.likeButton}
+              onPress={() => handleLike(item.id, item.isLiked)}
+            >
+              <Ionicons
+                name={item.isLiked ? "heart" : "heart-outline"}
+                size={18}
+                color={item.isLiked ? "#ff4d6d" : "#fff"}
+              />
+              <Text style={styles.likeCount}>
+                {item.likeCount || 0}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </TouchableOpacity>
     );
   };
+  
 
   if (loading) {
     return (
@@ -357,8 +366,7 @@ export const CollectionsScreen = ({ navigation }) => {
           ) : null
         }
         contentContainerStyle={styles.listContent}
-        numColumns={2}
-        columnWrapperStyle={styles.row}
+        numColumns={1}
       />
 
       {/* Create Collection Modal */}
@@ -571,7 +579,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   collectionCard: {
-    width: "48%",
     borderRadius: 16,
     overflow: "hidden",
     backgroundColor: "#fff",
@@ -805,5 +812,113 @@ const styles = StyleSheet.create({
     color: "#666",
     textTransform: "capitalize",
   },
+  fullCard: {
+    width: "100%",
+    height: 280,
+    borderRadius: 22,
+    overflow: "hidden",
+    marginBottom: 20,
+    backgroundColor: "#000",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  
+  fullCardImage: {
+    width: "100%",
+    height: "100%",
+  },
+  
+  fullCardGradient: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: "70%",
+  },
+  
+  fullCardTop: {
+    position: "absolute",
+    top: 16,
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  
+  authorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.4)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  
+  authorAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    marginRight: 6,
+  },
+  
+  authorAvatarPlaceholder: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 6,
+  },
+  
+  authorName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#fff",
+    maxWidth: 140,
+  },
+  
+  fullCardBottom: {
+    position: "absolute",
+    bottom: 16,
+    left: 16,
+    right: 16,
+  },
+  
+  fullCardTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#fff",
+    marginBottom: 4,
+  },
+  
+  fullCardDesc: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.85)",
+    marginBottom: 10,
+  },
+  
+  fullMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  
+  metaLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  
+  metaText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 13,
+  },
+  
 });
 
