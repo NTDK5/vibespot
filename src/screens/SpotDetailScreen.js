@@ -620,7 +620,71 @@ export default function SpotDetailsScreen({ route, navigation }) {
           ))}
         </View>
 
-                {/* ---------- MAP BUTTON ---------- */}
+                {/* ---------- CONTACT & SOCIAL ---------- */}
+        {(spot.phone || spot.email || spot.website || spot.instagram || spot.facebook || spot.twitter) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Contact & Social Media</Text>
+            
+            {spot.phone && (
+              <TouchableOpacity 
+                style={styles.contactRow}
+                onPress={() => Linking.openURL(`tel:${spot.phone}`)}
+              >
+                <Icon name="call-outline" size={20} color="#6C5CE7" />
+                <Text style={styles.contactText}>{spot.phone}</Text>
+              </TouchableOpacity>
+            )}
+            
+            {spot.email && (
+              <TouchableOpacity 
+                style={styles.contactRow}
+                onPress={() => Linking.openURL(`mailto:${spot.email}`)}
+              >
+                <Icon name="mail-outline" size={20} color="#6C5CE7" />
+                <Text style={styles.contactText}>{spot.email}</Text>
+              </TouchableOpacity>
+            )}
+            
+            {spot.website && (
+              <TouchableOpacity 
+                style={styles.contactRow}
+                onPress={() => Linking.openURL(spot.website)}
+              >
+                <Icon name="globe-outline" size={20} color="#6C5CE7" />
+                <Text style={styles.contactText}>{spot.website}</Text>
+              </TouchableOpacity>
+            )}
+            
+            <View style={styles.socialRow}>
+              {spot.instagram && (
+                <TouchableOpacity 
+                  style={styles.socialButton}
+                  onPress={() => Linking.openURL(spot.instagram)}
+                >
+                  <Icon name="logo-instagram" size={24} color="#E4405F" />
+                </TouchableOpacity>
+              )}
+              {spot.facebook && (
+                <TouchableOpacity 
+                  style={styles.socialButton}
+                  onPress={() => Linking.openURL(spot.facebook)}
+                >
+                  <Icon name="logo-facebook" size={24} color="#1877F2" />
+                </TouchableOpacity>
+              )}
+              {spot.twitter && (
+                <TouchableOpacity 
+                  style={styles.socialButton}
+                  onPress={() => Linking.openURL(spot.twitter)}
+                >
+                  <Icon name="logo-twitter" size={24} color="#1DA1F2" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* ---------- MAP BUTTON ---------- */}
         <TouchableOpacity style={[styles.mapBtn,{backgroundColor: topVibe? topVibe.color: "#ffda32"}]} onPress={openMap}>
           <Icon name="map-outline" size={20} color="#fff" />
           <Text style={styles.mapBtnText}>View on Map</Text>
@@ -1705,6 +1769,36 @@ cancelButtonText: {
   color: "#666",
   fontSize: 14,
   fontWeight: "600",
+},
+
+contactRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 12,
+  paddingVertical: 10,
+  borderBottomWidth: 1,
+  borderBottomColor: "#f0f0f0",
+},
+contactText: {
+  fontSize: 15,
+  color: "#333",
+  flex: 1,
+},
+socialRow: {
+  flexDirection: "row",
+  gap: 16,
+  marginTop: 12,
+  paddingTop: 12,
+  borderTopWidth: 1,
+  borderTopColor: "#f0f0f0",
+},
+socialButton: {
+  width: 44,
+  height: 44,
+  borderRadius: 22,
+  backgroundColor: "#f5f5f5",
+  justifyContent: "center",
+  alignItems: "center",
 },
 
 });

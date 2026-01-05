@@ -4,16 +4,15 @@
 
 export const CATEGORIES = [
   { id: 'photo_spot', label: 'Photoshoot', icon: 'camera' },
-  { id: 'sports', label: 'Sports', icon: 'football' },
-  { id: 'art', label: 'Art', icon: 'brush' },
+  { id: 'activity', label: 'Activity', icon: 'bicycle' },
+  { id: 'gallery', label: 'Gallery', icon: 'images' },
   { id: 'workspace', label: 'Workspace', icon: 'briefcase' },
+  { id: 'restaurant', label: 'Restaurant', icon: 'restaurant' },
+  { id: 'art', label: 'Art', icon: 'brush' },
+  { id: 'sports', label: 'Sports', icon: 'football' },
   { id: 'entertainment', label: 'Entertainment', icon: 'musical-notes' },
-  { id: 'food', label: 'Food & Dining', icon: 'restaurant' },
   { id: 'nature', label: 'Nature', icon: 'leaf' },
-  { id: 'other', label: 'Other', icon: 'ellipse' },
-  { id: 'activity', label: 'Activity', icon: ''},
-  { id: 'gallery', label:'Gallery', icon:''},
-  {id: 'restaurant', label: 'restaurant', icon:''}
+  { id: 'nightlife',  label: 'Nightlife', icon:'wine-outline'}
 ];
 
 export const PRICE_RANGES = [

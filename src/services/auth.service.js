@@ -27,7 +27,19 @@ export const registerUser = async (data) => {
 
 export const signOutUser = async () => {
   try {
+    // Call backend logout endpoint to invalidate refresh token
+    try {
+      await api.post("/auth/logout");
+    } catch (err) {
+      // Continue even if backend call fails
+      console.log("Backend logout call failed:", err);
+    }
+    
+    // Clear local storage
     await AsyncStorage.removeItem("token");
+    await AsyncStorage.removeItem("refreshToken");
+    await AsyncStorage.removeItem("user");
+    
     return { success: true };
   } catch (err) {
     return { error: "Failed to sign out" };

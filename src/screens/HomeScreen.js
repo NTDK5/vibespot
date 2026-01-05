@@ -16,7 +16,7 @@ import {
   Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { getAllSpots, searchSpots, getNearbySpots, getSurpriseMeSpot } from '../services/spots.service';
+import { getAllSpots, searchSpots, getNearbySpots } from '../services/spots.service';
 import { getWeeklySpotRanks } from '../services/weeklyRank.service';
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocation } from "../hooks/useLocation";
@@ -69,8 +69,13 @@ export const HomeScreen = ({ navigation }) => {
     }
     loadSpots();
     loadWeeklyRanks();
-    loadStats();
   }, [selectedCategory, location]);
+
+  useEffect(() => {
+    if (location) {
+      loadStats();
+    }
+  }, [location, nearbySpots]);
 
   useEffect(() => {
     if (searchQuery.length > 2) {
@@ -80,12 +85,28 @@ export const HomeScreen = ({ navigation }) => {
     }
   }, [searchQuery, searchCategory]);
 
-  const loadStats = () => {
-    setStats({
-      visitedSpots: spots.length,
-      nearbyCount: nearbySpots.length,
-      savedSpots: 7,
-    });
+  const loadStats = async () => {
+    try {
+      const { getSavedSpots } = await import('../services/savedSpots.service');
+      const { getVisitedSpots } = await import('../services/visitedSpots.service');
+      
+      const [savedResult, visitedResult] = await Promise.all([
+        getSavedSpots(),
+        getVisitedSpots(),
+      ]);
+
+      const savedCount = savedResult.error ? 0 : (Array.isArray(savedResult) ? savedResult.length : 0);
+      const visitedCount = visitedResult.error ? 0 : (Array.isArray(visitedResult) ? visitedResult.length : 0);
+      const nearbyCount = nearbySpots.length;
+
+      setStats({
+        visitedSpots: visitedCount,
+        nearbyCount: nearbyCount,
+        savedSpots: savedCount,
+      });
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
   };
 
   const loadNearby = async () => {
@@ -244,25 +265,14 @@ export const HomeScreen = ({ navigation }) => {
               </Text>
             </View>
             <View style={styles.headerActions}>
-              <TouchableOpacity
-                style={styles.surpriseMeButton}
-                onPress={async () => {
-                  try {
-                    const spot = await getSurpriseMeSpot();
-                    if (!spot.error && spot.id) {
-                      navigation.navigate("SpotDetail", { spotId: spot.id });
-                    } else {
-                      Alert.alert("Error", spot.error || "Failed to get surprise spot");
-                    }
-                  } catch (error) {
-                    Alert.alert("Error", "Failed to get surprise spot");
-                  }
-                }}
+              <TouchableOpacity 
+                style={styles.iconButton}
+                onPress={() => setShowSearch(true)}
               >
-                <Ionicons name="sparkles" size={18} color="#fff" />
+                <Ionicons name="search-outline" size={22} color="#333" />
               </TouchableOpacity>
               <TouchableOpacity style={styles.iconButton}>
-                <Ionicons name="notifications-outline" size={24} color="#333" />
+                <Ionicons name="notifications-outline" size={22} color="#333" />
                 <View style={styles.notificationDot} />
               </TouchableOpacity>
               <TouchableOpacity
@@ -437,7 +447,7 @@ export const HomeScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
             <View style={styles.nearbyList}>
-              {nearbySpots.slice(0, 5).map((item, index) => (
+              {nearbySpots.map((item, index) => (
                 <View key={item.id}>{renderNearbyCard({ item, index })}</View>
               ))}
             </View>
@@ -647,41 +657,29 @@ const styles = StyleSheet.create({
   },
   headerActions: {
     flexDirection: "row",
-    gap: 12,
+    gap: 8,
+    alignItems: "center",
   },
   iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "#6C5CE720",
     justifyContent: "center",
     alignItems: "center",
-  },
-  surpriseMeButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#6C5CE7",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#6C5CE7",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
   },
   notificationDot: {
     position: "absolute",

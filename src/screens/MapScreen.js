@@ -54,6 +54,7 @@ export const MapScreen = ({ navigation }) => {
   const [surpriseSpot, setSurpriseSpot] = useState(null);
   const [revealing, setRevealing] = useState(false);
   const [showRevealModal, setShowRevealModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const revealAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -161,6 +162,16 @@ export const MapScreen = ({ navigation }) => {
       }
     } catch (err) {
       console.error("Error loading nearby spots:", err);
+    }
+  };
+
+  const onRefresh = async () => {
+    if (!location) return;
+    setRefreshing(true);
+    try {
+      await loadNearby();
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -517,6 +528,17 @@ export const MapScreen = ({ navigation }) => {
     </MapView>
 
 
+      <TouchableOpacity 
+        style={[styles.centerButton, { bottom: 150 }]} 
+        onPress={onRefresh}
+        disabled={refreshing || !location}
+      >
+        <Ionicons 
+          name="refresh" 
+          size={20} 
+          color="#007AFF"
+        />
+      </TouchableOpacity>
       <TouchableOpacity style={styles.centerButton} onPress={centerOnUser}>
         <Ionicons name="locate" size={24} color="#007AFF" />
       </TouchableOpacity>

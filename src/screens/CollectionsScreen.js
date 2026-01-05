@@ -21,7 +21,6 @@ import {
   createCollection,
   deleteCollection,
   likeCollection,
-  getUserCollections,
 } from "../services/collections.service";
 import { getAllSpots } from "../services/spots.service";
 import { useAuth } from "../hooks/useAuth";
@@ -30,12 +29,13 @@ import { Button } from "../components/Button";
 export const CollectionsScreen = ({ navigation }) => {
   const { user } = useAuth();
   const [collections, setCollections] = useState([]);
-  const [myCollections, setMyCollections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [sortBy, setSortBy] = useState("popular"); // "popular" or "recent"
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filteredCollections, setFilteredCollections] = useState([]);
 
   // Create collection form
   const [title, setTitle] = useState("");
@@ -46,10 +46,20 @@ export const CollectionsScreen = ({ navigation }) => {
 
   useEffect(() => {
     loadCollections();
-    if (user) {
-      loadMyCollections();
+  }, [sortBy]);
+
+  useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setFilteredCollections(collections);
+    } else {
+      const filtered = collections.filter(
+        (collection) =>
+          collection.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          collection.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setFilteredCollections(filtered);
     }
-  }, [sortBy, user]);
+  }, [searchQuery, collections]);
 
   const loadCollections = async () => {
     try {
@@ -59,7 +69,9 @@ export const CollectionsScreen = ({ navigation }) => {
         limit: 50,
       });
       if (!data.error) {
-        setCollections(Array.isArray(data) ? data : []);
+        const collectionsData = Array.isArray(data) ? data : [];
+        setCollections(collectionsData);
+        setFilteredCollections(collectionsData);
       }
     } catch (error) {
       console.error("Error loading collections:", error);
@@ -68,20 +80,9 @@ export const CollectionsScreen = ({ navigation }) => {
     }
   };
 
-  const loadMyCollections = async () => {
-    try {
-      const data = await getUserCollections(user.id);
-      if (!data.error) {
-        setMyCollections(Array.isArray(data) ? data : []);
-      }
-    } catch (error) {
-      console.error("Error loading my collections:", error);
-    }
-  };
-
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadCollections(), user && loadMyCollections()]);
+    await loadCollections();
     setRefreshing(false);
   };
 
@@ -101,7 +102,7 @@ export const CollectionsScreen = ({ navigation }) => {
               : col
           )
         );
-        setMyCollections((prev) =>
+        setFilteredCollections((prev) =>
           prev.map((col) =>
             col.id === collectionId
               ? {
@@ -162,7 +163,6 @@ export const CollectionsScreen = ({ navigation }) => {
         setDescription("");
         setSelectedSpots([]);
         loadCollections();
-        loadMyCollections();
         Alert.alert("Success", "Collection created successfully!");
       } else {
         Alert.alert("Error", result.error);
@@ -313,6 +313,26 @@ export const CollectionsScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search collections..."
+          placeholderTextColor="#999"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setSearchQuery("")}
+            style={styles.searchClearButton}
+          >
+            <Ionicons name="close-circle" size={20} color="#999" />
+          </TouchableOpacity>
+        )}
+      </View>
+
       {/* Sort Tabs */}
       <View style={styles.sortTabs}>
         <TouchableOpacity
@@ -344,26 +364,30 @@ export const CollectionsScreen = ({ navigation }) => {
       </View>
 
       <FlatList
-        data={collections}
+        data={filteredCollections}
         renderItem={({ item }) => renderCollectionCard({ item })}
         keyExtractor={(item) => item.id}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        ListHeaderComponent={
-          myCollections.length > 0 ? (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>My Collections</Text>
-              <FlatList
-                horizontal
-                data={myCollections}
-                renderItem={({ item }) => renderCollectionCard({ item, isMine: true })}
-                keyExtractor={(item) => item.id}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.horizontalList}
-              />
+        ListEmptyComponent={
+          searchQuery.trim() !== "" ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="search-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyText}>No collections found</Text>
+              <Text style={styles.emptySubtext}>
+                Try a different search term
+              </Text>
             </View>
-          ) : null
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="albums-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyText}>No collections yet</Text>
+              <Text style={styles.emptySubtext}>
+                Be the first to create a collection!
+              </Text>
+            </View>
+          )
         }
         contentContainerStyle={styles.listContent}
         numColumns={1}
@@ -529,6 +553,30 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: "#1A1A1A",
+  },
+  searchClearButton: {
+    padding: 4,
+  },
   sortTabs: {
     flexDirection: "row",
     paddingHorizontal: 20,
@@ -573,6 +621,23 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 20,
     paddingTop: 0,
+  },
+  emptyContainer: {
+    padding: 60,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#666",
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: "#999",
+    marginTop: 8,
+    textAlign: "center",
   },
   row: {
     justifyContent: "space-between",

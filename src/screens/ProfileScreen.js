@@ -10,6 +10,7 @@ import {
   Image,
   ActivityIndicator,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../components/Button';
@@ -18,6 +19,7 @@ import { signOutUser, changePassword } from '../services/auth.service';
 import { getSavedSpots, unsaveSpot } from '../services/savedSpots.service';
 import { getSpotById } from '../services/spots.service';
 import { getVisitedSpots } from '../services/visitedSpots.service';
+import { getUserCollections } from '../services/collections.service';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -25,8 +27,11 @@ export const ProfileScreen = ({ navigation }) => {
   const { user, isSuperAdmin } = useAuth();
   const [savedSpots, setSavedSpots] = useState([]);
   const [visitedSpots, setVisitedSpots] = useState([]);
+  const [myCollections, setMyCollections] = useState([]);
   const [loadingSpots, setLoadingSpots] = useState(false);
   const [loadingVisitedSpots, setLoadingVisitedSpots] = useState(false);
+  const [loadingCollections, setLoadingCollections] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -39,6 +44,7 @@ export const ProfileScreen = ({ navigation }) => {
     if (user) {
       loadSavedSpots();
       loadVisitedSpots();
+      loadMyCollections();
     }
   }, [user]);
 
@@ -67,6 +73,33 @@ export const ProfileScreen = ({ navigation }) => {
       console.error('Error loading visited spots:', error);
     } finally {
       setLoadingVisitedSpots(false);
+    }
+  };
+
+  const loadMyCollections = async () => {
+    setLoadingCollections(true);
+    try {
+      const collections = await getUserCollections(user.id);
+      if (!collections.error) {
+        setMyCollections(Array.isArray(collections) ? collections : []);
+      }
+    } catch (error) {
+      console.error('Error loading collections:', error);
+    } finally {
+      setLoadingCollections(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        loadSavedSpots(),
+        loadVisitedSpots(),
+        loadMyCollections(),
+      ]);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -142,7 +175,12 @@ export const ProfileScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Header */}
         <LinearGradient
           colors={['#6C5CE7', '#A29BFE']}
@@ -338,6 +376,76 @@ export const ProfileScreen = ({ navigation }) => {
                 </TouchableOpacity>
               ))}
             </View>
+          )}
+        </View>
+
+        {/* My Collections */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>My Collections</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Collections')}>
+              <Text style={styles.seeAll}>See All</Text>
+            </TouchableOpacity>
+          </View>
+
+          {loadingCollections ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#6C5CE7" />
+            </View>
+          ) : myCollections.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="albums-outline" size={48} color="#ccc" />
+              <Text style={styles.emptyText}>No collections yet</Text>
+              <Text style={styles.emptySubtext}>Create collections to organize your favorite spots</Text>
+              <TouchableOpacity
+                style={styles.createCollectionButton}
+                onPress={() => navigation.navigate('Collections')}
+              >
+                <Text style={styles.createCollectionButtonText}>Create Collection</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.collectionsList}
+            >
+              {myCollections.slice(0, 5).map((collection) => {
+                const coverImage =
+                  collection.coverImage ||
+                  collection.spots?.[0]?.spot?.thumbnail ||
+                  collection.spots?.[0]?.spot?.images?.[0];
+                return (
+                  <TouchableOpacity
+                    key={collection.id}
+                    style={styles.collectionCard}
+                    onPress={() =>
+                      navigation.navigate('CollectionDetail', {
+                        collectionId: collection.id,
+                      })
+                    }
+                  >
+                    <Image
+                      source={{ uri: coverImage }}
+                      style={styles.collectionImage}
+                      resizeMode="cover"
+                    />
+                    <LinearGradient
+                      colors={['transparent', 'rgba(0,0,0,0.8)']}
+                      style={styles.collectionGradient}
+                    />
+                    <View style={styles.collectionInfo}>
+                      <Text style={styles.collectionTitle} numberOfLines={2}>
+                        {collection.title}
+                      </Text>
+                      <Text style={styles.collectionCount}>
+                        {collection.spotCount || 0} spots
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           )}
         </View>
 
@@ -652,5 +760,68 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#4CAF50',
+  },
+  seeAll: {
+    fontSize: 14,
+    color: '#6C5CE7',
+    fontWeight: '600',
+  },
+  collectionsList: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  collectionCard: {
+    width: 200,
+    height: 240,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  collectionImage: {
+    width: '100%',
+    height: '100%',
+  },
+  collectionGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '60%',
+  },
+  collectionInfo: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+  },
+  collectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  collectionCount: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '500',
+  },
+  createCollectionButton: {
+    marginTop: 16,
+    backgroundColor: '#6C5CE7',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 20,
+  },
+  createCollectionButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
