@@ -24,7 +24,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export const ProfileScreen = ({ navigation }) => {
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, logout } = useAuth();
   const [savedSpots, setSavedSpots] = useState([]);
   const [visitedSpots, setVisitedSpots] = useState([]);
   const [myCollections, setMyCollections] = useState([]);
@@ -113,7 +113,11 @@ export const ProfileScreen = ({ navigation }) => {
           text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
-            await signOutUser();
+            const result = await logout();
+            if (result.error) {
+              Alert.alert('Error', result.error);
+            }
+            // Navigation will automatically redirect to login due to user state change
           },
         },
       ]
