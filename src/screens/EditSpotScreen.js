@@ -12,9 +12,10 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import MapView, { Marker } from 'react-native-maps';
+import { LeafletMap } from '../components/LeafletMap';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Button } from '../components/Button';
 import { ImageUploader } from '../components/ImageUploader';
@@ -47,8 +48,8 @@ export const EditSpotScreen = ({ route, navigation }) => {
   const [bestTime, setBestTime] = useState('');
   const [featureInput, setFeatureInput] = useState('');
   const [features, setFeatures] = useState([]);
-  const [lat, setLatitude] = useState(location?.latitude ?? 37.78825);
-  const [lng, setLongitude] = useState(location?.longitude ?? -122.4324);
+  const [lat, setLatitude] = useState(location?.latitude ?? 9.0080);
+  const [lng, setLongitude] = useState(location?.longitude ?? 38.7886);
   const [website, setWebsite] = useState('');
   const [instagram, setInstagram] = useState('');
   const [facebook, setFacebook] = useState('');
@@ -92,8 +93,8 @@ export const EditSpotScreen = ({ route, navigation }) => {
       setAddress(spot.address || '');
       setBestTime(spot.bestTime || '');
       setFeatures(spot.features || []);
-      setLatitude(spot.lat || location?.latitude || 37.78825);
-      setLongitude(spot.lng || location?.longitude || -122.4324);
+      setLatitude(spot.lat || location?.latitude || 9.0080);
+      setLongitude(spot.lng || location?.longitude || 38.7886);
       setExistingImages(spot.images || []);
       setWebsite(spot.website || '');
       setInstagram(spot.instagram || '');
@@ -176,11 +177,6 @@ export const EditSpotScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleMapPress = (event) => {
-    const { latitude: lat, longitude: lng } = event.nativeEvent.coordinate;
-    setLatitude(lat);
-    setLongitude(lng);
-  };
 
   const selectedCategoryLabel = CATEGORIES.find((c) => c.id === category)?.label || 'Select Category';
 
@@ -579,29 +575,31 @@ export const EditSpotScreen = ({ route, navigation }) => {
               <Ionicons name="close" size={24} color="#333" />
             </TouchableOpacity>
           </View>
-          <MapView
-            style={styles.map}
-            initialRegion={{
-              latitude: lat || 37.78825,
-              longitude: lng || -122.4324,
-              latitudeDelta: 0.0922,
-              longitudeDelta: 0.0421,
-            }}
-            onPress={handleMapPress}
-          >
-            <Marker
-              coordinate={{ latitude: lat || 37.78825, longitude: lng || -122.4324 }}
-              draggable
-              onDragEnd={(e) => {
-                setLatitude(e.nativeEvent.coordinate.latitude);
-                setLongitude(e.nativeEvent.coordinate.longitude);
+          <View style={styles.leafletMapContainer}>
+            <LeafletMap
+              latitude={lat || 9.0080}
+              longitude={lng || 38.7886}
+              onLocationChange={(coords) => {
+                setLatitude(coords.latitude);
+                setLongitude(coords.longitude);
               }}
+              interactive={true}
+              height={Dimensions.get('window').height - 200}
+              showUserLocation={true}
+              userLocation={location}
             />
-          </MapView>
+          </View>
           <View style={styles.mapModalFooter}>
+            <View style={styles.coordinateDisplay}>
+              <Ionicons name="location" size={20} color="#6C5CE7" />
+              <Text style={styles.coordinateText}>
+                {lat?.toFixed(6)}, {lng?.toFixed(6)}
+              </Text>
+            </View>
             <Button
               title="Confirm Location"
               onPress={() => setMapModalVisible(false)}
+              style={styles.confirmButton}
             />
           </View>
         </View>
@@ -910,10 +908,67 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
+  leafletMapContainer: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    margin: 16,
+  },
+  coordinateDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  coordinateText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    fontFamily: 'monospace',
+  },
+  confirmButton: {
+    marginTop: 0,
+  },
   mapModalFooter: {
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
+  },
+  mapErrorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+    backgroundColor: '#f8f9fa',
+  },
+  mapErrorTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  mapErrorText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  mapErrorButton: {
+    backgroundColor: '#6C5CE7',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  mapErrorButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

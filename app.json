@@ -43,7 +43,8 @@
           "mediaLibraryPermission": "Allow VibeSpot to access your photos."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-asset"
     ],
     "extra": {
       "eas": {

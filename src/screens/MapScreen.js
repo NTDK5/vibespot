@@ -6,9 +6,10 @@ import {
   TouchableOpacity,
   Alert,
   Image,
-  ActivityIndicator
+  ActivityIndicator,
+  Dimensions,
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import { LeafletMap } from '../components/LeafletMap';
 import { Ionicons } from '@expo/vector-icons';
 import { getNearbySpots, getSurpriseMeSpot } from '../services/spots.service';
 import { useLocation } from '../hooks/useLocation';
@@ -61,6 +62,7 @@ export const MapScreen = ({ navigation }) => {
   const mapRef = useRef(null);
   const isRegionChanging = useRef(false);
   const shouldUpdateRegion = useRef(true);
+  const [mapReady, setMapReady] = useState(false);
 
   // Reanimated values for advanced animations
   const revealProgress = useSharedValue(0);
@@ -386,14 +388,18 @@ export const MapScreen = ({ navigation }) => {
     };
   });
 
-  const handleRegionChangeComplete = useCallback((region) => {
-    // Only update state if we're not in the middle of a programmatic region change
-    // This prevents the map from vibrating due to constant re-renders
+  const handleMapLocationChange = useCallback((coords) => {
+    // Handle location changes from Leaflet map
     if (!isRegionChanging.current && shouldUpdateRegion.current) {
       shouldUpdateRegion.current = false;
-      setMapRegion(region);
+      setMapRegion({
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        latitudeDelta: mapRegion?.latitudeDelta || 0.01,
+        longitudeDelta: mapRegion?.longitudeDelta || 0.01,
+      });
     }
-  }, []);
+  }, [mapRegion]);
 
   if (locationLoading || !mapRegion) {
     return (
@@ -405,127 +411,28 @@ export const MapScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-    <MapView
-      ref={mapRef}
-      style={styles.map}
-      region={mapRegion}
-      onRegionChangeComplete={handleRegionChangeComplete}
-      customMapStyle={cleanMapStyle} 
-      showsUserLocation={true}
-      showsMyLocationButton={false}
-      showsPointsOfInterest={false} 
-      showsBuildings={false}
-      showsIndoorLevelPicker={false}
-      toolbarEnabled={false}
-      moveOnMarkerPress={false}
-    >
-      {spots.map((spot) => {
-        const isSurpriseSpot = surpriseSpot?.id === spot.id;
-        return (
-          <Marker
-            key={spot.id}
-            coordinate={{
-              latitude: spot.lat,
-              longitude: spot.lng,
-            }}
-            onPress={() => openBottomSheet(spot)}
-          >
-            <Animated.View
-              style={{
-                alignItems: "center",
-                transform: isSurpriseSpot ? [
-                  { scale: pulseAnim },
-                  { scale: scaleAnim }
-                ] : [],
-                opacity: isSurpriseSpot ? revealAnim : 1,
-              }}
-            >
-              {/* Pulse rings for surprise spot */}
-              {isSurpriseSpot && (
-                <>
-                  <Animated.View
-                    style={{
-                      position: "absolute",
-                      width: 80,
-                      height: 80,
-                      borderRadius: 40,
-                      borderWidth: 2,
-                      borderColor: vibeColor,
-                      opacity: pulseAnim.interpolate({
-                        inputRange: [1, 1.3],
-                        outputRange: [0.6, 0],
-                      }),
-                      transform: [
-                        {
-                          scale: pulseAnim.interpolate({
-                            inputRange: [1, 1.3],
-                            outputRange: [1, 2],
-                          }),
-                        },
-                      ],
-                    }}
-                  />
-                  <Animated.View
-                    style={{
-                      position: "absolute",
-                      width: 100,
-                      height: 100,
-                      borderRadius: 50,
-                      borderWidth: 2,
-                      borderColor: vibeColor,
-                      opacity: pulseAnim.interpolate({
-                        inputRange: [1, 1.3],
-                        outputRange: [0.4, 0],
-                      }),
-                      transform: [
-                        {
-                          scale: pulseAnim.interpolate({
-                            inputRange: [1, 1.3],
-                            outputRange: [1, 2.5],
-                          }),
-                        },
-                      ],
-                    }}
-                  />
-                </>
-              )}
-              {/* Pin head */}
-              <View style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                alignItems: "center",
-                justifyContent: "center",
-                elevation: 3,
-                shadowColor: "#000",
-                shadowOpacity: 0.3,
-                shadowRadius: 2,
-                backgroundColor: isSurpriseSpot ? vibeColor : "transparent",
-              }}>
-                <Image
-                  source={require("../../assets/logo.png")}
-                  style={{ width: 80, height: 80 }}
-                  resizeMode="cover"
-                />
-              </View>
-        
-              {/* Pin pointer */}
-              <View style={{
-                width: 0,
-                height: 0,
-                borderLeftWidth: 10,
-                borderRightWidth: 10,
-                borderTopWidth: 15,
-                borderLeftColor: "transparent",
-                borderRightColor: "transparent",
-                borderTopColor: isSurpriseSpot ? vibeColor : "#fff",
-                marginTop: -1,
-              }} />
-            </Animated.View>
-          </Marker>
-        );
-      })}
-    </MapView>
+      <LeafletMap
+        ref={mapRef}
+        latitude={mapRegion?.latitude || location?.latitude || 9.0080}
+        longitude={mapRegion?.longitude || location?.longitude || 38.7886}
+        onLocationChange={handleMapLocationChange}
+        onMarkerPress={(marker) => {
+          const spot = spots.find(s => s.id === marker.id);
+          if (spot) openBottomSheet(spot);
+        }}
+        markers={spots.map(spot => ({
+          latitude: spot.lat,
+          longitude: spot.lng,
+          id: spot.id,
+          color: surpriseSpot?.id === spot.id ? vibeColor : '#667eea',
+        }))}
+        markerImage={require('../../assets/logo.png')}
+        height={Dimensions.get('window').height}
+        interactive={true}
+        showUserLocation={true}
+        userLocation={location}
+        style={styles.map}
+      />
 
 
       <TouchableOpacity 
@@ -773,7 +680,49 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  map: { flex: 1 },
+  map: { 
+    flex: 1,
+    borderRadius: 0,
+  },
+  spotOverlay: {
+    position: 'absolute',
+    // Position will be calculated dynamically based on lat/lng
+  },
+  spotMarker: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  spotMarkerImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  pulseRing: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    top: -20,
+    left: -20,
+  },
+  pulseRingLarge: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 2,
+    top: -30,
+    left: -30,
+  },
   centerButton: {
     position: "absolute",
     bottom: 100,
