@@ -26,7 +26,7 @@ import {SpotCard} from "../components/SpotCard";
 import { NearbySpotCard } from "../components/NearbySpotCard";
 import { RankSpotCard } from "../components/RankSpotCard";
 import { CATEGORIES } from "../utils/constants";
-
+import { useTheme } from "../context/ThemeContext";
 
 const { width } = Dimensions.get("window");
 
@@ -43,6 +43,7 @@ const categories = CATEGORIES.map((cat, index) => {
 
 export const HomeScreen = ({ navigation }) => {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const [spots, setSpots] = useState([]);
   const { location, loading: locationLoading } = useLocation();
   const [loading, setLoading] = useState(true);
@@ -222,17 +223,17 @@ export const HomeScreen = ({ navigation }) => {
 
   if (loading && spots.length === 0) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6C5CE7" />
-          <Text style={styles.loadingText}>Discovering amazing spots...</Text>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.text }]}>Discovering amazing spots...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         onScroll={Animated.event(
@@ -241,46 +242,43 @@ export const HomeScreen = ({ navigation }) => {
         )}
         scrollEventThrottle={16}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C5CE7" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
         }
       >
         {/* HEADER */}
         <Animated.View
           style={[
             styles.header,
-            {
-              opacity: headerOpacity,
-              transform: [{ translateY: headerTranslateY }],
-            },
+            { backgroundColor: theme.background, opacity: headerOpacity, transform: [{ translateY: headerTranslateY }] }
           ]}
         >
           <View style={styles.headerTop}>
             <View>
-              <Text style={styles.greetingSmall}>
+              <Text style={[styles.greetingSmall, { color: theme.text }]}>
                 {new Date().getHours() < 12 ? 'Good Morning' : 
                  new Date().getHours() < 18 ? 'Good Afternoon' : 'Good Evening'}
               </Text>
-              <Text style={styles.greeting}>
+              <Text style={[styles.greeting, { color: theme.text }]}>
                 {user?.name || 'Explorer'} 👋
               </Text>
             </View>
             <View style={styles.headerActions}>
               <TouchableOpacity 
-                style={styles.iconButton}
+                style={[styles.iconButton, { backgroundColor: theme.background }]}
                 onPress={() => setShowSearch(true)}
               >
-                <Ionicons name="search-outline" size={22} color="#333" />
+                <Ionicons name="search-outline" size={22} color={theme.text} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton}>
-                <Ionicons name="notifications-outline" size={22} color="#333" />
+              <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.background }]}>
+                <Ionicons name="notifications-outline" size={22} color={theme.text} />
                 <View style={styles.notificationDot} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.iconButton}
+                style={[styles.iconButton, { backgroundColor: theme.background }]}
                 onPress={() => navigation.navigate("Profile")}
               >
                 <View style={styles.avatar}>
-                  <Ionicons name="person" size={18} color="#6C5CE7" />
+                  <Ionicons name="person" size={18} color={theme.primary} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -288,19 +286,19 @@ export const HomeScreen = ({ navigation }) => {
 
           {/* SEARCH */}
           <TouchableOpacity
-            style={styles.searchContainer}
+            style={[styles.searchContainer, { backgroundColor: theme.background, borderColor: theme.border }]}
             onPress={() => setShowSearch(true)}
             activeOpacity={0.8}
           >
-            <Ionicons name="search" size={20} color="#999" />
-            <Text style={styles.searchPlaceholder}>
+            <Ionicons name="search" size={20} color={theme.textMuted} />
+            <Text style={[styles.searchPlaceholder, { color: theme.textMuted,backgroundColor: theme.background}]}>
               {searchQuery || "Search spots, vibes, activities..."}
             </Text>
             <TouchableOpacity 
-              style={styles.filterBtn}
+              style={[styles.filterBtn, { backgroundColor: theme.primary }]}
               onPress={() => setShowSearch(true)}
             >
-              <Ionicons name="options" size={20} color="#fff" />
+              <Ionicons name="options" size={20} color={theme.background} />
             </TouchableOpacity>
           </TouchableOpacity>
         </Animated.View>
@@ -310,12 +308,12 @@ export const HomeScreen = ({ navigation }) => {
 
         {/* CATEGORIES */}
        {/* CATEGORIES */}
-          <View style={styles.section}>
+          <View style={[styles.section, { backgroundColor: theme.background }]}>
             {/* Header */}
-            <View style={styles.sectionHeader}>
+            <View style={[styles.sectionHeader, { backgroundColor: theme.background }]}>
               <View>
-                <Text style={styles.sectionTitle}>Explore</Text>
-                <Text style={styles.sectionSubtitle}>Find spots by vibe</Text>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>Explore</Text>
+                <Text style={[styles.sectionSubtitle, { color: theme.text }]}>Find spots by vibe</Text>
               </View>
             </View>
 
@@ -323,7 +321,7 @@ export const HomeScreen = ({ navigation }) => {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoriesRow}
+              contentContainerStyle={[styles.categoriesRow, { backgroundColor: theme.background }]}
             >
               {categories.map((cat) => {
                 const isActive = selectedCategory === cat.id;
@@ -383,12 +381,12 @@ export const HomeScreen = ({ navigation }) => {
 
         {/* WEEKLY RANKS */}
         {weeklyRanks.length > 0 && (
-          <View style={styles.section}>
+          <View style={[styles.section, { backgroundColor: theme.background }]}>
             <View style={styles.sectionHeader}>
-              <View style={styles.sectionTitleRow}>
+              <View style={[styles.sectionTitleRow, { backgroundColor: theme.background }]}>
                 <LinearGradient
                   colors={['#FFD700', '#FFA500']}
-                  style={styles.trophyIcon}
+                  style={[styles.trophyIcon, { backgroundColor: theme.background }]}
                 >
                   <Ionicons name="trophy" size={20} color="#fff" />
                 </LinearGradient>
@@ -620,7 +618,7 @@ export const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    // backgroundColor: "#F8F9FA",
   },
   loadingContainer: {
     flex: 1,
@@ -630,13 +628,13 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: "#666",
+    // color: "#666",
   },
   header: {
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 20,
-    backgroundColor: "#F8F9FA",
+    // backgroundColor: "#F8F9FA",
   },
   headerTop: {
     flexDirection: "row",
@@ -646,13 +644,13 @@ const styles = StyleSheet.create({
   },
   greetingSmall: {
     fontSize: 14,
-    color: "#666",
+    // color: "#666",
     fontWeight: "500",
   },
   greeting: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#1A1A1A",
+    // color: "#1A1A1A",
     marginTop: 4,
   },
   headerActions: {
@@ -664,10 +662,10 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#fff",
+    // backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
+    // shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
@@ -677,27 +675,27 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#6C5CE720",
+    // backgroundColor: "#6C5CE720",
     justifyContent: "center",
     alignItems: "center",
   },
   notificationDot: {
-    position: "absolute",
+    // position: "absolute",
     top: 8,
     right: 8,
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#FF4D4F",
+    // backgroundColor: "#FF4D4F",
   },
   searchContainer: {
-    backgroundColor: "#fff",
+    // backgroundColor: "#fff",
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 16,
-    shadowColor: "#000",
+    // shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
@@ -707,13 +705,13 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
     fontSize: 15,
-    color: "#999",
+    // color: "#999",
   },
   filterBtn: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#6C5CE7",
+    // backgroundColor: "#6C5CE7",
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 8,
@@ -726,11 +724,11 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: "#fff",
+    // backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
     alignItems: "center",
-    shadowColor: "#000",
+    // shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
@@ -739,18 +737,18 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 24,
     fontWeight: "800",
-    color: "#1A1A1A",
+    //color: "#1A1A1A",
     marginTop: 8,
   },
   statLabel: {
     fontSize: 12,
-    color: "#666",
+    // color: "#666",
     marginTop: 4,
     fontWeight: "500",
   },
   seeAll: {
     fontSize: 15,
-    color: "#6C5CE7",
+    // color: "#6C5CE7",
     fontWeight: "700",
   },
   trophyIcon: {
@@ -778,11 +776,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#1A1A1A",
+    // color: "#1A1A1A",
   },
   sectionSubtitle: {
     fontSize: 13,
-    color: "#666",
+    // color: "#666",
     marginTop: 2,
   },
 
@@ -800,7 +798,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#fff",
+    //backgroundColor: "#fff",
   
     // shadowOffset: { width: 0, height: 10 },
     // shadowOpacity: 0.12,
@@ -819,7 +817,7 @@ const styles = StyleSheet.create({
   categoryLabel: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#222",
+    // color: "#222",
     textAlign: "center",
   },
   
@@ -827,7 +825,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#fff",
+    // backgroundColor: "#fff",
     marginTop: 6,
   },
 
@@ -888,7 +886,7 @@ const styles = StyleSheet.create({
   rankTitle: {
     fontSize: 24,
     fontWeight: "800",
-    color: "#fff",
+    // color: "#fff",
     marginBottom: 12,
   },
   rankMeta: {
@@ -899,28 +897,28 @@ const styles = StyleSheet.create({
   rankVibes: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    // backgroundColor: "rgba(255, 255, 255, 0.25)",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     gap: 6,
   },
   rankVibeText: {
-    color: "#FFD54F",
+    // color: "#FFD54F",
     fontSize: 13,
     fontWeight: "700",
   },
   rankScore: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    // backgroundColor: "rgba(0, 0, 0, 0.6)",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     gap: 6,
   },
   rankScoreText: {
-    color: "#fff",
+    // color: "#fff",
     fontSize: 13,
     fontWeight: "700",
   },

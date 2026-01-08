@@ -18,7 +18,7 @@ import { registerUser } from '../services/auth.service';
 import { useAuth } from '../hooks/useAuth';
 import { isValidEmail } from '../utils/helpers';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
+import { useTheme } from '../context/ThemeContext';
 export const RegisterScreen = ({ navigation }) => {
   const { login } = useAuth();
   const [displayName, setDisplayName] = useState('');
@@ -28,7 +28,7 @@ export const RegisterScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
+  const { theme } = useTheme();
   const handleRegister = async () => {
     // Validation
     if (!displayName.trim()) {
@@ -88,32 +88,32 @@ export const RegisterScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
-        style={styles.keyboardView}
+        style={[styles.keyboardView, { backgroundColor: theme.background }]}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { backgroundColor: theme.background }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.content}>
+          <View style={[styles.content, { backgroundColor: theme.background }]}>
             <View style={styles.logoContainer}>
-              <Ionicons name="location" size={64} color="#6C5CE7" />
+              <Ionicons name="location" size={64} color={theme.primary} />
             </View>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: theme.text }]}>Create Account</Text>
+            <Text style={[styles.subtitle, { color: theme.text }]}>
               Join VibeSpot and discover amazing spots
             </Text>
 
-            <View style={styles.form}>
-              <View style={styles.inputContainer}>
-                <Ionicons name="person-outline" size={20} color="#999" style={styles.inputIcon} />
+            <View style={[styles.form, { backgroundColor: theme.background }]}>
+              <View style={[styles.inputContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <Ionicons name="person-outline" size={20} color={theme.textMuted} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, {color: theme.text }]}
                   placeholder="Full Name"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={theme.textMuted}
                   value={displayName}
                   onChangeText={setDisplayName}
                   autoCapitalize="words"
@@ -121,12 +121,12 @@ export const RegisterScreen = ({ navigation }) => {
                 />
               </View>
 
-              <View style={styles.inputContainer}>
-                <Ionicons name="mail-outline" size={20} color="#999" style={styles.inputIcon} />
+              <View style={[styles.inputContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <Ionicons name="mail-outline" size={20} color={theme.textMuted} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, {color: theme.text }]}
                   placeholder="Email"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={theme.textMuted}  
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -136,12 +136,12 @@ export const RegisterScreen = ({ navigation }) => {
                 />
               </View>
 
-              <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color="#999" style={styles.inputIcon} />
+              <View style={[styles.inputContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <Ionicons name="lock-closed-outline" size={20} color={theme.textMuted} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, {color: theme.text }]}
                   placeholder="Password"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={theme.textMuted}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -155,17 +155,17 @@ export const RegisterScreen = ({ navigation }) => {
                   <Ionicons
                     name={showPassword ? 'eye-outline' : 'eye-off-outline'}
                     size={20}
-                    color="#999"
+                    color={theme.textMuted}
                   />
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color="#999" style={styles.inputIcon} />
+              <View style={[styles.inputContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <Ionicons name="lock-closed-outline" size={20} color={theme.textMuted} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, {color: theme.text }]}
                   placeholder="Confirm Password"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={theme.textMuted}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showConfirmPassword}
@@ -179,7 +179,7 @@ export const RegisterScreen = ({ navigation }) => {
                   <Ionicons
                     name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
                     size={20}
-                    color="#999"
+                    color={theme.textMuted}
                   />
                 </TouchableOpacity>
               </View>
@@ -188,14 +188,14 @@ export const RegisterScreen = ({ navigation }) => {
                 title={loading ? 'Creating Account...' : 'Sign Up'}
                 onPress={handleRegister}
                 loading={loading}
-                style={styles.button}
+                style={[styles.button, { backgroundColor: theme.primary }]}
                 disabled={loading}
               />
 
               <View style={styles.footer}>
-                <Text style={styles.footerText}>Already have an account? </Text>
+                <Text style={[styles.footerText, { color: theme.text }]}>Already have an account? </Text>
                 <Text
-                  style={styles.footerLink}
+                  style={[styles.footerLink, { color: theme.text }]}
                   onPress={() => navigation.navigate('Login')}
                 >
                   Sign In
@@ -212,7 +212,7 @@ export const RegisterScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    // backgroundColor: '#fff',
   },
   keyboardView: {
     flex: 1,
@@ -232,13 +232,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#1A1A1A',
+    // color: '#1A1A1A',
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    // color: '#666',
     marginBottom: 32,
     textAlign: 'center',
   },
@@ -248,11 +248,11 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
+    // backgroundColor: '#F8F9FA',
     borderRadius: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    // borderColor: '#E0E0E0',
   },
   inputIcon: {
     marginLeft: 16,
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     fontSize: 16,
-    color: '#333',
+    // color: '#333',
   },
   eyeIcon: {
     padding: 16,
@@ -277,11 +277,11 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#666',
+    // color: '#666',
   },
   footerLink: {
     fontSize: 14,
-    color: '#6C5CE7',
+    // color: '#6C5CE7',
     fontWeight: '700',
   },
 });
