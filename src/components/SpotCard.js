@@ -12,6 +12,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSpotVibes } from "../hooks/useSpotVibes";
 import { LinearGradient } from "expo-linear-gradient";
 import { getStars } from "../utils/helpers";
+import { useTheme } from "../context/ThemeContext";
+
 
 const { width } = Dimensions.get("window");
 const safeHex = (color, fallback = "#111111") => {
@@ -30,13 +32,13 @@ const hexToRgba = (hex, alpha = 1) => {
 
 export const SpotCard = ({ spot, onPress }) => {
   const scrollY = useRef(new Animated.Value(0)).current;
-
+  const {theme} = useTheme()
   const { data: spotVibes = [] } = useSpotVibes(spot.id);
 
   const topVibe =
     spotVibes.length > 0
       ? spotVibes.reduce((a, b) => (b.count > a.count ? b : a))
-      : null;
+      : theme.surface;
 
   const rawVibeColor = topVibe?.color;
   const vibeColor = safeHex(rawVibeColor, "#1a1a1a");

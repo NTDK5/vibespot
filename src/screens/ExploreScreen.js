@@ -12,7 +12,7 @@ import { SpotCard } from '../components/SpotCard';
 import { getAllSpots, searchSpots } from '../services/spots.service';
 import { CATEGORIES } from '../utils/constants';
 import { NearbySpotCard } from '../components/NearbySpotCard';
-
+import {useTheme} from '../context/ThemeContext'
 /**
  * Explore Screen
  * Browse and search spots
@@ -22,7 +22,7 @@ export const ExploreScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [loading, setLoading] = useState(false);
-
+  const {theme} = useTheme()
   /* ----------------------------------
      Initial load (no filters)
   ----------------------------------- */
@@ -81,13 +81,14 @@ export const ExploreScreen = ({ navigation }) => {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, {backgroundColor: theme.background}]}>
       {/* 🔍 Search Bar */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#666" />
+      <View style={[styles.searchContainer, {backgroundColor: theme.surface, borderColor: theme.border}]}>
+        <Ionicons name="search" size={20} color={theme.text} />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput,{color: theme.text}]}
           placeholder="Search spots..."
+          placeholderTextColor={theme.text}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -99,7 +100,7 @@ export const ExploreScreen = ({ navigation }) => {
       </View>
 
       {/* 🏷️ Categories */}
-      <View style={styles.categoriesContainer}>
+      <View style={[styles.categoriesContainer, {backgroundColor:theme.background,}]}>
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -115,7 +116,9 @@ export const ExploreScreen = ({ navigation }) => {
               <TouchableOpacity
                 style={[
                   styles.categoryChip,
-                  active && styles.categoryChipActive,
+                  {backgroundColor: theme.surface},
+                  active && {backgroundColor: theme.primary},
+
                 ]}
                 onPress={() =>
                   setSelectedCategory(item.id === 'all' ? null : item.id)
@@ -124,11 +127,12 @@ export const ExploreScreen = ({ navigation }) => {
                 <Ionicons
                   name={item.icon}
                   size={16}
-                  color={active ? '#fff' : '#666'}
+                  color={active ? "#fff": theme.text}
                 />
                 <Text
                   style={[
                     styles.categoryText,
+                    {color: theme.text},
                     active && styles.categoryTextActive,
                   ]}
                 >
@@ -169,7 +173,8 @@ export const ExploreScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    paddingVertical:15
+    // backgroundColor: '#f5f5f5',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -180,6 +185,8 @@ const styles = StyleSheet.create({
     margin: 16,
     borderWidth: 1,
     borderColor: '#e0e0e0',
+    elevation:4
+    // marginTop:10
   },
   searchInput: {
     flex: 1,
@@ -188,10 +195,10 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   categoriesContainer: {
-    backgroundColor: '#fff',
+    // backgroundColor: '#fff',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    // borderBottomColor: '#e0e0e0',
   },
   categoriesList: {
     paddingHorizontal: 16,
@@ -202,11 +209,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#f5f5f5',
+    // backgroundColor: '#f5f5f5',
     marginRight: 8,
+    elevation:2
   },
   categoryChipActive: {
-    backgroundColor: '#007AFF',
+    // backgroundColor: '#007AFF',
   },
   categoryText: {
     marginLeft: 6,

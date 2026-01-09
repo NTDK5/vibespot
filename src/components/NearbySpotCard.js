@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSpotVibes } from "../hooks/useSpotVibes";
-
+import { useTheme } from "../context/ThemeContext";
 const safeHex = (color, fallback = "#1f1f1f") => {
   if (!color) return fallback;
   if (/^#([0-9A-F]{6})$/i.test(color)) return color;
@@ -24,23 +24,32 @@ const hexToRgba = (hex, alpha = 1) => {
 };
 
 export const NearbySpotCard = ({ spot, onPress }) => {
-    
+  
   const { data: spotVibes = [] } = useSpotVibes(spot.id);
-
+  const {theme} = useTheme()
   const topVibe =
     spotVibes.length > 0
       ? spotVibes.reduce((a, b) => (b.count > a.count ? b : a))
       : null;
 
   const vibeColor = safeHex(topVibe?.color, "#242424");
-
+  const cardBackgroundColor = topVibe
+  ? hexToRgba(vibeColor, 0.95)
+  : theme.surface; // or theme.surfaceAlt / surfaceElevated
+  const hasTopVibe = !!topVibe;
+  const textColor = hasTopVibe ? "#fff" : theme.text;
+  const mutedTextColor = hasTopVibe ? "rgba(255,255,255,0.85)" : theme.textMuted;
   return (
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={onPress}
       style={[
         styles.card,
-        { backgroundColor: hexToRgba(vibeColor, 0.95) },
+        {
+          backgroundColor: cardBackgroundColor,
+          borderColor: theme.border,
+          shadowColor: "#000",
+        },
       ]}
     >
       {/* IMAGE */}
@@ -63,14 +72,14 @@ export const NearbySpotCard = ({ spot, onPress }) => {
       <View style={styles.info}>
         {/* title + rating */}
         <View style={styles.header}>
-          <Text numberOfLines={1} style={styles.title}>
+          <Text numberOfLines={1} style={[styles.title, {color: textColor}]}>
             {spot.title}
           </Text>
 
           {spot.ratingAvg > 0 && (
             <View style={styles.rating}>
               <Ionicons name="star" size={12} color="#FFD700" />
-              <Text style={styles.ratingText}>
+              <Text style={[styles.ratingText,{color: textColor}]}>
                 {spot.ratingAvg.toFixed(1)}
               </Text>
             </View>
@@ -79,15 +88,15 @@ export const NearbySpotCard = ({ spot, onPress }) => {
 
         {/* address */}
         <View style={styles.addressRow}>
-          <Ionicons name="location" size={12} color="#ccc" />
-          <Text numberOfLines={1} style={styles.address}>
+          <Ionicons name="location" size={12} color={theme.textMuted} />
+          <Text numberOfLines={1} style={[styles.address,{color: textColor}]}>
             {spot.address}
           </Text>
         </View>
 
         {/* description preview */}
         {spot.description && (
-          <Text numberOfLines={2} style={styles.description}>
+          <Text numberOfLines={2} style={[styles.description, {color: textColor}]}>
             {spot.description}
           </Text>
         )}
@@ -149,10 +158,10 @@ const styles = StyleSheet.create({
       overflow: "hidden",
       marginBottom: 10,
       shadowColor: "#000",
-      shadowOpacity: 0.22,
+      shadowOpacity: 0.6,
       shadowRadius: 14,
-      shadowOffset: { width: 0, height: 8 },
-      elevation: 7,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 6,
     },
   
     imageWrap: {

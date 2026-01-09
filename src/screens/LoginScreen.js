@@ -8,13 +8,15 @@ import {
   Platform,
   ScrollView,
   Alert,
-  Image
+  Image,
+  TouchableOpacity
 } from 'react-native';
 import { Button } from '../components/Button';
 // import { signInWithEmail, signInWithGoogle } from '../services/auth';
 import { isValidEmail } from '../utils/helpers';
 import { useAuth } from "../hooks/useAuth"
 import { useTheme } from "../context/ThemeContext";
+import { Ionicons } from '@expo/vector-icons';
 
 /**
  * Login Screen
@@ -26,6 +28,8 @@ export const LoginScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const { theme } = useTheme();
+  const [showPassword, setShowPassword] = useState(false);
+
 console.log(theme);
   const handleEmailLogin = async () => {
     if (!email || !password) {
@@ -69,26 +73,44 @@ console.log(theme);
           <Text style={[styles.subtitle, { color: theme.text }]}>Discover amazing spots around you</Text>
 
           <View style={styles.form}>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
-              placeholder="Email"
-              placeholderTextColor={theme.textMuted}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-            />
+          <View style={[styles.inputContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <Ionicons name="mail-outline" size={20} color={theme.textMuted} style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, {color: theme.text }]}
+                  placeholder="Email"
+                  placeholderTextColor={theme.textMuted}  
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  autoCorrect={false}
+                />
+            </View>
 
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
-              placeholder="Password"
-              placeholderTextColor={theme.textMuted}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoCapitalize="none"
-            />
+            <View style={[styles.inputContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <Ionicons name="lock-closed-outline" size={20} color={theme.textMuted} style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, {color: theme.text }]}
+                  placeholder="Password"
+                  placeholderTextColor={theme.textMuted}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoComplete="password-new"
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeIcon}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                    size={20}
+                    color={theme.textMuted}
+                  />
+                </TouchableOpacity>
+              </View>
 
             <Button
               title="Sign In"
@@ -148,6 +170,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
+  eyeIcon: {
+    padding: 16,
+  },
   subtitle: {
     fontSize: 16,
     // color: '#666',
@@ -157,14 +182,22 @@ const styles = StyleSheet.create({
   form: {
     width: '100%',
   },
-  input: {
-    // backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    // backgroundColor: '#F8F9FA',
+    borderRadius: 12,
     marginBottom: 16,
     borderWidth: 1,
-    // borderColor: '#e0e0e0',
+    // borderColor: '#E0E0E0',
+  },
+  inputIcon: {
+    marginLeft: 16,
+  },
+  input: {
+    flex: 1,
+    padding: 16,
+    fontSize: 16,
   },
   button: {
     marginBottom: 16,

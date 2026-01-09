@@ -203,20 +203,20 @@ export const HomeScreen = ({ navigation }) => {
 
   const renderStatsCard = () => (
     <View style={styles.statsContainer}>
-      <View style={styles.statCard}>
+      <View style={[styles.statCard,{backgroundColor: theme.surface, borderColor:theme.border}]}>
         <Ionicons name="location" size={24} color="#6C5CE7" />
-        <Text style={styles.statNumber}>{stats.nearbyCount}</Text>
-        <Text style={styles.statLabel}>Nearby</Text>
+        <Text style={[styles.statNumber, { color: theme.text }]}>{stats.nearbyCount}</Text>
+        <Text style={[styles.statLabel, { color: theme.text }]}>Nearby</Text>
       </View>
-      <View style={styles.statCard}>
+      <View style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border}]}>
         <Ionicons name="star" size={24} color="#FFD700" />
-        <Text style={styles.statNumber}>{stats.visitedSpots}</Text>
-        <Text style={styles.statLabel}>Visited</Text>
+        <Text style={[styles.statNumber, { color: theme.text }]}>{stats.visitedSpots}</Text>
+        <Text style={[styles.statLabel, { color: theme.text }]} >Visited</Text>
       </View>
-      <View style={styles.statCard}>
+      <View style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border}]}>
         <Ionicons name="map" size={24} color="#FF6B6B" />
-        <Text style={styles.statNumber}>{stats.savedSpots}</Text>
-        <Text style={styles.statLabel}>Saved</Text>
+        <Text style={[styles.statNumber, { color: theme.text }]}>{stats.savedSpots}</Text>
+        <Text style={[styles.statLabel, { color: theme.text }]}>Saved</Text>
       </View>
     </View>
   );
@@ -269,12 +269,12 @@ export const HomeScreen = ({ navigation }) => {
               >
                 <Ionicons name="search-outline" size={22} color={theme.text} />
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.background }]}>
+              <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surface }]}>
                 <Ionicons name="notifications-outline" size={22} color={theme.text} />
                 <View style={styles.notificationDot} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.iconButton, { backgroundColor: theme.background }]}
+                style={[styles.iconButton, { backgroundColor: theme.surface }]}
                 onPress={() => navigation.navigate("Profile")}
               >
                 <View style={styles.avatar}>
@@ -286,12 +286,12 @@ export const HomeScreen = ({ navigation }) => {
 
           {/* SEARCH */}
           <TouchableOpacity
-            style={[styles.searchContainer, { backgroundColor: theme.background, borderColor: theme.border }]}
+            style={[styles.searchContainer, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.shadow }]}
             onPress={() => setShowSearch(true)}
             activeOpacity={0.8}
           >
             <Ionicons name="search" size={20} color={theme.textMuted} />
-            <Text style={[styles.searchPlaceholder, { color: theme.textMuted,backgroundColor: theme.background}]}>
+            <Text style={[styles.searchPlaceholder, { color: theme.textMuted}]}>
               {searchQuery || "Search spots, vibes, activities..."}
             </Text>
             <TouchableOpacity 
@@ -335,6 +335,7 @@ export const HomeScreen = ({ navigation }) => {
                     }
                     style={[
                       styles.categoryCard,
+                      { backgroundColor: theme.surface, borderColor: theme.border },
                       isActive && {
                         backgroundColor: cat.color,
                         shadowColor: cat.color,
@@ -349,13 +350,14 @@ export const HomeScreen = ({ navigation }) => {
                           backgroundColor: isActive
                             ? "rgba(255,255,255,0.25)"
                             : cat.color + "22",
+                            
                         },
                       ]}
                     >
                       <Ionicons
                         name={cat.icon}
                         size={26}
-                        color={isActive ? "#fff" : cat.color}
+                        color={isActive ? theme.text : cat.color}
                       />
                     </View>
 
@@ -363,7 +365,8 @@ export const HomeScreen = ({ navigation }) => {
                     <Text
                       style={[
                         styles.categoryLabel,
-                        isActive && { color: "#fff" },
+                        isActive && { color: theme.text },
+                        { color: theme.text },
                       ]}
                       numberOfLines={1}
                     >
@@ -371,7 +374,7 @@ export const HomeScreen = ({ navigation }) => {
                     </Text>
 
                     {/* Active Indicator */}
-                    {isActive && <View style={styles.activeDot} />}
+                    {isActive && <View style={[styles.activeDot, { backgroundColor: theme.text }]} />}
                   </TouchableOpacity>
                 );
               })}
@@ -391,8 +394,8 @@ export const HomeScreen = ({ navigation }) => {
                   <Ionicons name="trophy" size={20} color="#fff" />
                 </LinearGradient>
                 <View>
-                  <Text style={styles.sectionTitle}>Weekly Champions</Text>
-                  <Text style={styles.sectionSubtitle}>Top trending spots this week</Text>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>Weekly Champions</Text>
+                  <Text style={[styles.sectionSubtitle, { color: theme.text }]}>Top trending spots this week</Text>
                 </View>
               </View>
             </View>
@@ -411,11 +414,11 @@ export const HomeScreen = ({ navigation }) => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View>
-              <Text style={styles.sectionTitle}>Featured Spots</Text>
-              <Text style={styles.sectionSubtitle}>Handpicked for you</Text>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Featured Spots</Text>
+              <Text style={[styles.sectionSubtitle, { color: theme.text }]}>Handpicked for you</Text>
             </View>
             <TouchableOpacity>
-              <Text style={styles.seeAll}>See All</Text>
+              <Text style={[styles.seeAll, { color: theme.text }]}>See All</Text>
             </TouchableOpacity>
           </View>
           <FlatList
@@ -435,8 +438,8 @@ export const HomeScreen = ({ navigation }) => {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View>
-                <Text style={styles.sectionTitle}>Near You</Text>
-                <Text style={styles.sectionSubtitle}>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>Near You</Text>
+                <Text style={[styles.sectionSubtitle, { color: theme.text }]}>
                   {nearbySpots.length} spots within 5km
                 </Text>
               </View>
@@ -728,7 +731,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     alignItems: "center",
-    // shadowColor: "#000",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,

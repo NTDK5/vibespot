@@ -10,6 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSpotVibes } from "../hooks/useSpotVibes";
+import { useTheme } from "../context/ThemeContext";
 
 const { width } = Dimensions.get("window");
 
@@ -36,11 +37,11 @@ const hexToRgba = (hex, alpha = 1) => {
 export const RankSpotCard = ({ spot: rankItem, navigation }) => {
     const { spot, rank, score } = rankItem;
     const { data: spotVibes = [] } = useSpotVibes(spot.id);
-  
+    const { theme } = useTheme();
     const topVibe =
       spotVibes.length > 0
         ? spotVibes.reduce((a, b) => (b.count > a.count ? b : a))
-        : null;
+        : theme.surface;
   
     const vibeColor = safeHex(topVibe?.color);
   

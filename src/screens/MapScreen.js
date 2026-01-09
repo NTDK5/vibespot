@@ -30,7 +30,7 @@ import Reanimated, {
   Extrapolate,
   runOnJS,
 } from "react-native-reanimated";
-
+import { useTheme } from '../context/ThemeContext';
 const safeHex = (color, fallback = "#1f1f1f") => {
   if (!color) return fallback;
   if (/^#([0-9A-F]{6})$/i.test(color)) return color;
@@ -63,7 +63,7 @@ export const MapScreen = ({ navigation }) => {
   const isRegionChanging = useRef(false);
   const shouldUpdateRegion = useRef(true);
   const [mapReady, setMapReady] = useState(false);
-
+  const {theme} = useTheme()
   // Reanimated values for advanced animations
   const revealProgress = useSharedValue(0);
   const sparkleRotation = useSharedValue(0);

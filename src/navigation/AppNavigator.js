@@ -23,6 +23,7 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { EditSpotScreen } from '../screens/EditSpotScreen';
 import { CollectionsScreen } from '../screens/CollectionsScreen';
 import { CollectionDetailScreen } from '../screens/CollectionDetailScreen';
+import { useTheme } from "../context/ThemeContext";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -34,35 +35,51 @@ const Tab = createBottomTabNavigator();
 
 const MainTabs = () => {
   const { isSuperAdmin } = useAuth();
+  const { theme, isDark } = useTheme();
 
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
+<Tab.Navigator
+  screenOptions={({ route }) => ({
+    tabBarIcon: ({ focused, color, size }) => {
+      let iconName;
 
-          if (route.name === 'Home') {
-            iconName = focused ? 'home' : 'home-outline';
-          } else if (route.name === 'Explore') {
-            iconName = focused ? 'search' : 'search-outline';
-          } else if (route.name === 'Map') {
-            iconName = focused ? 'map' : 'map-outline';
-          } else if (route.name === 'Profile') {
-            iconName = focused ? 'person' : 'person-outline';
-          } else if (route.name === 'AddSpot') {
-            iconName = focused ? 'add-circle' : 'add-circle-outline';
-          } else if (route.name === 'Collections') {
-            iconName = focused ? 'albums' : 'albums-outline';
-          }
+      if (route.name === 'Home') {
+        iconName = focused ? 'home' : 'home-outline';
+      } else if (route.name === 'Explore') {
+        iconName = focused ? 'search' : 'search-outline';
+      } else if (route.name === 'Map') {
+        iconName = focused ? 'map' : 'map-outline';
+      } else if (route.name === 'Profile') {
+        iconName = focused ? 'person' : 'person-outline';
+      } else if (route.name === 'AddSpot') {
+        iconName = focused ? 'add-circle' : 'add-circle-outline';
+      } else if (route.name === 'Collections') {
+        iconName = focused ? 'albums' : 'albums-outline';
+      }
 
+      return <Ionicons name={iconName} size={size} color={color} />;
+    },
 
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-        tabBarActiveTintColor: '#007AFF',
-        tabBarInactiveTintColor: '#999',
-        headerShown: false,
-      })}
-    >
+    // 🎯 THEME STYLING
+    tabBarActiveTintColor: theme.primary,
+    tabBarInactiveTintColor: theme.textMuted,
+
+    tabBarStyle: {
+      backgroundColor: theme.surface,
+      borderTopColor: theme.border,
+      height: 64,
+      paddingBottom: 8,
+    },
+
+    tabBarLabelStyle: {
+      fontSize: 11,
+      fontWeight: "600",
+    },
+
+    headerShown: false,
+  })}
+>
+
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Explore" component={ExploreScreen} />
       <Tab.Screen name="Map" component={MapScreen} />
@@ -101,20 +118,20 @@ export const AppNavigator = () => {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-
+{/* 
         {!user ? (
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
           </>
-        ) : (
+        ) : ( */}
           <>
             <Stack.Screen name="MainTabs" component={MainTabs} />
             <Stack.Screen name="SpotDetail" component={SpotDetailsScreen} />
             <Stack.Screen name="EditSpot" component={EditSpotScreen} />
             <Stack.Screen name="CollectionDetail" component={CollectionDetailScreen} />
           </>
-        )} 
+        {/* )}  */}
 
       </Stack.Navigator>
     </NavigationContainer>
