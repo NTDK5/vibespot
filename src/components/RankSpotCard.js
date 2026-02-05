@@ -48,80 +48,83 @@ export const RankSpotCard = ({ spot: rankItem, navigation }) => {
     return (
       <TouchableOpacity
         activeOpacity={0.9}
-        style={[styles.card, { width: width * 0.7 }]}
+        style={[styles.card, { width: Math.min(width * 0.78, 340) }]}
         onPress={() =>
           navigation.navigate("SpotDetail", { spotId: spot.id })
         }
       >
         {/* Vibe Glow */}
-        <View
-          style={[styles.glow, { backgroundColor: hexToRgba(vibeColor, 0.45) }]}
-        />
-  
-        {/* Gradient Background */}
-        <LinearGradient
-          colors={[hexToRgba(vibeColor, 0.9), hexToRgba(vibeColor, 0.4), "#000"]}
-          style={styles.background}
-        />
-  
-        {/* Rank Badge */}
-        <View style={[styles.rankBadge, { borderColor: vibeColor }]}>
-          <Ionicons name="trophy" size={16} color={vibeColor} />
-          <Text style={[styles.rankText, { color: vibeColor }]}>#{rank}</Text>
+        <View style={[styles.glow, { backgroundColor: hexToRgba(vibeColor, 0.35) }]} />
+
+        {/* Image (top) */}
+        <View style={styles.imageWrap}>
+          <Image
+            source={{ uri: spot.images?.[0] || spot.thumbnail }}
+            style={styles.image}
+            resizeMode="cover"
+          />
+          <LinearGradient
+            colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.55)"]}
+            style={styles.imageFade}
+          />
+
+          {/* Rank Badge */}
+          <View style={[styles.rankBadge, { borderColor: "rgba(255,255,255,0.22)" }]}>
+            <Ionicons name="trophy" size={14} color="#fff" />
+            <Text style={styles.rankText}>#{rank}</Text>
+          </View>
         </View>
-  
-        {/* Image */}
-        <Image
-          source={{ uri: spot.images?.[0] || spot.thumbnail }}
-          style={styles.image}
-          resizeMode="cover"
-        />
-  
-        {/* Bottom Fade */}
-        <LinearGradient
-          colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.9)"]}
-          style={styles.fade}
-        />
-  
-        {/* Content */}
-        <View style={styles.content}>
-          <Text numberOfLines={1} style={styles.title}>
-            {spot.title}
-          </Text>
-  
-          {/* Category & Address */}
-          <Text style={styles.metaInfo}>
-            · {spot.address}
-          </Text>
-  
-          {/* Description snippet */}
-          <Text numberOfLines={2} style={styles.description}>
-            {spot.description}
-          </Text>
-  
-          {/* Features */}
-          {/* <View style={styles.featuresRow}>
-            {spot.features?.slice(0, 3).map((feature, idx) => (
-              <View key={idx} style={styles.featurePill}>
-                <Text style={styles.featureText}>{feature}</Text>
-              </View>
-            ))}
-          </View> */}
-  
-          {/* Vibes and Score */}
-          <View style={styles.metaRow}>
-            {topVibe && (
-              <View
-                style={[styles.vibePill, { backgroundColor: hexToRgba(vibeColor, 0.25) }]}
-              >
-                <Ionicons name="sparkles" size={12} color={vibeColor} />
-                <Text style={styles.vibeText}>{topVibe.name}</Text>
-              </View>
+
+        {/* Content (bottom) */}
+        <View
+          style={[
+            styles.content,
+            {
+              backgroundColor: theme.background,
+              borderTopColor: hexToRgba(vibeColor, 0.20),
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={[hexToRgba(vibeColor, 0.14), "rgba(255,255,255,0)"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.contentTint}
+          />
+
+          <View style={styles.contentInner}>
+            <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>
+              {spot.title}
+            </Text>
+
+            {!!spot.address && (
+              <Text numberOfLines={1} style={[styles.metaInfo, { color: theme.textMuted }]}>
+                {spot.address}
+              </Text>
             )}
-  
-            <View style={styles.scorePill}>
-              <Ionicons name="star" size={12} color="#FFD700" />
-              <Text style={styles.scoreText}>{spot.score?.toFixed(1)}</Text>
+
+            {!!spot.description && (
+              <Text numberOfLines={2} style={[styles.description, { color: theme.textMuted }]}>
+                {spot.description}
+              </Text>
+            )}
+
+            <View style={styles.metaRow}>
+              {topVibe && (
+                <View style={[styles.vibePill, { backgroundColor: hexToRgba(vibeColor, 0.10), borderColor: hexToRgba(vibeColor, 0.22) }]}>
+                  <Ionicons name="sparkles" size={12} color={vibeColor} />
+                  <Text numberOfLines={1} style={[styles.vibeText, { color: theme.text }]}>
+                    {topVibe.name}
+                  </Text>
+                </View>
+              )}
+
+              <View style={[styles.scorePill, { backgroundColor: theme.surfaceAlt || theme.surface, borderColor: theme.border }]}>
+                <Ionicons name="star" size={12} color="#F5C542" />
+                <Text style={[styles.scoreText, { color: theme.text }]}>
+                  {spot.score?.toFixed(1)}
+                </Text>
+              </View>
             </View>
           </View>
         </View>
@@ -133,30 +136,39 @@ export const RankSpotCard = ({ spot: rankItem, navigation }) => {
   /* Add/Update Styles */
   const styles = StyleSheet.create({
     card: {
-      height: 280,
-      borderRadius: 22,
+      height: 320,
+      borderRadius: 26,
       overflow: "hidden",
       marginRight: 16,
+      backgroundColor: "#000",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.22,
+      shadowRadius: 20,
+      elevation: 10,
     },
     glow: {
       position: "absolute",
       inset: -10,
-      borderRadius: 30,
+      borderRadius: 34,
       zIndex: -1,
     },
-    background: {
-      ...StyleSheet.absoluteFillObject,
+    imageWrap: {
+      height: 176,
+      width: "100%",
+      position: "relative",
+      backgroundColor: "#111",
     },
     image: {
       width: "100%",
-      height: 160,
+      height: "100%",
     },
-    fade: {
+    imageFade: {
       position: "absolute",
-      bottom: 0,
       left: 0,
       right: 0,
-      height: 180,
+      bottom: 0,
+      height: 120,
     },
     rankBadge: {
       position: "absolute",
@@ -169,34 +181,41 @@ export const RankSpotCard = ({ spot: rankItem, navigation }) => {
       paddingVertical: 6,
       borderRadius: 14,
       borderWidth: 1,
-      backgroundColor: "rgba(0,0,0,0.45)",
+      backgroundColor: "rgba(0,0,0,0.35)",
       zIndex: 2,
     },
     rankText: {
       fontSize: 12,
       fontWeight: "900",
+      color: "#fff",
     },
     content: {
-      position: "absolute",
-      bottom: 14,
-      left: 14,
-      right: 14,
+      flex: 1,
+      borderTopWidth: 4,
+      paddingTop: 14,
+      paddingBottom: 14,
+      paddingHorizontal: 14,
+    },
+    contentTint: {
+      ...StyleSheet.absoluteFillObject,
+      opacity: 1,
+    },
+    contentInner: {
+      flex: 1,
+      gap: 6,
     },
     title: {
       fontSize: 18,
       fontWeight: "900",
-      color: "#fff",
-      marginBottom: 4,
+      letterSpacing: 0.2,
     },
     metaInfo: {
       fontSize: 12,
-      color: "#ccc",
-      marginBottom: 4,
+      fontWeight: "600",
     },
     description: {
       fontSize: 12,
-      color: "#eee",
-      marginBottom: 6,
+      lineHeight: 16,
     },
     featuresRow: {
       flexDirection: "row",
@@ -218,6 +237,7 @@ export const RankSpotCard = ({ spot: rankItem, navigation }) => {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
+      marginTop: 6,
     },
     vibePill: {
       flexDirection: "row",
@@ -226,26 +246,26 @@ export const RankSpotCard = ({ spot: rankItem, navigation }) => {
       paddingHorizontal: 10,
       paddingVertical: 6,
       borderRadius: 14,
+      borderWidth: 1,
+      maxWidth: "66%",
     },
     vibeText: {
       fontSize: 12,
       fontWeight: "700",
-      color: "#fff",
       textTransform: "capitalize",
     },
     scorePill: {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      backgroundColor: "rgba(255,255,255,0.15)",
       paddingHorizontal: 10,
       paddingVertical: 6,
       borderRadius: 14,
+      borderWidth: 1,
     },
     scoreText: {
       fontSize: 12,
       fontWeight: "800",
-      color: "#FFD700",
     },
   });
   

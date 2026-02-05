@@ -57,7 +57,7 @@ import { LeafletMap } from '../components/LeafletMap';
   latitude={9.0080}
   longitude={38.7886}
   onLocationChange={(coords) => {
-    console.log(coords.latitude, coords.longitude);
+    
   }}
   markers={[
     {

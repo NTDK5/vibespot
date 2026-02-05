@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Asset } from 'expo-asset';
+import { useTheme } from '../context/ThemeContext';
 
 /**
  * Advanced Leaflet Map Component
@@ -29,6 +30,7 @@ export const LeafletMap = ({
   const webViewRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
   const [markerImageBase64, setMarkerImageBase64] = useState(null);
+  const { isDark } = useTheme(); // Use 'isDark' property from useTheme
 
   // Load marker image and convert to base64 for WebView
   useEffect(() => {
@@ -40,7 +42,7 @@ export const LeafletMap = ({
             const asset = Asset.fromModule(markerImage);
             await asset.downloadAsync();
             const uri = asset.localUri || asset.uri;
-            
+
             if (uri) {
               // Convert to base64 for WebView compatibility
               try {
@@ -89,6 +91,19 @@ export const LeafletMap = ({
     }
   }, [latitude, longitude, mapReady]);
 
+  // Sync theme with WebView
+  useEffect(() => {
+    if (mapReady && webViewRef.current) {
+      const script = `
+        if (window.setTheme) {
+          window.setTheme(${isDark});
+        }
+        true;
+      `;
+      webViewRef.current.injectJavaScript(script);
+    }
+  }, [isDark, mapReady]);
+
   const centerMap = (lat, lng) => {
     const script = `
       if (window.map && window.currentMarker) {
@@ -126,25 +141,33 @@ export const LeafletMap = ({
   const handleMessage = (event) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
-      
+
       if (data.type === 'mapReady') {
         setMapReady(true);
+        // Initialize theme once map is ready
+        const script = `
+          if (window.setTheme) {
+            window.setTheme(${isDark});
+          }
+          true;
+        `;
+        webViewRef.current?.injectJavaScript(script);
       }
-      
+
       if (data.type === 'locationChange' && onLocationChange) {
         onLocationChange({
           latitude: data.lat,
           longitude: data.lng,
         });
       }
-      
+
       if (data.type === 'markerDragEnd' && onLocationChange) {
         onLocationChange({
           latitude: data.lat,
           longitude: data.lng,
         });
       }
-      
+
       if (data.type === 'markerClick' && onMarkerPress) {
         onMarkerPress({
           id: data.markerId,
@@ -165,12 +188,7 @@ export const LeafletMap = ({
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Leaflet Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  ${markerImageBase64 ? `<style>
-    /* Preload marker image */
-    #marker-image-preload {
-      display: none;
-    }
-  </style>` : ''}
+
   <style>
     * {
       margin: 0;
@@ -183,17 +201,18 @@ export const LeafletMap = ({
       height: 100%;
       overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      transition: background-color 0.3s ease;
     }
     
     #map {
       width: 100%;
       height: 100%;
-      background: #1a1a1a;
+      background: transparent;
     }
     
     /* Custom Leaflet Styles */
     .leaflet-container {
-      background: #1a1a1a !important;
+      background: transparent !important;
     }
     
     .leaflet-control-zoom {
@@ -215,10 +234,19 @@ export const LeafletMap = ({
       border: none !important;
       transition: all 0.2s ease !important;
     }
+
+    body.dark-theme .leaflet-control-zoom a {
+        background: rgba(30, 30, 30, 0.95) !important;
+        color: #fff !important;
+    }
     
     .leaflet-control-zoom a:hover {
       background: #fff !important;
       transform: scale(1.05);
+    }
+
+    body.dark-theme .leaflet-control-zoom a:hover {
+        background: #333 !important;
     }
     
     .leaflet-control-zoom-in {
@@ -297,6 +325,15 @@ export const LeafletMap = ({
     .leaflet-popup-tip {
       box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
     }
+
+    body.dark-theme .leaflet-popup-content-wrapper {
+        background: #222 !important;
+        color: #fff !important;
+    }
+
+    body.dark-theme .leaflet-popup-tip {
+        background: #222 !important;
+    }
     
     /* User Location Marker */
     .user-location-marker {
@@ -317,12 +354,16 @@ export const LeafletMap = ({
       color: #666;
       font-size: 14px;
     }
+
+    body.dark-theme .loading {
+        color: #aaa;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <div class="loading" id="loading">Loading map...</div>
-  ${markerImageBase64 ? `<img id="marker-image-preload" src="${markerImageBase64}" crossOrigin="anonymous" />` : ''}
+
   
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
@@ -335,9 +376,9 @@ export const LeafletMap = ({
     
     window.map = map;
     
-    // Modern tile layers
-    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{s}/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
+    // Tile layers
+    const lightLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap © CARTO',
       maxZoom: 19,
     });
     
@@ -346,14 +387,33 @@ export const LeafletMap = ({
       maxZoom: 19,
     });
     
-    const modernLayer = L.tileLayer('https://{s}.tile.jawg.io/jawg-dark/{z}/{x}/{y}{r}.png?access-token={accessToken}', {
-      attribution: '© Jawg Maps © OpenStreetMap',
-      maxZoom: 19,
-      accessToken: 'YOUR_JAWG_TOKEN'
-    });
+    let currentLayer = null;
+
+    window.setTheme = function(isDark) {
+      const targetLayer = isDark ? darkLayer : lightLayer;
+      
+      if (currentLayer && currentLayer !== targetLayer) {
+        map.removeLayer(currentLayer);
+      }
+      
+      if (currentLayer !== targetLayer) {
+        targetLayer.addTo(map);
+        currentLayer = targetLayer;
+      }
+
+      // Update body class for CSS
+      if (isDark) {
+        document.body.classList.add('dark-theme');
+        document.body.style.backgroundColor = '#1a1a1a';
+      } else {
+        document.body.classList.remove('dark-theme');
+        document.body.style.backgroundColor = '#ffffff';
+      }
+    };
     
-    // Use modern dark theme by default
-    darkLayer.addTo(map);
+    // Initial theme set (default to light, will be updated by REACT message immediately)
+    lightLayer.addTo(map);
+    currentLayer = lightLayer;
     
     // Store markers
     let markers = [];
@@ -501,12 +561,15 @@ export const LeafletMap = ({
     // Add user location if provided
     ${userLocation && showUserLocation ? `window.setUserLocation(${userLocation.latitude}, ${userLocation.longitude});` : ''}
     
-    // Add initial markers
+    // Add initial markers with corrected ID passing
     ${markers.map((marker, index) => {
-      const lat = marker.latitude || marker.lat;
-      const lng = marker.longitude || marker.lng;
-      return `window.addMarker(${lat}, ${lng}, ${index});`;
-    }).join('')}
+    const lat = marker.latitude || marker.lat;
+    const lng = marker.longitude || marker.lng;
+    const color = marker.color || '#667eea';
+    const id = marker.id || index;
+    const imageUrl = markerImageBase64 || '';
+    return `window.addMarker(${lat}, ${lng}, ${index}, '${color}', '${id}', ${imageUrl ? `'${imageUrl}'` : 'null'});`;
+  }).join('')}
     
     // Map ready
     map.whenReady(function() {
@@ -521,16 +584,16 @@ export const LeafletMap = ({
   `;
 
   return (
-    <View style={[styles.container, { height }, style]}>
+    <View style={[styles.container, { backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }, { height }, style]}>
       {!mapReady && (
-        <View style={styles.loadingContainer}>
+        <View style={[styles.loadingContainer, { backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }]}>
           <ActivityIndicator size="large" color="#667eea" />
         </View>
       )}
       <WebView
         ref={webViewRef}
         source={{ html: leafletHTML }}
-        style={styles.webview}
+        style={[styles.webview, { backgroundColor: 'transparent' }]}
         onMessage={handleMessage}
         javaScriptEnabled={true}
         domStorageEnabled={true}

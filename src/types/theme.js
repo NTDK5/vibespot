@@ -21,7 +21,7 @@ export const lightTheme = {
   textSubtle: "#9CA3AF",
 
   // Brand
-  primary: "#1ECAD3",
+  primary: "#007A8C",
   primarySoft: "#D9F5F7",
   primaryDark: "#159AA1",
 
@@ -64,7 +64,7 @@ export const darkTheme = {
   textSubtle: "#71717A",
 
   // Brand
-  primary: "#1ECAD3",
+  primary: "#007A8C",
   primarySoft: "#0E3F44",
   primaryDark: "#7FE7ED",
 

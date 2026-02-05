@@ -22,13 +22,16 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocation } from "../hooks/useLocation";
 import { useAuth } from "../hooks/useAuth";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {SpotCard} from "../components/SpotCard";
+import { SpotCard } from "../components/SpotCard";
 import { NearbySpotCard } from "../components/NearbySpotCard";
 import { RankSpotCard } from "../components/RankSpotCard";
 import { CATEGORIES } from "../utils/constants";
 import { useTheme } from "../context/ThemeContext";
+import { ImageBackground } from 'react-native';
 
 const { width } = Dimensions.get("window");
+
+const BRAND_GRADIENT = ["#FF7A59", "#1ECAD3", "#0B0E14"];
 
 // Map categories with colors for display
 const categories = CATEGORIES.map((cat, index) => {
@@ -90,7 +93,7 @@ export const HomeScreen = ({ navigation }) => {
     try {
       const { getSavedSpots } = await import('../services/savedSpots.service');
       const { getVisitedSpots } = await import('../services/visitedSpots.service');
-      
+
       const [savedResult, visitedResult] = await Promise.all([
         getSavedSpots(),
         getVisitedSpots(),
@@ -163,7 +166,7 @@ export const HomeScreen = ({ navigation }) => {
   const handleSearch = async (query, category = null) => {
     setIsSearching(true);
     try {
-      const results = await searchSpots({ 
+      const results = await searchSpots({
         q: query,
         category: category || undefined,
       });
@@ -197,26 +200,49 @@ export const HomeScreen = ({ navigation }) => {
     <NearbySpotCard spot={item} onPress={() => navigation.navigate("SpotDetail", { spotId: item.id })} />
   );
 
-  const renderRankCard = ({rankedSpot, index}) => {
-    return <RankSpotCard spot={rankedSpot} navigation={navigation} key={index}/>
+  const renderRankCard = ({ rankedSpot, index }) => {
+    return <RankSpotCard spot={rankedSpot} navigation={navigation} key={index} />
   };
 
   const renderStatsCard = () => (
     <View style={styles.statsContainer}>
-      <View style={[styles.statCard,{backgroundColor: theme.surface, borderColor:theme.border}]}>
-        <Ionicons name="location" size={24} color="#6C5CE7" />
-        <Text style={[styles.statNumber, { color: theme.text }]}>{stats.nearbyCount}</Text>
-        <Text style={[styles.statLabel, { color: theme.text }]}>Nearby</Text>
-      </View>
-      <View style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border}]}>
-        <Ionicons name="star" size={24} color="#FFD700" />
-        <Text style={[styles.statNumber, { color: theme.text }]}>{stats.visitedSpots}</Text>
-        <Text style={[styles.statLabel, { color: theme.text }]} >Visited</Text>
-      </View>
-      <View style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border}]}>
-        <Ionicons name="map" size={24} color="#FF6B6B" />
-        <Text style={[styles.statNumber, { color: theme.text }]}>{stats.savedSpots}</Text>
-        <Text style={[styles.statLabel, { color: theme.text }]}>Saved</Text>
+      <View
+        style={[
+          styles.statsCard,
+          {
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+            shadowColor: theme.shadowMd || theme.shadowSm,
+          },
+        ]}
+      >
+        <View style={styles.statCard}>
+          <View style={[styles.statIconWrap, { backgroundColor: theme.primarySoft }]}>
+            <Ionicons name="location" size={18} color={theme.secondary} />
+          </View>
+          <Text style={[styles.statNumber, { color: theme.text }]}>{stats.nearbyCount}</Text>
+          <Text style={[styles.statLabel, { color: theme.textMuted }]}>Nearby</Text>
+        </View>
+
+        <View style={[styles.statDivider, { backgroundColor: theme.divider || theme.border }]} />
+
+        <View style={styles.statCard}>
+          <View style={[styles.statIconWrap, { backgroundColor: "rgba(255, 215, 0, 0.15)" }]}>
+            <Ionicons name="star" size={18} color="#FFD700" />
+          </View>
+          <Text style={[styles.statNumber, { color: theme.text }]}>{stats.visitedSpots}</Text>
+          <Text style={[styles.statLabel, { color: theme.textMuted }]}>Visited</Text>
+        </View>
+
+        <View style={[styles.statDivider, { backgroundColor: theme.divider || theme.border }]} />
+
+        <View style={styles.statCard}>
+          <View style={[styles.statIconWrap, { backgroundColor: "rgba(255, 107, 107, 0.14)" }]}>
+            <Ionicons name="bookmark" size={18} color="#FF6B6B" />
+          </View>
+          <Text style={[styles.statNumber, { color: theme.text }]}>{stats.savedSpots}</Text>
+          <Text style={[styles.statLabel, { color: theme.textMuted }]}>Saved</Text>
+        </View>
       </View>
     </View>
   );
@@ -234,6 +260,8 @@ export const HomeScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      {/* Branded background (premium hero) */}
+
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         onScroll={Animated.event(
@@ -242,149 +270,172 @@ export const HomeScreen = ({ navigation }) => {
         )}
         scrollEventThrottle={16}
         refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
         }
       >
-        {/* HEADER */}
-        <Animated.View
-          style={[
-            styles.header,
-            { backgroundColor: theme.background, opacity: headerOpacity, transform: [{ translateY: headerTranslateY }] }
-          ]}
+        <ImageBackground
+          source={require('../../assets/header-bg.png')} // adjust path
+          style={styles.glassHeader}
+          imageStyle={{ borderRadius: 16, transform: [{ rotate: '-18deg' }, { translateX: -100 }, { translateY: -160 }], width: '150%', height: '150%' }} // optional
         >
-          <View style={styles.headerTop}>
-            <View>
-              <Text style={[styles.greetingSmall, { color: theme.text }]}>
-                {new Date().getHours() < 12 ? 'Good Morning' : 
-                 new Date().getHours() < 18 ? 'Good Afternoon' : 'Good Evening'}
-              </Text>
-              <Text style={[styles.greeting, { color: theme.text }]}>
-                {user?.name || 'Explorer'} 👋
-              </Text>
-            </View>
-            <View style={styles.headerActions}>
-              <TouchableOpacity 
-                style={[styles.iconButton, { backgroundColor: theme.background }]}
-                onPress={() => setShowSearch(true)}
-              >
-                <Ionicons name="search-outline" size={22} color={theme.text} />
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surface }]}>
-                <Ionicons name="notifications-outline" size={22} color={theme.text} />
-                <View style={styles.notificationDot} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.iconButton, { backgroundColor: theme.surface }]}
-                onPress={() => navigation.navigate("Profile")}
-              >
-                <View style={styles.avatar}>
-                  <Ionicons name="person" size={18} color={theme.primary} />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* SEARCH */}
-          <TouchableOpacity
-            style={[styles.searchContainer, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.shadow }]}
-            onPress={() => setShowSearch(true)}
-            activeOpacity={0.8}
+          {/* HEADER */}
+          <Animated.View
+            style={[
+              styles.header,
+              { backgroundColor: 'rgba(255, 255, 255, 0.0)', transform: [{ translateY: headerTranslateY }] }
+            ]}
           >
-            <Ionicons name="search" size={20} color={theme.textMuted} />
-            <Text style={[styles.searchPlaceholder, { color: theme.textMuted}]}>
-              {searchQuery || "Search spots, vibes, activities..."}
-            </Text>
-            <TouchableOpacity 
-              style={[styles.filterBtn, { backgroundColor: theme.primary }]}
-              onPress={() => setShowSearch(true)}
-            >
-              <Ionicons name="options" size={20} color={theme.background} />
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </Animated.View>
 
-        {/* STATS */}
-        {renderStatsCard()}
 
-        {/* CATEGORIES */}
-       {/* CATEGORIES */}
-          <View style={[styles.section, { backgroundColor: theme.background }]}>
-            {/* Header */}
-            <View style={[styles.sectionHeader, { backgroundColor: theme.background }]}>
+
+
+            <View style={styles.headerTop}>
               <View>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>Explore</Text>
-                <Text style={[styles.sectionSubtitle, { color: theme.text }]}>Find spots by vibe</Text>
+                <Text style={[styles.greetingSmall, { color: "#fff" }]}>
+                  {new Date().getHours() < 12 ? 'Good Morning' :
+                    new Date().getHours() < 18 ? 'Good Afternoon' : 'Good Evening'}
+                </Text>
+                <Text style={[styles.greeting, { color: "#fff" }]}>
+                  {user?.name || 'Explorer'} 👋
+                </Text>
+                {/* <Text style={[styles.greetingTagline, { color: theme.textMuted }]}>
+                Curated picks and nearby gems — tap a vibe to filter.
+              </Text> */}
+              </View>
+              <View style={styles.headerActions}>
+                <TouchableOpacity
+                  style={[styles.iconButton, { backgroundColor: theme.background }]}
+                  onPress={() => setShowSearch(true)}
+                >
+                  <Ionicons name="search-outline" size={22} color={theme.text} />
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surface }]}>
+                  <Ionicons name="notifications-outline" size={22} color={theme.text} />
+                  <View style={styles.notificationDot} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.iconButton, { backgroundColor: theme.surface }]}
+                  onPress={() => navigation.navigate("Profile")}
+                >
+                  <View style={styles.avatar}>
+                    <Ionicons name="person" size={18} color={theme.primary} />
+                  </View>
+                </TouchableOpacity>
               </View>
             </View>
 
-            {/* Horizontal Rail */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={[styles.categoriesRow, { backgroundColor: theme.background }]}
+            {/* SEARCH */}
+            <TouchableOpacity
+              style={[styles.searchContainer, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.shadowMd || theme.shadowSm }]}
+              onPress={() => setShowSearch(true)}
+              activeOpacity={0.8}
             >
-              {categories.map((cat) => {
-                const isActive = selectedCategory === cat.id;
+              <Ionicons name="search" size={20} color={theme.textMuted} />
+              <Text style={[styles.searchPlaceholder, { color: theme.textMuted }]}>
+                {searchQuery || "Search spots, vibes, activities..."}
+              </Text>
+              <TouchableOpacity
+                style={[styles.filterBtn, { backgroundColor: theme.primary }]}
+                onPress={() => setShowSearch(true)}
+              >
+                <Ionicons name="options" size={20} color={theme.background} />
+              </TouchableOpacity>
+            </TouchableOpacity>
+            <View style={[styles.statsSection, { backgroundColor: theme.surface }, { transform: [{ translateY: "10%" }] }]}>
+              <View style={styles.sectionHeader}>
+                <View>
+                  <Text style={[styles.sectionTitleSm, { color: theme.text }]}>Your snapshot</Text>
+                  <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>
+                    Saved, visited, and what’s nearby right now
+                  </Text>
+                </View>
+              </View>
+              {renderStatsCard()}
+            </View>
+          </Animated.View>
 
-                return (
-                  <TouchableOpacity
-                    key={cat.id}
-                    activeOpacity={0.85}
-                    onPress={() =>
-                      setSelectedCategory(isActive ? null : cat.id)
-                    }
+        </ImageBackground>
+        {/* STATS */}
+
+
+        {/* CATEGORIES */}
+        {/* CATEGORIES */}
+        <View style={[styles.section, { backgroundColor: theme.background }, { transform: [{ translateY: "20%" }] }]}>
+          {/* Header */}
+          <View style={[styles.sectionHeader, { backgroundColor: theme.background }]}>
+            <View>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Explore</Text>
+              <Text style={[styles.sectionSubtitle, { color: theme.text }]}>Find spots by vibe</Text>
+            </View>
+          </View>
+
+          {/* Horizontal Rail */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[styles.categoriesRow, { backgroundColor: theme.background }]}
+          >
+            {categories.map((cat) => {
+              const isActive = selectedCategory === cat.id;
+
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  activeOpacity={0.85}
+                  onPress={() =>
+                    setSelectedCategory(isActive ? null : cat.id)
+                  }
+                  style={[
+                    styles.categoryCard,
+                    {
+                      backgroundColor: isActive ? cat.color : theme.surface,
+                      borderColor: isActive ? "transparent" : theme.border,
+                      shadowColor: isActive ? cat.color : (theme.shadowSm || "#000"),
+                    },
+                    isActive && {
+                      shadowOpacity: 0.18,
+                    },
+                  ]}
+                >
+                  <View
                     style={[
-                      styles.categoryCard,
-                      { backgroundColor: theme.surface, borderColor: theme.border },
-                      isActive && {
-                        backgroundColor: cat.color,
-                        shadowColor: cat.color,
+                      styles.categoryIcon,
+                      {
+                        backgroundColor: isActive
+                          ? "rgba(255,255,255,0.25)"
+                          : cat.color + "22",
+
                       },
                     ]}
                   >
-                    {/* Icon */}
-                    <View
-                      style={[
-                        styles.categoryIcon,
-                        {
-                          backgroundColor: isActive
-                            ? "rgba(255,255,255,0.25)"
-                            : cat.color + "22",
-                            
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        name={cat.icon}
-                        size={26}
-                        color={isActive ? theme.text : cat.color}
-                      />
-                    </View>
+                    <Ionicons
+                      name={cat.icon}
+                      size={18}
+                      color={isActive ? "#fff" : cat.color}
+                    />
+                  </View>
 
-                    {/* Label */}
-                    <Text
-                      style={[
-                        styles.categoryLabel,
-                        isActive && { color: theme.text },
-                        { color: theme.text },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {cat.name}
-                    </Text>
+                  <Text
+                    style={[
+                      styles.categoryLabel,
+                      { color: isActive ? "#fff" : theme.text },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {cat.name}
+                  </Text>
 
-                    {/* Active Indicator */}
-                    {isActive && <View style={[styles.activeDot, { backgroundColor: theme.text }]} />}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
+                  {isActive && <View style={[styles.activeDot, { backgroundColor: "rgba(255,255,255,0.95)" }]} />}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
 
 
         {/* WEEKLY RANKS */}
-        {weeklyRanks.length > 0 && (
-          <View style={[styles.section, { backgroundColor: theme.background }]}>
+        {/* {weeklyRanks.length > 0 && (
+          <View style={[styles.section, { backgroundColor: theme.background },{ transform: [{ translateY: "10%" }] }]}>
             <View style={styles.sectionHeader}>
               <View style={[styles.sectionTitleRow, { backgroundColor: theme.background }]}>
                 <LinearGradient
@@ -404,14 +455,15 @@ export const HomeScreen = ({ navigation }) => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.ranksRow}
               pagingEnabled
+              style={{ paddingVertical: 16 }}
             >
-              {weeklyRanks.map((rankedSpot, index) => renderRankCard({rankedSpot, index}))}
+              {weeklyRanks.map((rankedSpot, index) => renderRankCard({ rankedSpot, index }))}
             </ScrollView>
           </View>
-        )}
+        )} */}
 
         {/* FEATURED */}
-        <View style={styles.section}>
+        <View style={[styles.section, { transform: [{ translateY: "10%" }] }, { backgroundColor: theme.background }]}>
           <View style={styles.sectionHeader}>
             <View>
               <Text style={[styles.sectionTitle, { color: theme.text }]}>Featured Spots</Text>
@@ -435,7 +487,7 @@ export const HomeScreen = ({ navigation }) => {
 
         {/* NEARBY */}
         {nearbySpots.length > 0 && (
-          <View style={styles.section}>
+          <View style={[styles.section, { transform: [{ translateY: 60 }] }]}>
             <View style={styles.sectionHeader}>
               <View>
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>Near You</Text>
@@ -470,8 +522,8 @@ export const HomeScreen = ({ navigation }) => {
           setSearchCategory(null);
         }}
       >
-        <SafeAreaView style={styles.searchModalContainer}>
-          <View style={styles.searchHeader}>
+        <SafeAreaView style={[styles.searchModalContainer, { backgroundColor: theme.background }]}>
+          <View style={[styles.searchHeader, { backgroundColor: theme.background, borderBottomColor: theme.divider || theme.border }]}>
             <TouchableOpacity
               onPress={() => {
                 setShowSearch(false);
@@ -481,15 +533,16 @@ export const HomeScreen = ({ navigation }) => {
               }}
               style={styles.searchBackButton}
             >
-              <Ionicons name="arrow-back" size={24} color="#333" />
+              <Ionicons name="arrow-back" size={24} color={theme.text} />
             </TouchableOpacity>
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: theme.text }]}
               placeholder="Search spots, vibes, activities..."
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoFocus
               returnKeyType="search"
+              placeholderTextColor={theme.textSubtle || theme.textMuted}
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity
@@ -499,14 +552,14 @@ export const HomeScreen = ({ navigation }) => {
                 }}
                 style={styles.searchClearButton}
               >
-                <Ionicons name="close-circle" size={24} color="#999" />
+                <Ionicons name="close-circle" size={24} color={theme.textSubtle || theme.textMuted} />
               </TouchableOpacity>
             )}
           </View>
 
           {/* Category Filter */}
-          <View style={styles.searchCategoryContainer}>
-            <Text style={styles.searchCategoryTitle}>Filter by Category</Text>
+          <View style={[styles.searchCategoryContainer, { backgroundColor: theme.background, borderBottomColor: theme.divider || theme.border }]}>
+            <Text style={[styles.searchCategoryTitle, { color: theme.textMuted }]}>Filter by Category</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -515,6 +568,7 @@ export const HomeScreen = ({ navigation }) => {
               <TouchableOpacity
                 style={[
                   styles.searchCategoryChip,
+                  { backgroundColor: theme.surfaceAlt || theme.surface, borderColor: theme.border },
                   !searchCategory && styles.searchCategoryChipActive,
                 ]}
                 onPress={() => setSearchCategory(null)}
@@ -522,6 +576,7 @@ export const HomeScreen = ({ navigation }) => {
                 <Text
                   style={[
                     styles.searchCategoryChipText,
+                    { color: theme.textMuted },
                     !searchCategory && styles.searchCategoryChipTextActive,
                   ]}
                 >
@@ -533,6 +588,7 @@ export const HomeScreen = ({ navigation }) => {
                   key={cat.id}
                   style={[
                     styles.searchCategoryChip,
+                    { backgroundColor: theme.surfaceAlt || theme.surface, borderColor: theme.border },
                     searchCategory === cat.id && styles.searchCategoryChipActive,
                   ]}
                   onPress={() => setSearchCategory(cat.id)}
@@ -540,6 +596,7 @@ export const HomeScreen = ({ navigation }) => {
                   <Text
                     style={[
                       styles.searchCategoryChipText,
+                      { color: theme.textMuted },
                       searchCategory === cat.id && styles.searchCategoryChipTextActive,
                     ]}
                   >
@@ -554,8 +611,8 @@ export const HomeScreen = ({ navigation }) => {
           <View style={styles.searchResultsContainer}>
             {isSearching ? (
               <View style={styles.searchLoadingContainer}>
-                <ActivityIndicator size="large" color="#6C5CE7" />
-                <Text style={styles.searchLoadingText}>Searching...</Text>
+                <ActivityIndicator size="large" color={theme.primary} />
+                <Text style={[styles.searchLoadingText, { color: theme.textMuted }]}>Searching...</Text>
               </View>
             ) : searchQuery.length > 2 && searchResults.length > 0 ? (
               <FlatList
@@ -563,7 +620,7 @@ export const HomeScreen = ({ navigation }) => {
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
                   <TouchableOpacity
-                    style={styles.searchResultItem}
+                    style={[styles.searchResultItem, { backgroundColor: theme.surface, shadowColor: theme.shadowSm || "#000" }]}
                     onPress={() => {
                       setShowSearch(false);
                       navigation.navigate("SpotDetail", { spotId: item.id });
@@ -574,18 +631,18 @@ export const HomeScreen = ({ navigation }) => {
                       style={styles.searchResultImage}
                     />
                     <View style={styles.searchResultInfo}>
-                      <Text style={styles.searchResultTitle}>{item.title}</Text>
-                      <Text style={styles.searchResultCategory}>
+                      <Text style={[styles.searchResultTitle, { color: theme.text }]}>{item.title}</Text>
+                      <Text style={[styles.searchResultCategory, { color: theme.textMuted }]}>
                         {item.category?.replace("_", " ")}
                       </Text>
                       <View style={styles.searchResultMeta}>
                         <View style={styles.searchResultRating}>
                           <Ionicons name="star" size={14} color="#FFD700" />
-                          <Text style={styles.searchResultRatingText}>
+                          <Text style={[styles.searchResultRatingText, { color: theme.text }]}>
                             {item.ratingAvg?.toFixed(1) || "0.0"}
                           </Text>
                         </View>
-                        <Text style={styles.searchResultPrice}>
+                        <Text style={[styles.searchResultPrice, { color: theme.textMuted }]}>
                           {item.priceRange?.toUpperCase()}
                         </Text>
                       </View>
@@ -596,17 +653,17 @@ export const HomeScreen = ({ navigation }) => {
               />
             ) : searchQuery.length > 2 && !isSearching ? (
               <View style={styles.searchEmptyContainer}>
-                <Ionicons name="search-outline" size={64} color="#ccc" />
-                <Text style={styles.searchEmptyText}>No results found</Text>
-                <Text style={styles.searchEmptySubtext}>
+                <Ionicons name="search-outline" size={64} color={theme.textSubtle || theme.textMuted} />
+                <Text style={[styles.searchEmptyText, { color: theme.text }]}>No results found</Text>
+                <Text style={[styles.searchEmptySubtext, { color: theme.textMuted }]}>
                   Try a different search term
                 </Text>
               </View>
             ) : (
               <View style={styles.searchEmptyContainer}>
-                <Ionicons name="search-outline" size={64} color="#ccc" />
-                <Text style={styles.searchEmptyText}>Start typing to search</Text>
-                <Text style={styles.searchEmptySubtext}>
+                <Ionicons name="search-outline" size={64} color={theme.textSubtle || theme.textMuted} />
+                <Text style={[styles.searchEmptyText, { color: theme.text }]}>Start typing to search</Text>
+                <Text style={[styles.searchEmptySubtext, { color: theme.textMuted }]}>
                   Search for spots, categories, or activities
                 </Text>
               </View>
@@ -622,6 +679,49 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     // backgroundColor: "#F8F9FA",
+  },
+  bgWrap: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 520,
+    overflow: "hidden",
+  },
+  bgHero: {
+    position: "absolute",
+    top: -120,
+    left: -90,
+    right: -90,
+    height: 520,
+    borderBottomLeftRadius: 80,
+    borderBottomRightRadius: 80,
+    transform: [{ rotate: "-6deg" }],
+  },
+  bgFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  bgBlob: {
+    position: "absolute",
+    width: 220,
+    height: 220,
+    borderRadius: 220,
+    top: 84,
+    right: -70,
+    transform: [{ rotate: "14deg" }],
+  },
+  bgBlob2: {
+    position: "absolute",
+    width: 260,
+    height: 260,
+    borderRadius: 260,
+    top: 150,
+    left: -110,
+    transform: [{ rotate: "-12deg" }],
   },
   loadingContainer: {
     flex: 1,
@@ -644,6 +744,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
+    marginTop: 10,
   },
   greetingSmall: {
     fontSize: 14,
@@ -655,6 +756,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     // color: "#1A1A1A",
     marginTop: 4,
+  },
+  greetingTagline: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "500",
   },
   headerActions: {
     flexDirection: "row",
@@ -696,7 +803,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    marginTop: 10,
+    paddingVertical: 8,
     borderRadius: 16,
     // shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -719,34 +827,59 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginLeft: 8,
   },
+  statsSection: {
+    marginTop: 14,
+    paddingHorizontal: 4,
+    paddingVertical: 20,
+    borderRadius: 16,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.10,
+    shadowRadius: 20,
+    elevation: 6,
+  },
+  sectionTitleSm: {
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: 0.2,
+  },
   statsContainer: {
-    flexDirection: "row",
     paddingHorizontal: 20,
-    marginTop: 10,
-    gap: 12,
+  },
+  statsCard: {
+    borderWidth: 1,
+    borderRadius: 24,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
   },
   statCard: {
     flex: 1,
-    // backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    justifyContent: "center",
+    paddingVertical: 6,
+    gap: 6,
+  },
+  statIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statDivider: {
+    width: 1,
+    height: 46,
+    opacity: 0.9,
   },
   statNumber: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "800",
     //color: "#1A1A1A",
-    marginTop: 8,
   },
   statLabel: {
     fontSize: 12,
     // color: "#666",
-    marginTop: 4,
     fontWeight: "500",
   },
   seeAll: {
@@ -785,51 +918,52 @@ const styles = StyleSheet.create({
     fontSize: 13,
     // color: "#666",
     marginTop: 2,
+    lineHeight: 18,
   },
 
-  
+
   categoriesRow: {
     paddingHorizontal: 20,
-    paddingVertical: 6,
-    gap: 14,
+    paddingVertical: 4,
+    gap: 10,
   },
-  
+
   categoryCard: {
-    width: 110,
-    height: 130,
-    borderRadius: 22,
-    paddingVertical: 18,
+    height: 46,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    //backgroundColor: "#fff",
-  
-    // shadowOffset: { width: 0, height: 10 },
-    // shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 4,
+    gap: 10,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.10,
+    shadowRadius: 18,
+    elevation: 5,
   },
-  
+
   categoryIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 30,
+    height: 30,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
   },
-  
+
   categoryLabel: {
     fontSize: 13,
     fontWeight: "700",
     // color: "#222",
-    textAlign: "center",
+    textAlign: "left",
   },
-  
+
   activeDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
     // backgroundColor: "#fff",
-    marginTop: 6,
+    marginLeft: 2,
   },
 
   ranksRow: {
@@ -982,7 +1116,7 @@ const styles = StyleSheet.create({
     width: "100%",
     zIndex: 5,
   },
-  
+
   nearbyList: {
     paddingHorizontal: 20,
     gap: 4,
@@ -1065,16 +1199,13 @@ const styles = StyleSheet.create({
   },
   searchModalContainer: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
   },
   searchHeader: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
   },
   searchBackButton: {
     padding: 8,
@@ -1083,7 +1214,6 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: "#333",
     paddingVertical: 8,
   },
   searchClearButton: {
@@ -1091,15 +1221,12 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   searchCategoryContainer: {
-    backgroundColor: "#fff",
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
   },
   searchCategoryTitle: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#666",
     paddingHorizontal: 20,
     marginBottom: 12,
   },
@@ -1111,16 +1238,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#f0f0f0",
+    borderWidth: 1,
     marginRight: 8,
   },
   searchCategoryChipActive: {
     backgroundColor: "#6C5CE7",
+    borderColor: "transparent",
   },
   searchCategoryChipText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#666",
   },
   searchCategoryChipTextActive: {
     color: "#fff",

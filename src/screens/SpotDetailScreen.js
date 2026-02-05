@@ -27,6 +27,9 @@ import { saveSpot, unsaveSpot, isSpotSaved } from "../services/savedSpots.servic
 import { markSpotAsVisited, isSpotVisited } from "../services/visitedSpots.service";
 import { useLocation } from "../hooks/useLocation";
 import * as Location from 'expo-location';
+import { luminance, hexToRgb, mix, createVibeTheme } from '../utils/colors'
+import { useTheme } from "../context/ThemeContext";
+import { useColorScheme } from "react-native";
 
 
 const { width } = Dimensions.get("window");
@@ -39,11 +42,24 @@ const lightColor = (hex, opacity = 0.15) => {
   const b = parseInt(c.substring(4, 6), 16);
   return `rgba(${r},${g},${b},${opacity})`;
 };
+const getVibeSurface = (vibeColor, theme) => {
+  if (!vibeColor) return theme.surface;
+
+  const lum = luminance(hexToRgb(vibeColor));
+
+  // If vibe is bright → darken it
+  if (lum > 0.55) {
+    return mix(vibeColor, theme.background, 0.65);
+  }
+
+  // If vibe is already dark → soften slightly
+  return mix(vibeColor, theme.background, 0.35);
+};
 
 export default function SpotDetailsScreen({ route, navigation }) {
   const carouselRef = useRef(null);
 
-  const { spotId } = route.params; 
+  const { spotId } = route.params;
   const [spot, setSpot] = useState(null);
   const [loading, setLoading] = useState(true);
   // --- VIBES (REAL DATA) ---
@@ -52,19 +68,20 @@ export default function SpotDetailsScreen({ route, navigation }) {
   const { data: myVibes = [] } = useMySpotVibes(spotId);
   const updateVibes = useUpdateSpotVibes(spotId);
   const [vibeModalVisible, setVibeModalVisible] = useState(false);
+  const { theme, isDark } = useTheme();
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [liked, setLiked] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [selectedVibes, setSelectedVibes] = useState([]);
   const { user, isSuperAdmin } = useAuth();
-  
+
   // Comments state
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState("");
   const [loadingComments, setLoadingComments] = useState(false);
   const [showComments, setShowComments] = useState(false);
-  
+
   // Saved spot state
   const [isSaved, setIsSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -79,17 +96,19 @@ export default function SpotDetailsScreen({ route, navigation }) {
   const locationWatchRef = useRef(null);
   const { location, refresh: refreshLocation } = useLocation();
 
+
+
   const openMap = () => {
     if (!spot?.lat || !spot?.lng) return;
-  
+
     const url = Platform.select({
       ios: `maps:0,0?q=${spot.lat},${spot.lng}`,
       android: `geo:0,0?q=${spot.lat},${spot.lng}`,
     });
-  
+
     Linking.openURL(url);
   };
-  
+
   useEffect(() => {
     const fetchSpot = async () => {
       const data = await getSpotById(spotId);
@@ -150,8 +169,8 @@ export default function SpotDetailsScreen({ route, navigation }) {
     const Δλ = (lon2 - lon1) * Math.PI / 180;
 
     const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+      Math.cos(φ1) * Math.cos(φ2) *
+      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return R * c; // Distance in meters
@@ -398,7 +417,10 @@ export default function SpotDetailsScreen({ route, navigation }) {
           flex: 1,
           justifyContent: "center",
           alignItems: "center",
-          backgroundColor: "#fff",
+          backgroundColor: topVibe
+            ? getVibeSurface(topVibe.color, theme)
+            : theme.background
+
         }}
       >
         <ActivityIndicator size="large" color="#ff9900" />
@@ -435,24 +457,28 @@ export default function SpotDetailsScreen({ route, navigation }) {
     );
   }
   const topVibe = spotVibes.length > 0
-  ? spotVibes.reduce((prev, current) => (current.count > prev.count ? current : prev))
-  : null;
+    ? spotVibes.reduce((prev, current) => (current.count > prev.count ? current : prev))
+    : null;
+  const vibeTheme = topVibe
+    ? createVibeTheme(topVibe.color, theme, isDark)
+    : null;
   return (
-    <SafeAreaView style={[styles.container,{backgroundColor: topVibe? lightColor(topVibe.color, 0.12) : "#f7f7f7"}]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: vibeTheme ? vibeTheme.background : theme.background }
+    ]}>
       {/* ---------- TOP HEADER ---------- */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back" size={24} color="#000" />
+      <View style={[styles.header, { backgroundColor: vibeTheme ? vibeTheme.surface : theme.surface }]}>
+        <TouchableOpacity style={[styles.headerBtn, { backgroundColor: vibeTheme ? vibeTheme.headerIcon : theme.surface }]} onPress={() => navigation.goBack()}>
+          <Icon name="arrow-back" size={24} color={vibeTheme ? theme.text : theme.text} />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
+          <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
             {spot.title}
           </Text>
           <View style={styles.headerRatingRow}>
             {/* ---------- TOP VIBE ---------- */}
             {topVibe && (
-              <View style={[styles.topVibe,{backgroundColor: topVibe.color} ]}>
+              <View style={[styles.topVibe, { backgroundColor: topVibe.color }]}>
                 <FontAwesome
                   name={topVibe.icon}
                   size={16}
@@ -466,15 +492,15 @@ export default function SpotDetailsScreen({ route, navigation }) {
 
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {isSuperAdmin && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.headerBtn}
               onPress={() => navigation.navigate('EditSpot', { spotId: spot.id })}
             >
               <Icon name="create-outline" size={22} color="#007AFF" />
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.headerBtn}>
-            <Icon name="share-social-outline" size={22} color="#000" />
+          <TouchableOpacity style={[styles.headerBtn, { backgroundColor: vibeTheme ? vibeTheme.headerIcon : theme.surface }]}>
+            <Icon name="share-social-outline" size={22} color={vibeTheme ? theme.text : theme.text} />
           </TouchableOpacity>
         </View>
       </View>
@@ -482,17 +508,17 @@ export default function SpotDetailsScreen({ route, navigation }) {
       <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 90 }}>
         {/* ---------- HERO / CAROUSEL ---------- */}
         <View style={styles.hero}>
-        <Carousel
-          ref={carouselRef}
-          data={spot.images || []}
-          renderItem={({ item }) => (
-            <Image source={{ uri: item }} style={styles.heroImage} />
-          )}
-          sliderWidth={width}
-          itemWidth={width}
-          firstItem={activeIndex}
-          onSnapToItem={(index) => setActiveIndex(index)}
-        />
+          <Carousel
+            ref={carouselRef}
+            data={spot.images || []}
+            renderItem={({ item }) => (
+              <Image source={{ uri: item }} style={styles.heroImage} />
+            )}
+            sliderWidth={width}
+            itemWidth={width}
+            firstItem={activeIndex}
+            onSnapToItem={(index) => setActiveIndex(index)}
+          />
 
 
           {/* Gradient overlay */}
@@ -522,15 +548,15 @@ export default function SpotDetailsScreen({ route, navigation }) {
 
 
 
-        <View style={styles.storyCard}>
-          <Text style={styles.storyTitle}>The Vibe</Text>
+        <View style={[styles.storyCard, { backgroundColor: vibeTheme ? vibeTheme.surface : theme.surface }]}>
+          <Text style={[styles.storyTitle, { color: theme.text }]}>The Vibe</Text>
 
-          <Text style={styles.storyText} numberOfLines={showMore ? 20 : 4}>
+          <Text style={[styles.storyText, { color: theme.text }]} numberOfLines={showMore ? 20 : 4}>
             {spot.description}
           </Text>
 
           <TouchableOpacity onPress={() => setShowMore(!showMore)}>
-            <Text style={[styles.readMore,{color: topVibe ?topVibe.color : "#6C63FF" }]}>
+            <Text style={[styles.readMore, { color: vibeTheme ? vibeTheme.primary : theme.primary }]}>
               {showMore ? "Show less" : "Read the story"}
             </Text>
           </TouchableOpacity>
@@ -546,12 +572,12 @@ export default function SpotDetailsScreen({ route, navigation }) {
           >
             {spot.images.map((img, index) => (
               <TouchableOpacity
-              key={index}
-              onPress={() => {
-                setActiveIndex(index);
-                carouselRef.current?.snapToItem(index);
-              }}
-            >
+                key={index}
+                onPress={() => {
+                  setActiveIndex(index);
+                  carouselRef.current?.snapToItem(index);
+                }}
+              >
                 <Image
                   source={{ uri: img }}
                   style={[
@@ -564,36 +590,36 @@ export default function SpotDetailsScreen({ route, navigation }) {
           </ScrollView>
         )}
 
-        <View style={styles.quickInfoContainer}>
+        <View style={[styles.quickInfoContainer, { backgroundColor: vibeTheme ? vibeTheme.surface : theme.surface }]}>
           <View style={styles.quickInfo}>
             <View style={styles.infoItem}>
-              <Icon name="grid-outline" size={18} color="#ff9900" />
-              <Text style={styles.infoLabel}>Category</Text>
-              <Text style={styles.infoValue}>
+              <Icon name="grid-outline" size={18} color={vibeTheme ? vibeTheme.primary : theme.primary} />
+              <Text style={[styles.infoLabel, { color: theme.text }]}>Category</Text>
+              <Text style={[styles.infoValue, { color: theme.text }]}>
                 {spot.category?.toUpperCase()}
               </Text>
             </View>
 
             <View style={styles.infoItem}>
-              <Icon name="time-outline" size={18} color="#ff9900" />
-              <Text style={styles.infoLabel}>Best Time</Text>
-              <Text style={styles.infoValue}>{spot.bestTime}</Text>
+              <Icon name="time-outline" size={18} color={vibeTheme ? vibeTheme.primary : theme.primary} />
+              <Text style={[styles.infoLabel, { color: theme.text }]}>Best Time</Text>
+              <Text style={[styles.infoValue, { color: theme.text }]}>{spot.bestTime}</Text>
             </View>
 
             <View style={styles.infoItem}>
-              <Icon name="pricetag-outline" size={18} color="#ff9900" />
-              <Text style={styles.infoLabel}>Price</Text>
-              <Text style={styles.infoValue}>
+              <Icon name="pricetag-outline" size={18} color={vibeTheme ? vibeTheme.primary : theme.primary} />
+              <Text style={[styles.infoLabel, { color: theme.text }]}>Price</Text>
+              <Text style={[styles.infoValue, { color: theme.text }]}>
                 {spot.priceRange?.toUpperCase()}
               </Text>
             </View>
           </View>
-          <Text style={{textAlign: "center", paddingTop: 16, fontSize:18, fontWeight:"bold"}}>Tags</Text>
+          <Text style={{ color: theme.text, textAlign: "center", paddingTop: 16, fontSize: 18, fontWeight: "bold" }}>Tags</Text>
           {/* ---------- TAGS ---------- */}
           {spot.tags && spot.tags.length > 0 && (
             <View style={styles.tagsContainer}>
               {spot.tags.map((tag, i) => (
-                <View key={i} style={[styles.tagChip, {backgroundColor: topVibe ?topVibe.color : "#FFDA32" }]}>
+                <View key={i} style={[styles.tagChip, { backgroundColor: topVibe ? topVibe.color : theme.primary }]}>
                   <Text style={styles.tagText}>#{tag}</Text>
                 </View>
               ))}
@@ -601,32 +627,32 @@ export default function SpotDetailsScreen({ route, navigation }) {
           )}
         </View>
 
-        
 
 
-        
+
+
 
         {/* ---------- FEATURES ---------- */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Features</Text>
+        <View style={[styles.section, { backgroundColor: vibeTheme ? vibeTheme.surface : theme.surface }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Features</Text>
 
           {(spot.features || []).map((feature, i) => (
             <View key={i} style={styles.featureRow}>
-              <View style={[styles.featureIcon,{backgroundColor: topVibe? topVibe.color: "#ffda32"}]}>
+              <View style={[styles.featureIcon, { backgroundColor: topVibe ? topVibe.color : theme.primary }]}>
                 <Icon name="checkmark" size={22} color="#fff" />
               </View>
-              <Text style={styles.featureText}>{feature}</Text>
+              <Text style={[styles.featureText, { color: theme.text }]}>{feature}</Text>
             </View>
           ))}
         </View>
 
-                {/* ---------- CONTACT & SOCIAL ---------- */}
+        {/* ---------- CONTACT & SOCIAL ---------- */}
         {(spot.phone || spot.email || spot.website || spot.instagram || spot.facebook || spot.twitter) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Contact & Social Media</Text>
-            
+
             {spot.phone && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.contactRow}
                 onPress={() => Linking.openURL(`tel:${spot.phone}`)}
               >
@@ -634,9 +660,9 @@ export default function SpotDetailsScreen({ route, navigation }) {
                 <Text style={styles.contactText}>{spot.phone}</Text>
               </TouchableOpacity>
             )}
-            
+
             {spot.email && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.contactRow}
                 onPress={() => Linking.openURL(`mailto:${spot.email}`)}
               >
@@ -644,9 +670,9 @@ export default function SpotDetailsScreen({ route, navigation }) {
                 <Text style={styles.contactText}>{spot.email}</Text>
               </TouchableOpacity>
             )}
-            
+
             {spot.website && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.contactRow}
                 onPress={() => Linking.openURL(spot.website)}
               >
@@ -654,10 +680,10 @@ export default function SpotDetailsScreen({ route, navigation }) {
                 <Text style={styles.contactText}>{spot.website}</Text>
               </TouchableOpacity>
             )}
-            
+
             <View style={styles.socialRow}>
               {spot.instagram && (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.socialButton}
                   onPress={() => Linking.openURL(spot.instagram)}
                 >
@@ -665,7 +691,7 @@ export default function SpotDetailsScreen({ route, navigation }) {
                 </TouchableOpacity>
               )}
               {spot.facebook && (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.socialButton}
                   onPress={() => Linking.openURL(spot.facebook)}
                 >
@@ -673,7 +699,7 @@ export default function SpotDetailsScreen({ route, navigation }) {
                 </TouchableOpacity>
               )}
               {spot.twitter && (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.socialButton}
                   onPress={() => Linking.openURL(spot.twitter)}
                 >
@@ -685,127 +711,127 @@ export default function SpotDetailsScreen({ route, navigation }) {
         )}
 
         {/* ---------- MAP BUTTON ---------- */}
-        <TouchableOpacity style={[styles.mapBtn,{backgroundColor: topVibe? topVibe.color: "#ffda32"}]} onPress={openMap}>
-          <Icon name="map-outline" size={20} color="#fff" />
-          <Text style={styles.mapBtnText}>View on Map</Text>
+        <TouchableOpacity style={[styles.mapBtn, { backgroundColor: vibeTheme ? vibeTheme.primary : theme.primary }]} onPress={openMap}>
+          <Icon name="map-outline" size={20} color={theme.text} />
+          <Text style={[styles.mapBtnText, { color: theme.text }]}>View on Map</Text>
         </TouchableOpacity>
 
         <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.actionBtn} onPress={openMap}>
-          <Icon name="navigate-outline" size={18} color="#000" />
-          <Text style={styles.actionText}>Directions</Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: vibeTheme ? vibeTheme.primary : theme.primary }]} onPress={openMap}>
+            <Icon name="navigate-outline" size={18} color={theme.text} />
+            <Text style={[styles.actionText, { color: theme.text }]}>Directions</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.actionBtn}
-          onPress={handleSaveToggle}
-          disabled={saving}
-        >
-          <Icon 
-            name={isSaved ? "bookmark" : "bookmark-outline"} 
-            size={18} 
-            color={isSaved ? "#ff9900" : "#000"} 
-          />
-          <Text style={[styles.actionText, isSaved && { color: "#ff9900" }]}>
-            {isSaved ? "Saved" : "Save"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Visited Button */}
-      <View style={styles.section}>
-        {isVisited ? (
-          <View style={[styles.visitedBadge, { backgroundColor: topVibe ? topVibe.color : "#4CAF50" }]}>
-            <Icon name="checkmark-circle" size={24} color="#fff" />
-            <Text style={styles.visitedBadgeText}>You've visited this spot!</Text>
-          </View>
-        ) : countdownActive ? (
-          <View style={styles.countdownContainer}>
-            <Text style={styles.countdownLabel}>Stay within 1km for:</Text>
-            <Text style={styles.countdownTime}>{formatTime(countdown)}</Text>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={stopCountdown}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
           <TouchableOpacity
-            style={[styles.visitedButton, { backgroundColor: topVibe ? topVibe.color : "#4CAF50" }]}
-            onPress={handleMarkAsVisited}
-            disabled={checkingVisited}
+            style={[styles.actionBtn, { backgroundColor: vibeTheme ? vibeTheme.primary : theme.primary }]}
+            onPress={handleSaveToggle}
+            disabled={saving}
           >
-            <Icon name="checkmark-circle-outline" size={20} color="#fff" />
-            <Text style={styles.visitedButtonText}>
-              {checkingVisited ? "Checking..." : "Mark as Visited"}
+            <Icon
+              name={isSaved ? "bookmark" : "bookmark-outline"}
+              size={18}
+              color={isSaved ? "#ff9900" : theme.text}
+            />
+            <Text style={[styles.actionText, { color: isSaved ? "#ff9900" : theme.text }]}>
+              {isSaved ? "Saved" : "Save"}
             </Text>
           </TouchableOpacity>
-        )}
-      </View>
-
-
-
-
-<View style={styles.section}>
-  <View style={styles.vibeHeader}>
-    <Text style={styles.sectionTitle}>How people feel here</Text>
-
-    <TouchableOpacity
-      style={styles.addVibeBtn}
-      onPress={() => setVibeModalVisible(true)}
-    >
-      <Icon name="add-circle-outline" size={18} />
-      <Text style={styles.addVibeText}>Add vibe</Text>
-    </TouchableOpacity>
-  </View>
-
-  {spotVibes.length === 0 ? (
-    <View style={styles.emptyVibes}>
-      <Text style={styles.emptyTitle}>No vibes yet ✨</Text>
-      <Text style={styles.emptySubtitle}>
-        Be the first to share how this place feels
-      </Text>
-
-      <TouchableOpacity
-        style={styles.emptyAction}
-        onPress={() => setVibeModalVisible(true)}
-      >
-        <Text style={styles.emptyActionText}>Add a vibe</Text>
-      </TouchableOpacity>
-    </View>
-  ) : (
-    <View style={styles.vibeGrid}>
-      {spotVibes.map((vibe) => {
-        const iconName = vibe.icon;
-
-        return(
-          <View key={vibe.id} style={[styles.vibeCard, { backgroundColor: vibe.color }]}>
-          <FontAwesome
-            name={iconName}
-            size={22}
-            color={"#fff"}
-          />
-          <Text style={[styles.vibeLabel, {color: "#fff"}]}>{vibe.name}</Text>
-          <Text style={[styles.vibeCount,{color: "#fff", fontWeight: "bold"}]}>{vibe.count}</Text>
         </View>
-        )
-      }
-        
-      )}
-    </View>
-  )}
-</View>
+
+        {/* Visited Button */}
+        <View style={[styles.section, { backgroundColor: vibeTheme ? vibeTheme.surface : theme.surface }]}>
+          {isVisited ? (
+            <View style={[styles.visitedBadge, { backgroundColor: topVibe ? topVibe.color : "#4CAF50" }]}>
+              <Icon name="checkmark-circle" size={24} color="#fff" />
+              <Text style={styles.visitedBadgeText}>You've visited this spot!</Text>
+            </View>
+          ) : countdownActive ? (
+            <View style={styles.countdownContainer}>
+              <Text style={styles.countdownLabel}>Stay within 1km for:</Text>
+              <Text style={styles.countdownTime}>{formatTime(countdown)}</Text>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={stopCountdown}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.visitedButton, { backgroundColor: topVibe ? topVibe.color : "#4CAF50" }]}
+              onPress={handleMarkAsVisited}
+              disabled={checkingVisited}
+            >
+              <Icon name="checkmark-circle-outline" size={20} color="#fff" />
+              <Text style={styles.visitedButtonText}>
+                {checkingVisited ? "Checking..." : "Mark as Visited"}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+
+
+
+        <View style={[styles.section, { backgroundColor: vibeTheme ? vibeTheme.surface : theme.surface }]}>
+          <View style={styles.vibeHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>How people feel here</Text>
+
+            <TouchableOpacity
+              style={styles.addVibeBtn}
+              onPress={() => setVibeModalVisible(true)}
+            >
+              <Icon name="add-circle-outline" size={18} color={theme.text} />
+              <Text style={[styles.addVibeText, { color: theme.text }]}>Add vibe</Text>
+            </TouchableOpacity>
+          </View>
+
+          {spotVibes.length === 0 ? (
+            <View style={styles.emptyVibes}>
+              <Text style={[styles.emptyTitle, { color: theme.text }]}>No vibes yet ✨</Text>
+              <Text style={[styles.emptySubtitle, { color: theme.textMuted }]}>
+                Be the first to share how this place feels
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.emptyAction, { backgroundColor: theme.primary }]}
+                onPress={() => setVibeModalVisible(true)}
+              >
+                <Text style={[styles.emptyActionText, { color: theme.text }]}>Add a vibe</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.vibeGrid}>
+              {spotVibes.map((vibe) => {
+                const iconName = vibe.icon;
+
+                return (
+                  <View key={vibe.id} style={[styles.vibeCard, { backgroundColor: vibe.color }]}>
+                    <FontAwesome
+                      name={iconName}
+                      size={22}
+                      color={"#fff"}
+                    />
+                    <Text style={[styles.vibeLabel, { color: "#fff" }]}>{vibe.name}</Text>
+                    <Text style={[styles.vibeCount, { color: "#fff", fontWeight: "bold" }]}>{vibe.count}</Text>
+                  </View>
+                )
+              }
+
+              )}
+            </View>
+          )}
+        </View>
 
         {/* ---------- COMMENTS SECTION ---------- */}
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: vibeTheme ? vibeTheme.surface : theme.surface }]}>
           <View style={styles.commentHeader}>
-            <Text style={styles.sectionTitle}>Comments ({comments.length})</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Comments ({comments.length})</Text>
             <TouchableOpacity onPress={() => setShowComments(!showComments)}>
-              <Icon 
-                name={showComments ? "chevron-up-outline" : "chevron-down-outline"} 
-                size={20} 
-                color="#666" 
+              <Icon
+                name={showComments ? "chevron-up-outline" : "chevron-down-outline"}
+                size={20}
+                color="#666"
               />
             </TouchableOpacity>
           </View>
@@ -818,7 +844,7 @@ export default function SpotDetailsScreen({ route, navigation }) {
                   <TextInput
                     style={styles.commentInput}
                     placeholder="Write a comment..."
-                    placeholderTextColor="#999"
+                    placeholderTextColor={theme.text}
                     value={commentText}
                     onChangeText={setCommentText}
                     multiline
@@ -841,10 +867,10 @@ export default function SpotDetailsScreen({ route, navigation }) {
                 <ActivityIndicator size="small" color="#ff9900" style={{ marginVertical: 20 }} />
               ) : comments.length === 0 ? (
                 <View style={styles.emptyComments}>
-                  <Text style={styles.emptyCommentsText}>No comments yet. Be the first to comment!</Text>
+                  <Text style={[styles.emptyCommentsText, { color: theme.text }]}>No comments yet. Be the first to comment!</Text>
                 </View>
               ) : (
-                <View style={styles.commentsList}>
+                <View style={[styles.commentsList, { backgroundColor: theme.surface }]}>
                   {comments.map((comment) => (
                     <View key={comment.id} style={styles.commentCard}>
                       <View style={styles.commentHeaderRow}>
@@ -888,7 +914,7 @@ export default function SpotDetailsScreen({ route, navigation }) {
           )}
         </View>
 
-        
+
 
       </ScrollView>
 
@@ -1010,84 +1036,84 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f7f7f7",
   },
-    /* HEADER */
-    header: {
-      width: "100%",
-      paddingHorizontal: 12,
-      paddingTop: 50,
-      paddingBottom:20,
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      backgroundColor: "#ffffffee",
-      backdropFilter: "blur(6px)",
-      zIndex: 50,
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-    },
+  /* HEADER */
+  header: {
+    width: "100%",
+    paddingHorizontal: 12,
+    paddingTop: 50,
+    paddingBottom: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#ffffffee",
+    backdropFilter: "blur(6px)",
+    zIndex: 50,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+  },
 
-    headerBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
-      backgroundColor: "#ffffffcc",
-      justifyContent: "center",
-      alignItems: "center",
-      elevation: 3,
-    },
+  headerBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#ffffffcc",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 3,
+  },
 
-    headerCenter: {
-      flex: 1,
-      alignItems: "center",
-    },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+  },
 
-    headerTitle: {
-      fontSize: 16,
-      fontWeight: "700",
-      maxWidth: "70%",
-    },
-    topVibe: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginLeft: 10,
-      // backgroundColor: "#fff3c4",
-      paddingHorizontal: 15,
-      paddingVertical: 2,
-      borderRadius: 12,
-    },
-    
-    topVibeText: {
-      fontSize: 12,
-      fontWeight: "600",
-      color: "#fff",
-      marginLeft: 4,
-    },    
-    headerRatingRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      marginTop: 2,
-    },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    maxWidth: "70%",
+  },
+  topVibe: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 10,
+    // backgroundColor: "#fff3c4",
+    paddingHorizontal: 15,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
 
-    headerRating: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: "#444",
-    },
+  topVibeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#fff",
+    marginLeft: 4,
+  },
+  headerRatingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+
+  headerRating: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#444",
+  },
 
 
   /* HERO */
   hero: {
     height: 340,
   },
-  
+
   heroImage: {
     width: "100%",
     height: 340,
   },
-  
+
   heroOverlay: {
     position: "absolute",
     bottom: 0,
@@ -1095,32 +1121,32 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: "rgba(0,0,0,0.35)",
   },
-  
+
   heroText: {
     position: "absolute",
     bottom: 30,
     left: 16,
     right: 16,
   },
-  
+
   heroTitle: {
     fontSize: 28,
     fontWeight: "800",
     color: "#fff",
   },
-  
+
   heroMeta: {
     flexDirection: "row",
     alignItems: "center",
     marginTop: 6,
     gap: 4,
   },
-  
+
   heroAddress: {
     color: "#eee",
     fontSize: 14,
   },
-  
+
   /* THUMBNAILS */
   thumbRow: {
     paddingHorizontal: 10,
@@ -1153,26 +1179,26 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     elevation: 6,
   },
-  
+
   storyTitle: {
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 8,
   },
-  
+
   storyText: {
     fontSize: 15,
     lineHeight: 22,
     color: "#444",
   },
-  
+
   readMore: {
     marginTop: 8,
     color: "#6C63FF",
     fontWeight: "600",
   },
-  
-  quickInfoContainer:{
+
+  quickInfoContainer: {
     flexDirection: "column",
     marginHorizontal: 16,
     marginTop: 16,
@@ -1186,24 +1212,24 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginHorizontal: 16,
   },
-  
+
   infoItem: {
     alignItems: "center",
     flex: 1,
   },
-  
+
   infoLabel: {
     fontSize: 12,
     color: "#777",
     marginTop: 4,
   },
-  
+
   infoValue: {
     fontSize: 14,
     fontWeight: "700",
     marginTop: 2,
   },
-  
+
   /* INFO */
   infoCard: {
     marginTop: 12,
@@ -1291,7 +1317,7 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 12,
   },
-  
+
   vibeCard: {
     width: "30%",
     backgroundColor: "#f4f4f4",
@@ -1302,7 +1328,7 @@ const styles = StyleSheet.create({
     position: "relative",
     overflow: "hidden",
   },
-  
+
   vibeCardActive: {
     backgroundColor: "#6C63FF",
   },
@@ -1329,7 +1355,7 @@ const styles = StyleSheet.create({
     gap: 6,
     width: "100%",
   },
-  
+
   vibeLabel: {
     fontWeight: "600",
     fontSize: 13,
@@ -1388,24 +1414,24 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: "700",
   },
-  
+
   vibeCount: {
     fontSize: 12,
     color: "#777",
   },
-  
+
   hero: {
     width: "100%",
     height: 260,
     position: "relative",
   },
-  
+
   heroImage: {
     width: "100%",
     height: 260,
     borderRadius: 12,
   },
-  
+
   pagination: {
     flexDirection: "row",
     justifyContent: "center",
@@ -1413,7 +1439,7 @@ const styles = StyleSheet.create({
     bottom: 10,
     width: "100%",
   },
-  
+
   dot: {
     width: 8,
     height: 8,
@@ -1421,13 +1447,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.4)",
     marginHorizontal: 4,
   },
-  
+
   activeDot: {
     width: 10,
     height: 10,
     backgroundColor: "#fff",
   },
-  
+
   likeButton: {
     position: "absolute",
     top: 16,
@@ -1445,7 +1471,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     gap: 8, // spacing between chips
   },
-  
+
   tagChip: {
     // backgroundColor: "#FFDA32", // bright yellow
     paddingVertical: 6,
@@ -1457,348 +1483,348 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
-  
+
   tagText: {
     fontSize: 13,
     fontWeight: "600",
     color: "#fff", // dark text for contrast
   },
-  
 
-/* MAP BUTTON */
-mapBtn: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 8,
-  marginTop: 14,
-  marginHorizontal: 16,
-  backgroundColor: "#ffda32",
-  paddingVertical: 12,
-  borderRadius: 12,
-  color: "#fff"
-},
-mapBtnText: {
-  fontWeight: "700",
-  fontSize: 15,
-  color:"#fff"
-},
 
-/* ACTION BUTTONS */
-actionRow: {
-  flexDirection: "row",
-  gap: 10,
-  marginTop: 12,
-  marginHorizontal: 16,
-},
-actionBtn: {
-  flex: 1,
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 6,
-  backgroundColor: "#f3f3f3",
-  paddingVertical: 10,
-  borderRadius: 10,
-},
-actionText: {
-  fontWeight: "600",
-},
-vibeHeader: {
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "center",
-},
+  /* MAP BUTTON */
+  mapBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 14,
+    marginHorizontal: 16,
+    backgroundColor: "#ffda32",
+    paddingVertical: 12,
+    borderRadius: 12,
+    color: "#fff"
+  },
+  mapBtnText: {
+    fontWeight: "700",
+    fontSize: 15,
+    color: "#fff"
+  },
 
-addVibeBtn: {
-  flexDirection: "row",
-  alignItems: "center",
-  gap: 4,
-},
+  /* ACTION BUTTONS */
+  actionRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 12,
+    marginHorizontal: 16,
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#f3f3f3",
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  actionText: {
+    fontWeight: "600",
+  },
+  vibeHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
 
-addVibeText: {
-  fontWeight: "600",
-},
+  addVibeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
 
-emptyVibes: {
-  alignItems: "center",
-  paddingVertical: 30,
-},
+  addVibeText: {
+    fontWeight: "600",
+  },
 
-emptyTitle: {
-  fontSize: 16,
-  fontWeight: "700",
-  marginBottom: 4,
-},
+  emptyVibes: {
+    alignItems: "center",
+    paddingVertical: 30,
+  },
 
-emptySubtitle: {
-  fontSize: 14,
-  color: "#666",
-  textAlign: "center",
-},
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
 
-emptyAction: {
-  marginTop: 12,
-  backgroundColor: "#ffda32",
-  paddingHorizontal: 18,
-  paddingVertical: 8,
-  borderRadius: 20,
-},
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+  },
 
-emptyActionText: {
-  fontWeight: "700",
-},
+  emptyAction: {
+    marginTop: 12,
+    backgroundColor: "#ffda32",
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
 
-modalBackdrop: {
-  flex: 1,
-  backgroundColor: "rgba(0,0,0,0.4)",
-  justifyContent: "flex-end",
-},
+  emptyActionText: {
+    fontWeight: "700",
+  },
 
-modalSheet: {
-  backgroundColor: "#fff",
-  padding: 16,
-  borderTopLeftRadius: 20,
-  borderTopRightRadius: 20,
-  maxHeight: "70%",
-},
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
 
-modalHeader: {
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: 12,
-},
+  modalSheet: {
+    backgroundColor: "#fff",
+    padding: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "70%",
+  },
 
-modalTitle: {
-  fontSize: 18,
-  fontWeight: "700",
-},
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
 
-// COMMENTS
-commentHeader: {
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: 12,
-},
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
 
-commentInputContainer: {
-  flexDirection: "row",
-  alignItems: "flex-end",
-  marginBottom: 16,
-  gap: 8,
-},
+  // COMMENTS
+  commentHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
 
-commentInput: {
-  flex: 1,
-  backgroundColor: "#f5f5f5",
-  borderRadius: 12,
-  paddingHorizontal: 12,
-  paddingVertical: 10,
-  fontSize: 14,
-  maxHeight: 100,
-  minHeight: 40,
-},
+  commentInputContainer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    marginBottom: 16,
+    gap: 8,
+  },
 
-commentSubmitBtn: {
-  backgroundColor: "#ff9900",
-  width: 40,
-  height: 40,
-  borderRadius: 20,
-  justifyContent: "center",
-  alignItems: "center",
-},
+  commentInput: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    maxHeight: 100,
+    minHeight: 40,
+  },
 
-commentSubmitBtnDisabled: {
-  backgroundColor: "#ccc",
-  opacity: 0.5,
-},
+  commentSubmitBtn: {
+    backgroundColor: "#ff9900",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
 
-commentsList: {
-  gap: 12,
-},
+  commentSubmitBtnDisabled: {
+    backgroundColor: "#ccc",
+    opacity: 0.5,
+  },
 
-commentCard: {
-  backgroundColor: "#f9f9f9",
-  borderRadius: 12,
-  padding: 12,
-},
+  commentsList: {
+    gap: 12,
+  },
 
-commentHeaderRow: {
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  marginBottom: 8,
-},
+  commentCard: {
+    backgroundColor: "#f9f9f9",
+    borderRadius: 12,
+    padding: 12,
+  },
 
-commentUserInfo: {
-  flexDirection: "row",
-  alignItems: "center",
-  flex: 1,
-  gap: 10,
-},
+  commentHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
 
-commentAvatar: {
-  width: 36,
-  height: 36,
-  borderRadius: 18,
-},
+  commentUserInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 10,
+  },
 
-commentAvatarPlaceholder: {
-  backgroundColor: "#ff9900",
-  justifyContent: "center",
-  alignItems: "center",
-},
+  commentAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
 
-commentAvatarText: {
-  color: "#fff",
-  fontWeight: "700",
-  fontSize: 16,
-},
+  commentAvatarPlaceholder: {
+    backgroundColor: "#ff9900",
+    justifyContent: "center",
+    alignItems: "center",
+  },
 
-commentUserName: {
-  fontWeight: "700",
-  fontSize: 14,
-  color: "#333",
-},
+  commentAvatarText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
+  },
 
-commentDate: {
-  fontSize: 12,
-  color: "#999",
-  marginTop: 2,
-},
+  commentUserName: {
+    fontWeight: "700",
+    fontSize: 14,
+    color: "#333",
+  },
 
-commentDeleteBtn: {
-  padding: 4,
-},
+  commentDate: {
+    fontSize: 12,
+    color: "#999",
+    marginTop: 2,
+  },
 
-commentText: {
-  fontSize: 14,
-  color: "#444",
-  lineHeight: 20,
-},
+  commentDeleteBtn: {
+    padding: 4,
+  },
 
-emptyComments: {
-  paddingVertical: 20,
-  alignItems: "center",
-},
+  commentText: {
+    fontSize: 14,
+    color: "#444",
+    lineHeight: 20,
+  },
 
-emptyCommentsText: {
-  color: "#999",
-  fontSize: 14,
-  textAlign: "center",
-},
+  emptyComments: {
+    paddingVertical: 20,
+    alignItems: "center",
+  },
 
-visitedButton: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 8,
-  backgroundColor: "#4CAF50",
-  paddingVertical: 14,
-  borderRadius: 12,
-  marginHorizontal: 16,
-  marginTop: 12,
-  elevation: 3,
-  shadowColor: "#000",
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.2,
-  shadowRadius: 4,
-},
+  emptyCommentsText: {
+    color: "#999",
+    fontSize: 14,
+    textAlign: "center",
+  },
 
-visitedButtonText: {
-  color: "#fff",
-  fontSize: 16,
-  fontWeight: "700",
-},
+  visitedButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#4CAF50",
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
 
-visitedBadge: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 8,
-  backgroundColor: "#4CAF50",
-  paddingVertical: 14,
-  borderRadius: 12,
-  marginHorizontal: 16,
-  marginTop: 12,
-},
+  visitedButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
 
-visitedBadgeText: {
-  color: "#fff",
-  fontSize: 16,
-  fontWeight: "700",
-},
+  visitedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#4CAF50",
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+  },
 
-countdownContainer: {
-  alignItems: "center",
-  backgroundColor: "#fff",
-  paddingVertical: 20,
-  borderRadius: 12,
-  marginHorizontal: 16,
-  marginTop: 12,
-  elevation: 3,
-  shadowColor: "#000",
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.1,
-  shadowRadius: 4,
-},
+  visitedBadgeText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
 
-countdownLabel: {
-  fontSize: 14,
-  color: "#666",
-  marginBottom: 8,
-},
+  countdownContainer: {
+    alignItems: "center",
+    backgroundColor: "#fff",
+    paddingVertical: 20,
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
 
-countdownTime: {
-  fontSize: 36,
-  fontWeight: "800",
-  color: "#4CAF50",
-  marginBottom: 12,
-},
+  countdownLabel: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 8,
+  },
 
-cancelButton: {
-  paddingHorizontal: 20,
-  paddingVertical: 8,
-  borderRadius: 8,
-  backgroundColor: "#f0f0f0",
-},
+  countdownTime: {
+    fontSize: 36,
+    fontWeight: "800",
+    color: "#4CAF50",
+    marginBottom: 12,
+  },
 
-cancelButtonText: {
-  color: "#666",
-  fontSize: 14,
-  fontWeight: "600",
-},
+  cancelButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#f0f0f0",
+  },
 
-contactRow: {
-  flexDirection: "row",
-  alignItems: "center",
-  gap: 12,
-  paddingVertical: 10,
-  borderBottomWidth: 1,
-  borderBottomColor: "#f0f0f0",
-},
-contactText: {
-  fontSize: 15,
-  color: "#333",
-  flex: 1,
-},
-socialRow: {
-  flexDirection: "row",
-  gap: 16,
-  marginTop: 12,
-  paddingTop: 12,
-  borderTopWidth: 1,
-  borderTopColor: "#f0f0f0",
-},
-socialButton: {
-  width: 44,
-  height: 44,
-  borderRadius: 22,
-  backgroundColor: "#f5f5f5",
-  justifyContent: "center",
-  alignItems: "center",
-},
+  cancelButtonText: {
+    color: "#666",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  contactRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  contactText: {
+    fontSize: 15,
+    color: "#333",
+    flex: 1,
+  },
+  socialRow: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+  },
+  socialButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#f5f5f5",
+    justifyContent: "center",
+    alignItems: "center",
+  },
 
 });

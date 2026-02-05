@@ -22,9 +22,13 @@ import { getVisitedSpots } from '../services/visitedSpots.service';
 import { getUserCollections } from '../services/collections.service';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
+import { useTheme } from '../context/ThemeContext';
+import { Switch, Dimensions } from 'react-native';
+import { Directions } from 'react-native-gesture-handler';
+const { width } = Dimensions.get("window");
 export const ProfileScreen = ({ navigation }) => {
   const { user, isSuperAdmin, logout } = useAuth();
+  const { theme, toggleTheme, isDark } = useTheme();
   const [savedSpots, setSavedSpots] = useState([]);
   const [visitedSpots, setVisitedSpots] = useState([]);
   const [myCollections, setMyCollections] = useState([]);
@@ -176,18 +180,44 @@ export const ProfileScreen = ({ navigation }) => {
   };
 
   const displayName = user?.name || 'User';
-
+  const renderItem = (label, icon, onPress, admin = false) => (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      <View style={styles.settingsRow}>
+        <View style={styles.settingsLeft}>
+          <View
+            style={[
+              styles.iconPill,
+              { backgroundColor: admin ? "#007AFF20" : "#007A8C15" },
+            ]}
+          >
+            <Ionicons name={icon} size={18} color={admin ? "#007AFF" : theme.primary} />
+          </View>
+  
+          <Text style={[styles.settingsText, { color: theme.text }]}>
+            {label}
+          </Text>
+        </View>
+  
+        <Ionicons name="chevron-forward" size={18} color={theme.textSubtle} />
+      </View>
+    </TouchableOpacity>
+  );
+  
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView 
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} 
+          />
         }
+        style={styles.content}
       >
-        {/* Header */}
         <LinearGradient
-          colors={['#6C5CE7', '#A29BFE']}
+          colors={["#007A8C", "#0FA4B8"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+
           style={styles.header}
         >
           <View style={styles.avatarContainer}>
@@ -209,70 +239,43 @@ export const ProfileScreen = ({ navigation }) => {
         </LinearGradient>
 
         {/* Menu Items */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => navigation.navigate('Home')}
-          >
-            <View style={styles.menuIcon}>
-              <Ionicons name="home-outline" size={24} color="#6C5CE7" />
-            </View>
-            <Text style={styles.menuText}>Home</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
+        <View style={[styles.settingsCard, { backgroundColor: theme.surface }]}>
+  {/* Dark Mode */}
+  <View style={styles.settingsRow}>
+    <View style={[styles.settingsLeft]}>
+      <View style={[styles.iconPill, { backgroundColor: "#007A8C20" }]}>
+        <Ionicons name={isDark ? "moon" : "sunny"} size={18} color="#007A8C" />
+      </View>
+      <Text style={[styles.settingsText, { color: theme.text }]}>Dark Mode</Text>
+    </View>
 
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => navigation.navigate('Explore')}
-          >
-            <View style={styles.menuIcon}>
-              <Ionicons name="search-outline" size={24} color="#6C5CE7" />
-            </View>
-            <Text style={styles.menuText}>Explore</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
+    <Switch
+      trackColor={{ false: "#ccc", true: "#007A8C" }}
+      thumbColor="#fff"
+      onValueChange={toggleTheme}
+      value={isDark}
+    />
+  </View>
 
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => navigation.navigate('Map')}
-          >
-            <View style={styles.menuIcon}>
-              <Ionicons name="map-outline" size={24} color="#6C5CE7" />
-            </View>
-            <Text style={styles.menuText}>Map View</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
+  {renderItem("Home", "home-outline", () => navigation.navigate("Home"))}
+  {renderItem("Explore", "search-outline", () => navigation.navigate("Explore"))}
+  {renderItem("Map View", "map-outline", () => navigation.navigate("Map"))}
+  {renderItem("Change Password", "lock-closed-outline", () =>
+    setShowPasswordModal(true)
+  )}
 
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => setShowPasswordModal(true)}
-          >
-            <View style={styles.menuIcon}>
-              <Ionicons name="lock-closed-outline" size={24} color="#6C5CE7" />
-            </View>
-            <Text style={styles.menuText}>Change Password</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
-
-          {isSuperAdmin && (
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => navigation.navigate('AddSpot')}
-            >
-              <View style={[styles.menuIcon, styles.adminIcon]}>
-                <Ionicons name="add-circle-outline" size={24} color="#007AFF" />
-              </View>
-              <Text style={[styles.menuText, styles.adminMenuText]}>Add Spot</Text>
-              <Ionicons name="chevron-forward" size={20} color="#999" />
-            </TouchableOpacity>
-          )}
-        </View>
+  {isSuperAdmin &&
+    renderItem("Add Spot", "add-circle-outline", () =>
+      navigation.navigate("AddSpot"),
+      true
+    )}
+</View>
 
         {/* Saved Spots */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Saved Spots</Text>
-            <Text style={styles.sectionCount}>({savedSpots.length})</Text>
+        <View style={[styles.section, { backgroundColor: theme.surface }]}>
+          <View style={[styles.sectionHeader, { borderBottomColor: theme.border }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Saved Spots</Text>
+            <Text style={[styles.sectionCount, { color: theme.textMuted }]}>({savedSpots.length})</Text>
           </View>
 
           {loadingSpots ? (
@@ -327,11 +330,13 @@ export const ProfileScreen = ({ navigation }) => {
           )}
         </View>
 
+
+
         {/* Visited Spots */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Visited Spots</Text>
-            <Text style={styles.sectionCount}>({visitedSpots.length})</Text>
+        <View style={[styles.section, { backgroundColor: theme.surface }]}>
+          <View style={[styles.sectionHeader, { borderBottomColor: theme.border }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Visited Spots</Text>
+            <Text style={[styles.sectionCount, { color: theme.textMuted }]}>({visitedSpots.length})</Text>
           </View>
 
           {loadingVisitedSpots ? (
@@ -358,10 +363,10 @@ export const ProfileScreen = ({ navigation }) => {
                     resizeMode="cover"
                   />
                   <View style={styles.spotInfo}>
-                    <Text style={styles.spotTitle} numberOfLines={1}>
+                    <Text style={[styles.spotTitle, { color: theme.text }]} numberOfLines={1}>
                       {spot.title}
                     </Text>
-                    <Text style={styles.spotCategory} numberOfLines={1}>
+                    <Text style={[styles.spotCategory, { color: theme.textMuted }]} numberOfLines={1}>
                       {spot.category?.replace('_', ' ')}
                     </Text>
                     <View style={styles.spotMeta}>
@@ -384,11 +389,11 @@ export const ProfileScreen = ({ navigation }) => {
         </View>
 
         {/* My Collections */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>My Collections</Text>
+        <View style={[styles.section, { backgroundColor: theme.surface }]}>
+          <View style={[styles.sectionHeader, { borderBottomColor: theme.border }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>My Collections</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Collections')}>
-              <Text style={styles.seeAll}>See All</Text>
+              <Text style={[styles.seeAll, { color: theme.primary }]}>See All</Text>
             </TouchableOpacity>
           </View>
 
@@ -454,7 +459,7 @@ export const ProfileScreen = ({ navigation }) => {
         </View>
 
         {/* Sign Out */}
-        <View style={styles.section}>
+        <View style={[styles.section, {backgroundColor: theme.surfaceAlt}]}>
           <Button
             title="Sign Out"
             onPress={handleSignOut}
@@ -519,7 +524,7 @@ export const ProfileScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </SafeAreaView >
   );
 };
 
@@ -528,6 +533,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
   },
+
   header: {
     paddingVertical: 40,
     paddingHorizontal: 20,
@@ -580,10 +586,24 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   section: {
-    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 16,
     marginTop: 16,
-    paddingVertical: 8,
+  
+    // iOS shadow
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+  
+    // Android elevation
+    elevation: 6,
+  
+    // prevents children from overflowing rounded corners
+    overflow: "hidden",
   },
+  
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -591,6 +611,46 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
+  settingsCard: {
+    borderRadius: 20,
+    paddingVertical: 6,
+    marginHorizontal: 16,
+    marginTop: 20,
+  
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  
+  settingsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  
+  settingsLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  
+  iconPill: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  
+  settingsText: {
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  
   menuIcon: {
     width: 40,
     height: 40,
@@ -818,7 +878,7 @@ const styles = StyleSheet.create({
   },
   createCollectionButton: {
     marginTop: 16,
-    backgroundColor: '#6C5CE7',
+    backgroundColor: '#007A8C',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 20,

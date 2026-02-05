@@ -17,6 +17,8 @@ import { isValidEmail } from '../utils/helpers';
 import { useAuth } from "../hooks/useAuth"
 import { useTheme } from "../context/ThemeContext";
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from "expo-linear-gradient";
+
 
 /**
  * Login Screen
@@ -30,55 +32,60 @@ export const LoginScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const [showPassword, setShowPassword] = useState(false);
 
-console.log(theme);
   const handleEmailLogin = async () => {
     if (!email || !password) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
-  
+
     if (!isValidEmail(email)) {
       Alert.alert("Error", "Please enter a valid email address");
       return;
     }
-  
+
     setLoading(true);
     const { user, error } = await login(email, password);
     setLoading(false);
-  
+
     if (error) {
       Alert.alert("Login Failed", error);
       return;
     }
-  
+
     Alert.alert("Success", "Logged in successfully");
-  
+
     // navigation.respot("MainTabs");
   };
-  
+
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: theme.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+    <LinearGradient
+      colors={["#007A8C", "#0FA4B8"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.content}>
-        <Image
-        source={require("../../assets/logo.png")}
-        style={styles.logo}
-      />
-          <Text style={[styles.title, { color: theme.text }]}>Welcome to VibeSpot</Text>
-          <Text style={[styles.subtitle, { color: theme.text }]}>Discover amazing spots around you</Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
+      >
 
-          <View style={styles.form}>
-          <View style={[styles.inputContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.content}>
+            <View style={[styles.card, { backgroundColor: theme.surface }]}>
+              <Image
+                source={require("../../assets/logo.png")}
+                style={styles.logo}
+              />
+              <Text style={[styles.title, { color: theme.text }]}>Welcome to VibeSpot</Text>
+              <Text style={[styles.subtitle, { color: theme.text }]}>Discover amazing spots around you</Text>
+              <View style={[styles.inputContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Ionicons name="mail-outline" size={20} color={theme.textMuted} style={styles.inputIcon} />
                 <TextInput
-                  style={[styles.input, {color: theme.text }]}
+                  style={[styles.input, { color: theme.text }]}
                   placeholder="Email"
-                  placeholderTextColor={theme.textMuted}  
+                  placeholderTextColor={theme.textMuted}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -86,12 +93,12 @@ console.log(theme);
                   autoComplete="email"
                   autoCorrect={false}
                 />
-            </View>
+              </View>
 
-            <View style={[styles.inputContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View style={[styles.inputContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
                 <Ionicons name="lock-closed-outline" size={20} color={theme.textMuted} style={styles.inputIcon} />
                 <TextInput
-                  style={[styles.input, {color: theme.text }]}
+                  style={[styles.input, { color: theme.text }]}
                   placeholder="Password"
                   placeholderTextColor={theme.textMuted}
                   value={password}
@@ -112,34 +119,35 @@ console.log(theme);
                 </TouchableOpacity>
               </View>
 
-            <Button
-              title="Sign In"
-              onPress={handleEmailLogin}
-              loading={loading}
-              style={[styles.button, { backgroundColor: theme.primary }]}
-            />
+              <Button
+                title="Sign In"
+                onPress={handleEmailLogin}
+                loading={loading}
+                style={[styles.button, { backgroundColor: theme.primary }]}
+              />
 
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={[styles.dividerText, { color: theme.text }]}>OR</Text>
-              <View style={styles.dividerLine} />
-            </View>
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={[styles.dividerText, { color: theme.text }]}>OR</Text>
+                <View style={styles.dividerLine} />
+              </View>
 
-            <Button
-              title="Sign in with Google"
-              onPress={ ()=> {}}
-              variant="secondary"
-              loading={loading}
-              style={[styles.button, { backgroundColor: theme.primary }]}
-            />
+              <Button
+                title="Sign in with Google"
+                onPress={() => { }}
+                variant="secondary"
+                loading={loading}
+                style={[styles.button, { backgroundColor: theme.primary }]}
+              />
 
-            <View style={styles.footer}>
-              <Text style={[styles.footerText, { color: theme.text }]}>Don't have an account? < Text style={[styles.footerLink, { color: theme.text }]} onPress={() => navigation.navigate('Register')}>Sign Up</Text></Text>
+              <View style={styles.footer}>
+                <Text style={[styles.footerText, { color: theme.text }]}>Don't have an account? < Text style={[styles.footerLink, { color: theme.text }]} onPress={() => navigation.navigate('Register')}>Sign Up</Text></Text>
+              </View>
             </View>
           </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 };
 
@@ -156,13 +164,28 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   logo: {
-    width: 200,
-    height: 200,
+    width: 100,
+    height: 100,
     alignSelf: 'center',
     marginBottom: 20,
     resizeMode: 'contain',
   },
-  
+  card: {
+    width: "100%",
+    borderRadius: 20,
+    padding: 20,
+    marginTop: 40,
+
+    // iOS shadow
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+
+    // Android elevation
+    elevation: 8,
+  },
+
   title: {
     fontSize: 32,
     fontWeight: 'bold',

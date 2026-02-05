@@ -32,7 +32,7 @@ const hexToRgba = (hex, alpha = 1) => {
 
 export const SpotCard = ({ spot, onPress }) => {
   const scrollY = useRef(new Animated.Value(0)).current;
-  const {theme} = useTheme()
+  const { theme } = useTheme()
   const { data: spotVibes = [] } = useSpotVibes(spot.id);
 
   const topVibe =
@@ -86,10 +86,10 @@ export const SpotCard = ({ spot, onPress }) => {
 
         {/* Category */}
         <View
-        style={[
-          styles.categoryPill,
-          { backgroundColor: hexToRgba(vibeColor, 0.85) },
-        ]}
+          style={[
+            styles.categoryPill,
+            { backgroundColor: hexToRgba(vibeColor, 0.85) },
+          ]}
         >
           <Text style={styles.categoryText}>
             {spot.category?.replace("_", " ").toUpperCase()}
@@ -114,7 +114,7 @@ export const SpotCard = ({ spot, onPress }) => {
             <View
               style={[
                 styles.glassBadge,
-                {borderColor: hexToRgba(vibeColor, 0.6),},
+                { borderColor: hexToRgba(vibeColor, 0.6), },
               ]}
             >
               <Ionicons name="cash" size={12} color="#fff" />
@@ -156,8 +156,8 @@ const styles = StyleSheet.create({
 
   spotCard: {
     width: width * 0.6,
-    height: 280,
-    borderRadius: 28,
+    height: 240,
+    borderRadius: 18,
     overflow: "hidden",
   },
 
@@ -197,11 +197,11 @@ const styles = StyleSheet.create({
   content: {
     position: "absolute",
     bottom: 0,
-    padding: 16,
+    padding: 8,
   },
 
   title: {
-    fontSize: 22,
+    fontSize: 16,
     fontWeight: "900",
     color: "#fff",
     marginBottom: 6,
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
 
   address: {
     color: "#eee",
-    fontSize: 13,
+    fontSize: 12,
     flex: 1,
   },
 

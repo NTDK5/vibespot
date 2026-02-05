@@ -63,7 +63,7 @@ export const MapScreen = ({ navigation }) => {
   const isRegionChanging = useRef(false);
   const shouldUpdateRegion = useRef(true);
   const [mapReady, setMapReady] = useState(false);
-  const {theme} = useTheme()
+  const { theme } = useTheme()
   // Reanimated values for advanced animations
   const revealProgress = useSharedValue(0);
   const sparkleRotation = useSharedValue(0);
@@ -80,7 +80,7 @@ export const MapScreen = ({ navigation }) => {
   const { data: spotVibes = [] } = useSpotVibes(spotId, {
     enabled: !!spotId,
   });
-  
+
 
   const topVibe =
     spotVibes.length > 0
@@ -93,8 +93,14 @@ export const MapScreen = ({ navigation }) => {
   const vibeStrong = hexToRgba(vibeColor, 1);
   const openBottomSheet = useCallback((spot) => {
     setSelectedSpot(spot);
-    bottomSheetRef.current?.snapToIndex(0);
+
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        bottomSheetRef.current?.snapToIndex(0);
+      }, 50);
+    });
   }, []);
+
 
   const closeBottomSheet = () => {
     bottomSheetRef.current?.close();
@@ -120,11 +126,11 @@ export const MapScreen = ({ navigation }) => {
       }).start();
     }
   };
-  
+
   const centerOnSpot = (spot) => {
     const lat = Number(spot.lat);
     const lng = Number(spot.lng);
-  
+
     shouldUpdateRegion.current = true;
     isRegionChanging.current = true;
     setMapRegion({
@@ -133,14 +139,14 @@ export const MapScreen = ({ navigation }) => {
       latitudeDelta: 0.01,
       longitudeDelta: 0.01,
     });
-  
+
     toggleDropdown(); // closes dropdown
     setTimeout(() => {
       isRegionChanging.current = false;
     }, 500);
   };
-  
-  
+
+
   useEffect(() => {
     if (location && !mapRegion) {
       shouldUpdateRegion.current = true;
@@ -200,7 +206,7 @@ export const MapScreen = ({ navigation }) => {
     try {
       setRevealing(true);
       setShowRevealModal(true);
-      
+
       // Reset animations for new reveal
       revealProgress.value = 0;
       particleScale.value = 0;
@@ -209,7 +215,7 @@ export const MapScreen = ({ navigation }) => {
       pulseAnim.setValue(1);
       revealAnim.setValue(0);
       scaleAnim.setValue(0);
-      
+
       // Start sparkle rotation animation
       sparkleRotation.value = withRepeat(
         withTiming(360, { duration: 2000 }),
@@ -221,7 +227,7 @@ export const MapScreen = ({ navigation }) => {
       modalOpacity.value = withTiming(1, { duration: 300 });
 
       const spot = await getSurpriseMeSpot();
-      
+
       if (spot.error) {
         Alert.alert("Error", spot.error);
         setRevealing(false);
@@ -240,8 +246,8 @@ export const MapScreen = ({ navigation }) => {
       );
 
       // Stage 2: Reveal progress
-      revealProgress.value = withTiming(1, { 
-        duration: 1500 
+      revealProgress.value = withTiming(1, {
+        duration: 1500
       }, (finished) => {
         if (finished) {
           'worklet';
@@ -417,8 +423,14 @@ export const MapScreen = ({ navigation }) => {
         longitude={mapRegion?.longitude || location?.longitude || 38.7886}
         onLocationChange={handleMapLocationChange}
         onMarkerPress={(marker) => {
-          const spot = spots.find(s => s.id === marker.id);
-          if (spot) openBottomSheet(spot);
+          // Compare IDs as strings to avoid type mismatches
+          const spot = spots.find(s => String(s.id) === String(marker.id));
+          if (spot) {
+            console.log("Opening bottom sheet for:", spot.title);
+            openBottomSheet(spot);
+          } else {
+            console.warn("Spot not found for marker:", marker.id, spot);
+          }
         }}
         markers={spots.map(spot => ({
           latitude: spot.lat,
@@ -435,14 +447,14 @@ export const MapScreen = ({ navigation }) => {
       />
 
 
-      <TouchableOpacity 
-        style={[styles.centerButton, { bottom: 150 }]} 
+      <TouchableOpacity
+        style={[styles.centerButton, { bottom: 150 }]}
         onPress={onRefresh}
         disabled={refreshing || !location}
       >
-        <Ionicons 
-          name="refresh" 
-          size={20} 
+        <Ionicons
+          name="refresh"
+          size={20}
           color="#007AFF"
         />
       </TouchableOpacity>
@@ -486,7 +498,7 @@ export const MapScreen = ({ navigation }) => {
             const distance = 150;
             const x = Math.cos((angle * Math.PI) / 180) * distance;
             const y = Math.sin((angle * Math.PI) / 180) * distance;
-            
+
             return (
               <Reanimated.View
                 key={i}
@@ -567,105 +579,105 @@ export const MapScreen = ({ navigation }) => {
         </Animated.View>
       </View>
       <BottomSheet
-          ref={bottomSheetRef}
-          index={-1}
-          snapPoints={snapPoints}
-          enablePanDownToClose
-          backgroundStyle={{
-            backgroundColor: vibeBg,
-            borderTopLeftRadius: 28,
-            borderTopRightRadius: 28,
-          }}
-          handleIndicatorStyle={{
-            backgroundColor: vibeStrong,
-            width: 48,
-            height: 5,
-          }}
-          onClose={closeBottomSheet}
-        >
+        ref={bottomSheetRef}
+        index={-1}
+        snapPoints={snapPoints}
+        enablePanDownToClose
+        backgroundStyle={{
+          backgroundColor: vibeBg,
+          borderTopLeftRadius: 28,
+          borderTopRightRadius: 28,
+        }}
+        handleIndicatorStyle={{
+          backgroundColor: vibeStrong,
+          width: 48,
+          height: 5,
+        }}
+        onClose={closeBottomSheet}
+      >
 
         {selectedSpot && (
           <BottomSheetView style={styles.sheetContent}>
 
-          {/* HERO IMAGE */}
-          <Image
-            source={{ uri: selectedSpot.thumbnail }}
-            style={[
-              styles.sheetImage,
-              { borderColor: vibeSoft, borderWidth: 1 }
-            ]}
-          />
-        
-          {/* TITLE + VIBE BADGE */}
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>{selectedSpot.title}</Text>
-        
-            <View style={[
-              styles.categoryBadge,
-              { backgroundColor: vibeStrong }
-            ]}>
-              <Text style={styles.categoryText}>
-                {topVibe?.name || selectedSpot.category}
+            {/* HERO IMAGE */}
+            <Image
+              source={{ uri: selectedSpot.thumbnail }}
+              style={[
+                styles.sheetImage,
+                { borderColor: vibeSoft, borderWidth: 1 }
+              ]}
+            />
+
+            {/* TITLE + VIBE BADGE */}
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>{selectedSpot.title}</Text>
+
+              <View style={[
+                styles.categoryBadge,
+                { backgroundColor: vibeStrong }
+              ]}>
+                <Text style={styles.categoryText}>
+                  {topVibe?.name || selectedSpot.category}
+                </Text>
+              </View>
+            </View>
+
+            {/* ADDRESS */}
+            <View style={styles.addressRow}>
+              <Ionicons name="location-outline" size={16} color="#fff" />
+              <Text style={styles.sheetAddress}>
+                {selectedSpot.address}
               </Text>
             </View>
-          </View>
-        
-          {/* ADDRESS */}
-          <View style={styles.addressRow}>
-            <Ionicons name="location-outline" size={16} color="#fff" />
-            <Text style={styles.sheetAddress}>
-              {selectedSpot.address}
+
+            {/* QUICK STATS */}
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <Ionicons name="walk-outline" size={18} color={vibeStrong} />
+                <Text style={styles.statText}>
+                  {selectedSpot.distanceKm ? selectedSpot.distanceKm.toFixed(2) : '0.00'} km
+                </Text>
+              </View>
+
+              <View style={styles.statItem}>
+                <Ionicons name="time-outline" size={18} color={vibeStrong} />
+                <Text style={styles.statText}>
+                  ~{selectedSpot.approxTimeMin ? Math.max(1, selectedSpot.approxTimeMin.toFixed(0)) : '1'} min
+                </Text>
+              </View>
+
+              <View style={styles.statItem}>
+                <Ionicons name="pricetag-outline" size={18} color={vibeStrong} />
+                <Text style={styles.statText}>
+                  {selectedSpot.priceRange}
+                </Text>
+              </View>
+            </View>
+
+            {/* DESCRIPTION */}
+            <Text style={styles.description}>
+              {selectedSpot.description}
             </Text>
-          </View>
-        
-          {/* QUICK STATS */}
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Ionicons name="walk-outline" size={18} color={vibeStrong} />
-              <Text style={styles.statText}>
-                {selectedSpot.distanceKm ? selectedSpot.distanceKm.toFixed(2) : '0.00'} km
+
+            {/* CTA */}
+            <TouchableOpacity
+              style={[
+                styles.detailsButton,
+                { backgroundColor: vibeStrong }
+              ]}
+              onPress={() => {
+                closeBottomSheet();
+                navigation.navigate("SpotDetail", {
+                  spotId: selectedSpot.id,
+                });
+              }}
+            >
+              <Text style={styles.detailsButtonText}>
+                Explore this spot
               </Text>
-            </View>
-        
-            <View style={styles.statItem}>
-              <Ionicons name="time-outline" size={18} color={vibeStrong} />
-              <Text style={styles.statText}>
-                ~{selectedSpot.approxTimeMin ? Math.max(1, selectedSpot.approxTimeMin.toFixed(0)) : '1'} min
-              </Text>
-            </View>
-        
-            <View style={styles.statItem}>
-              <Ionicons name="pricetag-outline" size={18} color={vibeStrong} />
-              <Text style={styles.statText}>
-                {selectedSpot.priceRange}
-              </Text>
-            </View>
-          </View>
-        
-          {/* DESCRIPTION */}
-          <Text style={styles.description}>
-            {selectedSpot.description}
-          </Text>
-        
-          {/* CTA */}
-          <TouchableOpacity
-            style={[
-              styles.detailsButton,
-              { backgroundColor: vibeStrong }
-            ]}
-            onPress={() => {
-              closeBottomSheet();
-              navigation.navigate("SpotDetail", {
-                spotId: selectedSpot.id,
-              });
-            }}
-          >
-            <Text style={styles.detailsButtonText}>
-              Explore this spot
-            </Text>
-          </TouchableOpacity>
-        
-        </BottomSheetView>        
+            </TouchableOpacity>
+
+          </BottomSheetView>
         )}
       </BottomSheet>
 
@@ -680,7 +692,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  map: { 
+  map: {
     flex: 1,
     borderRadius: 0,
   },
@@ -778,24 +790,24 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  
+
   dropdown: {
     overflow: "hidden",
     marginTop: 8,
   },
-  
+
   dropdownItem: {
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
   },
-  
+
   dropdownTitle: {
     fontSize: 14,
     fontWeight: "600",
     color: "#000",
   },
-  
+
   dropdownAddress: {
     fontSize: 12,
     color: "#666",
@@ -893,25 +905,25 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 16,
   },
-  
+
   statItem: {
     alignItems: "center",
     flex: 1,
   },
-  
+
   statText: {
     marginTop: 4,
     fontSize: 12,
     fontWeight: "600",
     color: "#333",
   },
-  
+
   description: {
     fontSize: 14,
     lineHeight: 20,
     color: "#fff",
     marginTop: 10,
-    fontWeight:"600"
+    fontWeight: "600"
   },
   revealModalContainer: {
     flex: 1,
