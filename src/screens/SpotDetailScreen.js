@@ -614,6 +614,37 @@ export default function SpotDetailsScreen({ route, navigation }) {
               </Text>
             </View>
           </View>
+
+          {/* Visit statistics */}
+          <View style={styles.visitRow}>
+            <View style={styles.visitMetric}>
+              <Icon
+                name="walk-outline"
+                size={16}
+                color={vibeTheme ? vibeTheme.primary : theme.primary}
+              />
+              <Text style={[styles.visitNumber, { color: theme.text }]}>
+                {spot.visitCount || 0}
+              </Text>
+              <Text style={[styles.visitLabel, { color: theme.textMuted }]}>
+                total visits
+              </Text>
+            </View>
+            <View style={styles.visitMetric}>
+              <Icon
+                name="people-outline"
+                size={16}
+                color={vibeTheme ? vibeTheme.primary : theme.primary}
+              />
+              <Text style={[styles.visitNumber, { color: theme.text }]}>
+                {spot.uniqueVisitorCount || 0}
+              </Text>
+              <Text style={[styles.visitLabel, { color: theme.textMuted }]}>
+                unique visitors
+              </Text>
+            </View>
+          </View>
+
           <Text style={{ color: theme.text, textAlign: "center", paddingTop: 16, fontSize: 18, fontWeight: "bold" }}>Tags</Text>
           {/* ---------- TAGS ---------- */}
           {spot.tags && spot.tags.length > 0 && (
@@ -1227,6 +1258,25 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 14,
     fontWeight: "700",
+    marginTop: 2,
+  },
+  visitRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 16,
+    paddingHorizontal: 12,
+  },
+  visitMetric: {
+    flex: 1,
+    alignItems: "center",
+  },
+  visitNumber: {
+    fontSize: 18,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+  visitLabel: {
+    fontSize: 11,
     marginTop: 2,
   },
 

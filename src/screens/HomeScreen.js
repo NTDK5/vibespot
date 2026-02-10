@@ -28,6 +28,7 @@ import { RankSpotCard } from "../components/RankSpotCard";
 import { CATEGORIES } from "../utils/constants";
 import { useTheme } from "../context/ThemeContext";
 import { ImageBackground } from 'react-native';
+import { usePersonalizedSpots } from "../hooks/usePersonalizedSpots";
 
 const { width } = Dimensions.get("window");
 
@@ -66,6 +67,10 @@ export const HomeScreen = ({ navigation }) => {
     nearbyCount: 0,
     savedSpots: 0,
   });
+  const {
+    data: personalizedData,
+    isLoading: loadingPersonalized,
+  } = usePersonalizedSpots(location);
 
   useEffect(() => {
     if (location) {
@@ -73,6 +78,7 @@ export const HomeScreen = ({ navigation }) => {
     }
     loadSpots();
     loadWeeklyRanks();
+    console.log(personalizedData)
   }, [selectedCategory, location]);
 
   useEffect(() => {
@@ -137,17 +143,27 @@ export const HomeScreen = ({ navigation }) => {
 
   const loadSpots = async () => {
     try {
-      const data = selectedCategory
+      const response = selectedCategory
         ? await searchSpots({ category: selectedCategory })
         : await getAllSpots();
-      setSpots(data?.data || data || []);
+
+      const spotsArray =
+        Array.isArray(response?.data)
+          ? response.data
+          : Array.isArray(response)
+            ? response
+            : [];
+
+      setSpots(spotsArray);
       loadStats();
     } catch (error) {
-      console.error('Error loading spots:', error);
+      console.error("Error loading spots:", error);
+      setSpots([]);
     } finally {
       setLoading(false);
     }
   };
+
 
   const loadWeeklyRanks = async () => {
     setLoadingRanks(true);
@@ -203,6 +219,25 @@ export const HomeScreen = ({ navigation }) => {
   const renderRankCard = ({ rankedSpot, index }) => {
     return <RankSpotCard spot={rankedSpot} navigation={navigation} key={index} />
   };
+
+  const renderPersonalizedSkeleton = () => (
+    <View style={styles.spotsRow}>
+      {[1, 2, 3].map((key) => (
+        <View
+          key={key}
+          style={[
+            styles.spotCard,
+            {
+              backgroundColor: theme.surface,
+              opacity: 0.7,
+            },
+          ]}
+        >
+          <View style={{ flex: 1, backgroundColor: theme.border, opacity: 0.3 }} />
+        </View>
+      ))}
+    </View>
+  );
 
   const renderStatsCard = () => (
     <View style={styles.statsContainer}>
@@ -462,8 +497,42 @@ export const HomeScreen = ({ navigation }) => {
           </View>
         )} */}
 
+        {/* FOR YOUR VIBE - personalized recommendations */}
+        {user && (
+          <View style={[styles.section, { transform: [{ translateY: "10%" }] }, { backgroundColor: theme.background }]}>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>For Your Vibe</Text>
+                <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>
+                  {personalizedData?.explanation || "Based on your chill & cozy vibe"}
+                </Text>
+              </View>
+            </View>
+            {personalizedData ? (
+              renderPersonalizedSkeleton()
+            ) : Array.isArray(personalizedData?.spots) && personalizedData.spots.length > 0 ? (
+              <FlatList
+                data={personalizedData.spots}
+                horizontal
+                renderItem={renderSpotCard}
+                keyExtractor={(spot) => spot.id}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.spotsRow}
+                snapToInterval={width * 0.8 + 16}
+                decelerationRate="fast"
+              />
+            ) : (
+              <View style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
+                <Text style={{ color: theme.textMuted, fontSize: 13 }}>
+                  We’re still learning your vibe. Explore and react to a few spots to unlock personalized picks.
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* FEATURED */}
-        <View style={[styles.section, { transform: [{ translateY: "10%" }] }, { backgroundColor: theme.background }]}>
+        <View style={[styles.section, { transform: [{ translateY: user ? "5%" : "10%" }] }, { backgroundColor: theme.background }]}>
           <View style={styles.sectionHeader}>
             <View>
               <Text style={[styles.sectionTitle, { color: theme.text }]}>Featured Spots</Text>
@@ -474,7 +543,7 @@ export const HomeScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
           <FlatList
-            data={spots?.slice(0, 10)}
+            data={spots && spots?.slice(0, 10)}
             horizontal
             renderItem={renderSpotCard}
             keyExtractor={(spot) => spot.id}

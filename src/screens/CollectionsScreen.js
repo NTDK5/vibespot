@@ -25,9 +25,11 @@ import {
 import { getAllSpots } from "../services/spots.service";
 import { useAuth } from "../hooks/useAuth";
 import { Button } from "../components/Button";
+import { useTheme } from "../context/ThemeContext";
 
 export const CollectionsScreen = ({ navigation }) => {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const [collections, setCollections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -289,21 +291,41 @@ export const CollectionsScreen = ({ navigation }) => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6C5CE7" />
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      edges={["top"]}
+    >
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Collections</Text>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: theme.surface,
+            borderBottomColor: theme.border,
+            shadowColor: theme.shadowSm,
+          },
+        ]}
+      >
+        <Text style={[styles.headerTitle, { color: theme.text }]}>
+          Collections
+        </Text>
         <TouchableOpacity
-          style={styles.createButton}
+          style={[
+            styles.createButton,
+            {
+              backgroundColor: theme.primary,
+              shadowColor: theme.shadowMd || theme.primary,
+            },
+          ]}
           onPress={() => {
             loadAvailableSpots();
             setShowCreateModal(true);
@@ -314,12 +336,25 @@ export const CollectionsScreen = ({ navigation }) => {
       </View>
 
       {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+      <View
+        style={[
+          styles.searchContainer,
+          {
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+          },
+        ]}
+      >
+        <Ionicons
+          name="search"
+          size={20}
+          color={theme.textSubtle || theme.textMuted}
+          style={styles.searchIcon}
+        />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { color: theme.text }]}
           placeholder="Search collections..."
-          placeholderTextColor="#999"
+          placeholderTextColor={theme.textSubtle || theme.textMuted}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -328,13 +363,22 @@ export const CollectionsScreen = ({ navigation }) => {
             onPress={() => setSearchQuery("")}
             style={styles.searchClearButton}
           >
-            <Ionicons name="close-circle" size={20} color="#999" />
+            <Ionicons
+              name="close-circle"
+              size={20}
+              color={theme.textSubtle || theme.textMuted}
+            />
           </TouchableOpacity>
         )}
       </View>
 
       {/* Sort Tabs */}
-      <View style={styles.sortTabs}>
+      <View
+        style={[
+          styles.sortTabs,
+          { backgroundColor: theme.surface, borderBottomColor: theme.border },
+        ]}
+      >
         <TouchableOpacity
           style={[styles.sortTab, sortBy === "popular" && styles.sortTabActive]}
           onPress={() => setSortBy("popular")}
@@ -343,6 +387,10 @@ export const CollectionsScreen = ({ navigation }) => {
             style={[
               styles.sortTabText,
               sortBy === "popular" && styles.sortTabTextActive,
+                {
+                  color:
+                    sortBy === "popular" ? theme.background : theme.textMuted,
+                },
             ]}
           >
             Popular
@@ -356,6 +404,10 @@ export const CollectionsScreen = ({ navigation }) => {
             style={[
               styles.sortTabText,
               sortBy === "recent" && styles.sortTabTextActive,
+                {
+                  color:
+                    sortBy === "recent" ? theme.background : theme.textMuted,
+                },
             ]}
           >
             Recent
@@ -373,17 +425,33 @@ export const CollectionsScreen = ({ navigation }) => {
         ListEmptyComponent={
           searchQuery.trim() !== "" ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="search-outline" size={64} color="#ccc" />
-              <Text style={styles.emptyText}>No collections found</Text>
-              <Text style={styles.emptySubtext}>
+              <Ionicons
+                name="search-outline"
+                size={64}
+                color={theme.textSubtle || theme.textMuted}
+              />
+              <Text style={[styles.emptyText, { color: theme.text }]}>
+                No collections found
+              </Text>
+              <Text
+                style={[styles.emptySubtext, { color: theme.textMuted }]}
+              >
                 Try a different search term
               </Text>
             </View>
           ) : (
             <View style={styles.emptyContainer}>
-              <Ionicons name="albums-outline" size={64} color="#ccc" />
-              <Text style={styles.emptyText}>No collections yet</Text>
-              <Text style={styles.emptySubtext}>
+              <Ionicons
+                name="albums-outline"
+                size={64}
+                color={theme.textSubtle || theme.textMuted}
+              />
+              <Text style={[styles.emptyText, { color: theme.text }]}>
+                No collections yet
+              </Text>
+              <Text
+                style={[styles.emptySubtext, { color: theme.textMuted }]}
+              >
                 Be the first to create a collection!
               </Text>
             </View>
@@ -400,50 +468,95 @@ export const CollectionsScreen = ({ navigation }) => {
         transparent={false}
         onRequestClose={() => setShowCreateModal(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
+        <SafeAreaView
+          style={[styles.modalContainer, { backgroundColor: theme.background }]}
+        >
+          <View
+            style={[styles.modalHeader, { borderBottomColor: theme.border }]}
+          >
             <TouchableOpacity onPress={() => setShowCreateModal(false)}>
-              <Ionicons name="close" size={24} color="#333" />
+              <Ionicons name="close" size={24} color={theme.text} />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Create Collection</Text>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>
+              Create Collection
+            </Text>
             <View style={{ width: 24 }} />
           </View>
 
           <ScrollView style={styles.modalContent}>
-            <Text style={styles.label}>Title *</Text>
+            <Text style={[styles.label, { color: theme.text }]}>
+              Title *
+            </Text>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                  color: theme.text,
+                },
+              ]}
               placeholder="e.g., Perfect Date Spots"
+              placeholderTextColor={theme.textSubtle || theme.textMuted}
               value={title}
               onChangeText={setTitle}
             />
 
-            <Text style={styles.label}>Description</Text>
+            <Text style={[styles.label, { color: theme.text }]}>
+              Description
+            </Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[
+                styles.input,
+                styles.textArea,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                  color: theme.text,
+                },
+              ]}
               placeholder="Describe your collection..."
+              placeholderTextColor={theme.textSubtle || theme.textMuted}
               value={description}
               onChangeText={setDescription}
               multiline
               numberOfLines={3}
             />
 
-            <Text style={styles.label}>
+            <Text style={[styles.label, { color: theme.text }]}>
               Spots ({selectedSpots.length} selected)
             </Text>
             <TouchableOpacity
-              style={styles.spotPickerButton}
+              style={[
+                styles.spotPickerButton,
+                {
+                  borderColor: theme.primary,
+                  backgroundColor: theme.primarySoft,
+                },
+              ]}
               onPress={() => setShowSpotPicker(true)}
             >
-              <Ionicons name="add-circle-outline" size={20} color="#6C5CE7" />
-              <Text style={styles.spotPickerText}>Add Spots</Text>
+              <Ionicons
+                name="add-circle-outline"
+                size={20}
+                color={theme.primary}
+              />
+              <Text
+                style={[styles.spotPickerText, { color: theme.primary }]}
+              >
+                Add Spots
+              </Text>
             </TouchableOpacity>
 
             {selectedSpots.length > 0 && (
               <View style={styles.selectedSpots}>
                 {selectedSpots.map((spot) => (
                   <View key={spot.id} style={styles.selectedSpotChip}>
-                    <Text style={styles.selectedSpotText}>{spot.title}</Text>
+                    <Text
+                      style={[styles.selectedSpotText, { color: theme.primary }]}
+                    >
+                      {spot.title}
+                    </Text>
                     <TouchableOpacity
                       onPress={() => toggleSpotSelection(spot)}
                       style={styles.removeSpotButton}
@@ -472,12 +585,18 @@ export const CollectionsScreen = ({ navigation }) => {
         transparent={false}
         onRequestClose={() => setShowSpotPicker(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
+        <SafeAreaView
+          style={[styles.modalContainer, { backgroundColor: theme.background }]}
+        >
+          <View
+            style={[styles.modalHeader, { borderBottomColor: theme.border }]}
+          >
             <TouchableOpacity onPress={() => setShowSpotPicker(false)}>
-              <Ionicons name="arrow-back" size={24} color="#333" />
+              <Ionicons name="arrow-back" size={24} color={theme.text} />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Select Spots</Text>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>
+              Select Spots
+            </Text>
             <View style={{ width: 24 }} />
           </View>
 
@@ -488,7 +607,13 @@ export const CollectionsScreen = ({ navigation }) => {
               const isSelected = selectedSpots.find((s) => s.id === item.id);
               return (
                 <TouchableOpacity
-                  style={styles.spotItem}
+                  style={[
+                    styles.spotItem,
+                    {
+                      backgroundColor: theme.surface,
+                      shadowColor: theme.shadowSm,
+                    },
+                  ]}
                   onPress={() => toggleSpotSelection(item)}
                 >
                   <Image
@@ -496,8 +621,14 @@ export const CollectionsScreen = ({ navigation }) => {
                     style={styles.spotItemImage}
                   />
                   <View style={styles.spotItemInfo}>
-                    <Text style={styles.spotItemTitle}>{item.title}</Text>
-                    <Text style={styles.spotItemCategory}>
+                    <Text
+                      style={[styles.spotItemTitle, { color: theme.text }]}
+                    >
+                      {item.title}
+                    </Text>
+                    <Text
+                      style={[styles.spotItemCategory, { color: theme.textMuted }]}
+                    >
                       {item.category?.replace("_", " ")}
                     </Text>
                   </View>

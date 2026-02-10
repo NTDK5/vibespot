@@ -25,6 +25,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { Switch, Dimensions } from 'react-native';
 import { Directions } from 'react-native-gesture-handler';
+import { useUserProgression } from '../hooks/useUserProgression';
+import { Platform } from 'react-native';
 const { width } = Dimensions.get("window");
 export const ProfileScreen = ({ navigation }) => {
   const { user, isSuperAdmin, logout } = useAuth();
@@ -43,6 +45,33 @@ export const ProfileScreen = ({ navigation }) => {
     confirmPassword: '',
   });
   const [changingPassword, setChangingPassword] = useState(false);
+  const {
+    data: progression,
+    isLoading: loadingProgression,
+  } = useUserProgression();
+  const [lastBadgeId, setLastBadgeId] = useState(null);
+
+  // Show a toast-like alert when a new badge is unlocked
+  useEffect(() => {
+    if (progression?.newestBadge?.id && progression.newestBadge.id !== lastBadgeId) {
+      const name = progression.newestBadge.name || 'badge';
+      const message = `🎉 You unlocked the ${name} badge!`;
+
+      if (Platform.OS === 'android') {
+        // Prefer native toast on Android
+        try {
+          const { ToastAndroid } = require('react-native');
+          ToastAndroid.show(message, ToastAndroid.LONG);
+        } catch {
+          Alert.alert('Achievement unlocked', message);
+        }
+      } else {
+        Alert.alert('Achievement unlocked', message);
+      }
+
+      setLastBadgeId(progression.newestBadge.id);
+    }
+  }, [progression, lastBadgeId]);
 
   useEffect(() => {
     if (user) {
@@ -237,6 +266,122 @@ export const ProfileScreen = ({ navigation }) => {
             </Text>
           </View>
         </LinearGradient>
+
+        {/* Level & XP Progress */}
+        <View style={[styles.section, { backgroundColor: theme.surface }]}>
+          <View style={[styles.sectionHeader, { borderBottomColor: theme.border }]}>
+            <View>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Your Level</Text>
+              <Text style={[styles.sectionCount, { color: theme.textMuted }]}>
+                {loadingProgression || !progression
+                  ? 'Loading progression...'
+                  : `Level ${progression.level} • ${progression.xp} XP`}
+              </Text>
+            </View>
+          </View>
+          {loadingProgression || !progression ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={theme.primary} />
+            </View>
+          ) : (
+            <View style={styles.progressContainer}>
+              <View style={[styles.progressBar, { backgroundColor: theme.surfaceAlt || '#E5E7EB' }]}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      backgroundColor: theme.primary,
+                      width: `${Math.min(
+                        (progression.xp / progression.nextLevelXp) * 100,
+                        100
+                      )}%`,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.progressLabel, { color: theme.textMuted }]}>
+                {progression.xp} / {progression.nextLevelXp} XP to Level {progression.level + 1}
+              </Text>
+              {progression.newestBadge && (
+                <View style={styles.newBadgePill}>
+                  <Ionicons name="sparkles-outline" size={16} color={theme.primary} />
+                  <Text style={[styles.newBadgeText, { color: theme.primary }]}>
+                    New: {progression.newestBadge.name}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* Badges */}
+        <View style={[styles.section, { backgroundColor: theme.surface }]}>
+          <View style={[styles.sectionHeader, { borderBottomColor: theme.border }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Badges</Text>
+          </View>
+          {loadingProgression || !progression ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={theme.primary} />
+            </View>
+          ) : !Array.isArray(progression.badges) || progression.badges.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="ribbon-outline" size={48} color="#ccc" />
+              <Text style={styles.emptyText}>No badges yet</Text>
+              <Text style={styles.emptySubtext}>
+                Explore new spots, react with vibes, and grow your collections to unlock badges.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.badgesGrid}>
+              {(progression.badges || []).map((badge) => {
+                const unlocked = badge.unlocked;
+                const isNewest = progression.newestBadge?.id === badge.id;
+                return (
+                  <View
+                    key={badge.id}
+                    style={[
+                      styles.badgeItem,
+                      {
+                        borderColor: unlocked ? theme.primary : theme.border,
+                        backgroundColor: unlocked ? theme.primarySoft || '#E0F2FE' : theme.surfaceAlt || '#F3F4F6',
+                        opacity: unlocked ? 1 : 0.6,
+                      },
+                    ]}
+                  >
+                    <View style={styles.badgeIconWrap}>
+                      <Text style={styles.badgeIconText}>{badge.icon || '🏅'}</Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.badgeName,
+                        { color: unlocked ? theme.text : theme.textMuted },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {badge.name}
+                    </Text>
+                    <Text
+                      style={[styles.badgeDescription, { color: theme.textMuted }]}
+                      numberOfLines={2}
+                    >
+                      {badge.description}
+                    </Text>
+                    <View style={styles.badgeFooterRow}>
+                      <Text style={[styles.badgeStatus, { color: unlocked ? '#16A34A' : theme.textMuted }]}>
+                        {unlocked ? 'Unlocked' : 'Locked'}
+                      </Text>
+                      {isNewest && (
+                        <View style={styles.newChip}>
+                          <Text style={styles.newChipText}>New</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
 
         {/* Menu Items */}
         <View style={[styles.settingsCard, { backgroundColor: theme.surface }]}>
@@ -887,5 +1032,94 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  progressContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+    gap: 8,
+  },
+  progressBar: {
+    width: '100%',
+    height: 10,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  progressLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  newBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(22,163,74,0.08)',
+    marginTop: 4,
+    gap: 6,
+  },
+  newBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  badgesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    padding: 12,
+  },
+  badgeItem: {
+    width: (width - 16 * 2 - 12) / 2,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 10,
+  },
+  badgeIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  badgeIconText: {
+    fontSize: 18,
+  },
+  badgeName: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  badgeDescription: {
+    fontSize: 11,
+    lineHeight: 14,
+    marginBottom: 4,
+  },
+  badgeFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  badgeStatus: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  newChip: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: '#F97316',
+  },
+  newChipText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#fff',
   },
 });

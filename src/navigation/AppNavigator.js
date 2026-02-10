@@ -118,20 +118,20 @@ export const AppNavigator = () => {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-{/* 
+
         {!user ? (
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
           </>
-        ) : ( */}
+        ) : ( 
           <>
             <Stack.Screen name="MainTabs" component={MainTabs} />
             <Stack.Screen name="SpotDetail" component={SpotDetailsScreen} />
             <Stack.Screen name="EditSpot" component={EditSpotScreen} />
             <Stack.Screen name="CollectionDetail" component={CollectionDetailScreen} />
           </>
-        {/* )}  */}
+      )}  
 
       </Stack.Navigator>
     </NavigationContainer>
