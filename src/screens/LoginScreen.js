@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import { makeRedirectUri } from 'expo-auth-session';
 import {
   View,
   Text,
@@ -28,9 +31,36 @@ export const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const { theme } = useTheme();
   const [showPassword, setShowPassword] = useState(false);
+
+  // Google Auth Request
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || "YOUR_WEB_CLIENT_ID", // fallback for dev
+    redirectUri: makeRedirectUri({
+      scheme: 'vibespot'
+    }),
+  });
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      handleGoogleSignIn(id_token);
+    }
+  }, [response]);
+
+  const handleGoogleSignIn = async (idToken) => {
+    setLoading(true);
+    const { user, error } = await loginWithGoogle(idToken);
+    setLoading(false);
+
+    if (error) {
+      Alert.alert("Google Login Failed", error);
+    } else {
+      // Success - navigation is handled by AuthContext state change or AppNavigator
+    }
+  };
 
   const handleEmailLogin = async () => {
     if (!email || !password) {
@@ -134,7 +164,8 @@ export const LoginScreen = ({ navigation }) => {
 
               <Button
                 title="Sign in with Google"
-                onPress={() => { }}
+                onPress={() => promptAsync()}
+                disabled={!request}
                 variant="secondary"
                 loading={loading}
                 style={[styles.button, { backgroundColor: theme.primary }]}

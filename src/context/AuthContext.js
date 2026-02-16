@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { loginUser } from "../services/auth.service";
+import { loginUser, googleLoginUser } from "../services/auth.service";
 import api from "../config/axios";
 
 export const AuthContext = createContext();
@@ -17,12 +17,12 @@ export const AuthProvider = ({ children }) => {
     try {
       const token = await AsyncStorage.getItem("token");
       const storedUser = await AsyncStorage.getItem("user");
-      
+
       if (token && storedUser) {
         // Restore user from storage
         const userData = JSON.parse(storedUser);
         setUser(userData);
-        
+
         // Verify token is still valid by fetching current user
         try {
           const response = await api.get("/user/me");
@@ -62,11 +62,11 @@ export const AuthProvider = ({ children }) => {
         // Store token and user
         await AsyncStorage.setItem("token", data.accessToken);
         await AsyncStorage.setItem("user", JSON.stringify(data.user));
-        
+
         if (data.refreshToken) {
           await AsyncStorage.setItem("refreshToken", data.refreshToken);
         }
-        
+
         setUser(data.user);
         console.log("Login success: ", data);
         return { user: data.user, error: null };
@@ -84,6 +84,37 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithGoogle = async (idToken) => {
+    setLoading(true);
+    try {
+      const data = await googleLoginUser(idToken);
+
+      if (data.accessToken && data.user) {
+        // Store token and user
+        await AsyncStorage.setItem("token", data.accessToken);
+        await AsyncStorage.setItem("user", JSON.stringify(data.user));
+
+        if (data.refreshToken) {
+          await AsyncStorage.setItem("refreshToken", data.refreshToken);
+        }
+
+        setUser(data.user);
+        return { user: data.user, error: null };
+      } else {
+        throw new Error("Invalid login response");
+      }
+    } catch (err) {
+      // Don't clear auth here automatically, as it might just be a failed attempt
+      // but if we were logged in before, we probably aren't now if we're trying to log in
+      return {
+        user: null,
+        error: err.message || "Google login failed",
+      };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = async () => {
     setLoading(true);
     try {
@@ -94,10 +125,10 @@ export const AuthProvider = ({ children }) => {
         // Continue even if backend call fails
         console.log("Backend logout call failed:", err);
       }
-      
+
       // Clear local storage
       await clearAuth();
-      
+
       return { success: true, error: null };
     } catch (error) {
       // Even if logout fails, clear local auth
@@ -115,7 +146,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, login, logout, loading, isSuperAdmin }}
+      value={{ user, login, logout, loginWithGoogle, loading, isSuperAdmin }}
     >
       {children}
     </AuthContext.Provider>

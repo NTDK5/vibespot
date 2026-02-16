@@ -26,6 +26,7 @@ import { useAuth } from "../hooks/useAuth";
 import { getSpotComments, createComment, deleteComment } from "../services/comments.service";
 import { saveSpot, unsaveSpot, isSpotSaved } from "../services/savedSpots.service";
 import { markSpotAsVisited, isSpotVisited } from "../services/visitedSpots.service";
+import { getCollectionsForSpot, addSpotToCollection, removeSpotFromCollection } from "../services/collections.service";
 import { useLocation } from "../hooks/useLocation";
 import * as Location from 'expo-location';
 import { luminance, hexToRgb, mix, createVibeTheme } from '../utils/colors'
@@ -87,6 +88,11 @@ export default function SpotDetailsScreen({ route, navigation }) {
   const [isSaved, setIsSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Add to Collection modal state
+  const [collectionModalVisible, setCollectionModalVisible] = useState(false);
+  const [userCollections, setUserCollections] = useState([]);
+  const [loadingCollections, setLoadingCollections] = useState(false);
+
   // Visited spot state
   const [isVisited, setIsVisited] = useState(false);
   const [checkingVisited, setCheckingVisited] = useState(false);
@@ -99,9 +105,9 @@ export default function SpotDetailsScreen({ route, navigation }) {
 
   const topVibe = spotVibes.length > 0
     ? spotVibes.reduce(
-        (prev, current) =>
-          current.count > prev.count ? current : prev
-      )
+      (prev, current) =>
+        current.count > prev.count ? current : prev
+    )
     : null;
   const vibeTheme = topVibe
     ? createVibeTheme(topVibe.color, theme, isDark)
@@ -399,6 +405,53 @@ export default function SpotDetailsScreen({ route, navigation }) {
     }
   };
 
+  // --- Add to Collection handlers ---
+  const handleOpenCollectionModal = async () => {
+    if (!user) {
+      Alert.alert("Login Required", "Please login to add spots to collections");
+      return;
+    }
+    setCollectionModalVisible(true);
+    setLoadingCollections(true);
+    try {
+      const result = await getCollectionsForSpot(spotId);
+      if (!result.error) {
+        setUserCollections(result);
+      } else {
+        setUserCollections([]);
+      }
+    } catch (error) {
+      setUserCollections([]);
+    } finally {
+      setLoadingCollections(false);
+    }
+  };
+
+  const handleToggleCollection = async (collection) => {
+    const { id: collectionId, hasSpot } = collection;
+    // Optimistically update UI
+    setUserCollections((prev) =>
+      prev.map((c) =>
+        c.id === collectionId ? { ...c, hasSpot: !hasSpot } : c
+      )
+    );
+    try {
+      if (hasSpot) {
+        await removeSpotFromCollection(collectionId, spotId);
+      } else {
+        await addSpotToCollection(collectionId, spotId);
+      }
+    } catch (error) {
+      // Revert on failure
+      setUserCollections((prev) =>
+        prev.map((c) =>
+          c.id === collectionId ? { ...c, hasSpot } : c
+        )
+      );
+      Alert.alert("Error", "Failed to update collection");
+    }
+  };
+
   // Reset selectedVibes to user's existing vibes when modal opens
   useEffect(() => {
     if (vibeModalVisible) {
@@ -525,53 +578,53 @@ export default function SpotDetailsScreen({ route, navigation }) {
                 />
                 <Text style={styles.topVibeText}>{topVibe.name}</Text>
               </View>
-          )}
-          {spot.isEditorsPick && (
-            <View style={styles.editorsPickBadge}>
-              <Icon name="star" size={14} color="#FFD700" />
-              <Text style={styles.editorsPickBadgeText}>Editor’s Pick</Text>
-            </View>
-          )}
+            )}
+            {spot.isEditorsPick && (
+              <View style={styles.editorsPickBadge}>
+                <Icon name="star" size={14} color="#FFD700" />
+                <Text style={styles.editorsPickBadgeText}>Editor’s Pick</Text>
+              </View>
+            )}
           </View>
         </View>
 
         <View style={{ flexDirection: 'row', gap: 8 }}>
-        {isSuperAdmin && (
+          {isSuperAdmin && (
+            <TouchableOpacity
+              style={[
+                styles.headerBtn,
+                spot?.isEditorsPick && styles.editorsPickActive,
+              ]}
+              onPress={handleToggleEditorsPick}
+            >
+              <Icon
+                name={spot?.isEditorsPick ? "star" : "star-outline"}
+                size={22}
+                color={spot?.isEditorsPick ? "#FFD700" : theme.text}
+              />
+            </TouchableOpacity>
+          )}
+          {isSuperAdmin && (
+            <TouchableOpacity
+              style={styles.headerBtn}
+              onPress={() => navigation.navigate('EditSpot', { spotId: spot.id })}
+            >
+              <Icon name="create-outline" size={22} color="#007AFF" />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={[
               styles.headerBtn,
-              spot?.isEditorsPick && styles.editorsPickActive,
+              { backgroundColor: vibeTheme ? vibeTheme.headerIcon : theme.surface },
             ]}
-            onPress={handleToggleEditorsPick}
+            onPress={handleShareSpot}
           >
             <Icon
-              name={spot?.isEditorsPick ? "star" : "star-outline"}
+              name="share-social-outline"
               size={22}
-              color={spot?.isEditorsPick ? "#FFD700" : theme.text}
+              color={vibeTheme ? theme.text : theme.text}
             />
           </TouchableOpacity>
-        )}
-        {isSuperAdmin && (
-          <TouchableOpacity
-            style={styles.headerBtn}
-            onPress={() => navigation.navigate('EditSpot', { spotId: spot.id })}
-          >
-            <Icon name="create-outline" size={22} color="#007AFF" />
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          style={[
-            styles.headerBtn,
-            { backgroundColor: vibeTheme ? vibeTheme.headerIcon : theme.surface },
-          ]}
-          onPress={handleShareSpot}
-        >
-          <Icon
-            name="share-social-outline"
-            size={22}
-            color={vibeTheme ? theme.text : theme.text}
-          />
-        </TouchableOpacity>
         </View>
       </View>
 
@@ -813,14 +866,14 @@ export default function SpotDetailsScreen({ route, navigation }) {
 
         {/* ---------- MAP BUTTON ---------- */}
         <TouchableOpacity style={[styles.mapBtn, { backgroundColor: vibeTheme ? vibeTheme.primary : theme.primary }]} onPress={openMap}>
-          <Icon name="map-outline" size={20} color={theme.text} />
-          <Text style={[styles.mapBtnText, { color: theme.text }]}>View on Map</Text>
+          <Icon name="map-outline" size={20} color="#fff" />
+          <Text style={[styles.mapBtnText, { color: "#fff" }]}>View on Map</Text>
         </TouchableOpacity>
 
         <View style={styles.actionRow}>
           <TouchableOpacity style={[styles.actionBtn, { backgroundColor: vibeTheme ? vibeTheme.primary : theme.primary }]} onPress={openMap}>
-            <Icon name="navigate-outline" size={18} color={theme.text} />
-            <Text style={[styles.actionText, { color: theme.text }]}>Directions</Text>
+            <Icon name="navigate-outline" size={18} color="#fff" />
+            <Text style={[styles.actionText, { color: "#fff" }]}>Directions</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -831,11 +884,19 @@ export default function SpotDetailsScreen({ route, navigation }) {
             <Icon
               name={isSaved ? "bookmark" : "bookmark-outline"}
               size={18}
-              color={isSaved ? "#ff9900" : theme.text}
+              color={isSaved ? "#ff9900" : "#fff"}
             />
-            <Text style={[styles.actionText, { color: isSaved ? "#ff9900" : theme.text }]}>
+            <Text style={[styles.actionText, { color: isSaved ? "#ff9900" : "#fff" }]}>
               {isSaved ? "Saved" : "Save"}
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: vibeTheme ? vibeTheme.primary : theme.primary }]}
+            onPress={handleOpenCollectionModal}
+          >
+            <Icon name="albums-outline" size={18} color="#fff" />
+            <Text style={[styles.actionText, { color: "#fff" }]}>Collection</Text>
           </TouchableOpacity>
         </View>
 
@@ -1121,6 +1182,78 @@ export default function SpotDetailsScreen({ route, navigation }) {
             </ScrollView>
           </View>
         </View>
+      </Modal>
+
+      {/* Add to Collection Modal */}
+      <Modal
+        visible={collectionModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setCollectionModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.collectionModalOverlay}
+          activeOpacity={1}
+          onPress={() => setCollectionModalVisible(false)}
+        >
+          <View style={[styles.collectionModalSheet, { backgroundColor: theme.surface }]}>
+            <View style={styles.collectionModalHandle} />
+            <Text style={[styles.collectionModalTitle, { color: theme.text }]}>
+              Add to Collection
+            </Text>
+
+            {loadingCollections ? (
+              <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: 24 }} />
+            ) : userCollections.length === 0 ? (
+              <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                <Icon name="albums-outline" size={48} color={theme.textMuted} />
+                <Text style={[styles.collectionEmptyText, { color: theme.textMuted }]}>
+                  No collections yet
+                </Text>
+              </View>
+            ) : (
+              <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
+                {userCollections.map((collection) => (
+                  <TouchableOpacity
+                    key={collection.id}
+                    style={[styles.collectionItem, { borderBottomColor: theme.border }]}
+                    onPress={() => handleToggleCollection(collection)}
+                  >
+                    <View style={styles.collectionItemLeft}>
+                      {collection.coverImage ? (
+                        <Image
+                          source={{ uri: collection.coverImage }}
+                          style={styles.collectionItemImage}
+                        />
+                      ) : (
+                        <View style={[styles.collectionItemImage, { backgroundColor: theme.border, justifyContent: "center", alignItems: "center" }]}>
+                          <Icon name="albums" size={20} color={theme.textMuted} />
+                        </View>
+                      )}
+                      <View>
+                        <Text style={[styles.collectionItemTitle, { color: theme.text }]}>
+                          {collection.title}
+                        </Text>
+                        <Text style={[styles.collectionItemCount, { color: theme.textMuted }]}>
+                          {collection.spotCount} spots
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={[
+                      styles.collectionCheckbox,
+                      collection.hasSpot && styles.collectionCheckboxActive,
+                      { borderColor: collection.hasSpot ? theme.primary : theme.border }
+                    ]}>
+                      {collection.hasSpot && (
+                        <Icon name="checkmark" size={16} color="#fff" />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </TouchableOpacity>
       </Modal>
     </SafeAreaView>
   );
@@ -1964,6 +2097,76 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5",
     justifyContent: "center",
     alignItems: "center",
+  },
+
+  // Add to Collection Modal
+  collectionModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  collectionModalSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    paddingTop: 12,
+    maxHeight: "60%",
+  },
+  collectionModalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#ccc",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  collectionModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 16,
+  },
+  collectionEmptyText: {
+    fontSize: 14,
+    marginTop: 12,
+  },
+  collectionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  collectionItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  collectionItemImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+  },
+  collectionItemTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  collectionItemCount: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  collectionCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  collectionCheckboxActive: {
+    backgroundColor: "#1DB954",
+    borderColor: "#1DB954",
   },
 
 });

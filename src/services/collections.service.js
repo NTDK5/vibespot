@@ -80,3 +80,32 @@ export const getUserCollections = async (userId) => {
   }
 };
 
+// Get user's collections with hasSpot flag for a given spot
+export const getCollectionsForSpot = async (spotId) => {
+  try {
+    const response = await api.get(`/collections/for-spot/${spotId}`);
+    return response.data;
+  } catch (err) {
+    return { error: err.response?.data?.message || "Failed to fetch collections for spot" };
+  }
+};
+
+// Add a spot to a collection
+export const addSpotToCollection = async (collectionId, spotId) => {
+  try {
+    const response = await api.post(`/collections/${collectionId}/spots`, { spotId });
+    return response.data;
+  } catch (err) {
+    return { error: err.response?.data?.message || "Failed to add spot to collection" };
+  }
+};
+
+// Remove a spot from a collection
+export const removeSpotFromCollection = async (collectionId, spotId) => {
+  try {
+    await api.delete(`/collections/${collectionId}/spots/${spotId}`);
+    return { removed: true };
+  } catch (err) {
+    return { error: err.response?.data?.message || "Failed to remove spot from collection" };
+  }
+};

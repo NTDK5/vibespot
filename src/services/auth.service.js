@@ -13,6 +13,18 @@ export const loginUser = async (data) => {
   }
 };
 
+export const googleLoginUser = async (idToken) => {
+  try {
+    const response = await api.post("/auth/google", { idToken });
+    if (response.data.accessToken) {
+      await AsyncStorage.setItem("token", response.data.accessToken);
+    }
+    return response.data;
+  } catch (err) {
+    throw err.response?.data || { message: "Google login failed" };
+  }
+};
+
 export const registerUser = async (data) => {
   try {
     const response = await api.post("/auth/register", data);
@@ -34,12 +46,12 @@ export const signOutUser = async () => {
       // Continue even if backend call fails
       console.log("Backend logout call failed:", err);
     }
-    
+
     // Clear local storage
     await AsyncStorage.removeItem("token");
     await AsyncStorage.removeItem("refreshToken");
     await AsyncStorage.removeItem("user");
-    
+
     return { success: true };
   } catch (err) {
     return { error: "Failed to sign out" };

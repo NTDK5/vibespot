@@ -93,7 +93,7 @@ export const HomeScreen = ({ navigation }) => {
   }, [location, nearbySpots]);
 
   useEffect(() => {
-    if (searchQuery.length > 2) {
+    if (searchQuery.length > 2 || searchCategory) {
       handleSearch(searchQuery, searchCategory);
     } else {
       setSearchResults([]);
@@ -486,9 +486,10 @@ export const HomeScreen = ({ navigation }) => {
                 <TouchableOpacity
                   key={cat.id}
                   activeOpacity={0.85}
-                  onPress={() =>
-                    setSelectedCategory(isActive ? null : cat.id)
-                  }
+                  onPress={() => {
+                    setSearchCategory(cat.id);
+                    setShowSearch(true);
+                  }}
                   style={[
                     styles.categoryCard,
                     {
@@ -649,7 +650,7 @@ export const HomeScreen = ({ navigation }) => {
           </View>
         )}
 
-        
+
 
         {/* NEARBY */}
         {nearbySpots.length > 0 && (
