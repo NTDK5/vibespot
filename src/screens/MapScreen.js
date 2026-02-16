@@ -426,7 +426,6 @@ export const MapScreen = ({ navigation }) => {
           // Compare IDs as strings to avoid type mismatches
           const spot = spots.find(s => String(s.id) === String(marker.id));
           if (spot) {
-            console.log("Opening bottom sheet for:", spot.title);
             openBottomSheet(spot);
           } else {
             console.warn("Spot not found for marker:", marker.id, spot);

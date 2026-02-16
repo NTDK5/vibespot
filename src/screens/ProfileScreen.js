@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Modal,
   RefreshControl,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../components/Button';
@@ -27,6 +28,9 @@ import { Switch, Dimensions } from 'react-native';
 import { Directions } from 'react-native-gesture-handler';
 import { useUserProgression } from '../hooks/useUserProgression';
 import { Platform } from 'react-native';
+import { useBadgeProgress } from "../hooks/useBadgeProgress";
+import { logger } from "../utils/logger";
+import { showToast } from "../utils/toastBus";
 const { width } = Dimensions.get("window");
 export const ProfileScreen = ({ navigation }) => {
   const { user, isSuperAdmin, logout } = useAuth();
@@ -49,25 +53,38 @@ export const ProfileScreen = ({ navigation }) => {
     data: progression,
     isLoading: loadingProgression,
   } = useUserProgression();
+
+  const unlockedBadges = useMemo(() => {
+    const all = Array.isArray(progression?.badges) ? progression.badges : [];
+    return all.filter((b) => b.unlocked);
+  }, [progression]);
+
+  const hasOnlyEntryBadge = useMemo(() => {
+    if (!unlockedBadges.length) return false;
+    if (unlockedBadges.length !== 1) return false;
+    return unlockedBadges[0]?.name === "Welcome Explorer";
+  }, [unlockedBadges]);
+
+  const { data: badgeProgress, isLoading: loadingBadgeProgress } = useBadgeProgress({
+    enabled: !!hasOnlyEntryBadge,
+  });
+
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const pct = typeof badgeProgress?.percentage === "number" ? badgeProgress.percentage : 0;
+    Animated.timing(progressAnim, {
+      toValue: Math.max(0, Math.min(100, pct)),
+      duration: 650,
+      useNativeDriver: false,
+    }).start();
+  }, [badgeProgress, progressAnim]);
   const [lastBadgeId, setLastBadgeId] = useState(null);
 
   // Show a toast-like alert when a new badge is unlocked
   useEffect(() => {
     if (progression?.newestBadge?.id && progression.newestBadge.id !== lastBadgeId) {
       const name = progression.newestBadge.name || 'badge';
-      const message = `🎉 You unlocked the ${name} badge!`;
-
-      if (Platform.OS === 'android') {
-        // Prefer native toast on Android
-        try {
-          const { ToastAndroid } = require('react-native');
-          ToastAndroid.show(message, ToastAndroid.LONG);
-        } catch {
-          Alert.alert('Achievement unlocked', message);
-        }
-      } else {
-        Alert.alert('Achievement unlocked', message);
-      }
+      showToast(`Unlocked: ${name}`, { variant: "success" });
 
       setLastBadgeId(progression.newestBadge.id);
     }
@@ -89,7 +106,12 @@ export const ProfileScreen = ({ navigation }) => {
         setSavedSpots(Array.isArray(spots) ? spots : []);
       }
     } catch (error) {
-      console.error('Error loading saved spots:', error);
+      logger.error({
+        service: "profile",
+        action: "load_saved_spots_error",
+        message: "Error loading saved spots",
+        metadata: { error: error?.message || String(error) },
+      });
     } finally {
       setLoadingSpots(false);
     }
@@ -103,7 +125,12 @@ export const ProfileScreen = ({ navigation }) => {
         setVisitedSpots(Array.isArray(spots) ? spots : []);
       }
     } catch (error) {
-      console.error('Error loading visited spots:', error);
+      logger.error({
+        service: "profile",
+        action: "load_visited_spots_error",
+        message: "Error loading visited spots",
+        metadata: { error: error?.message || String(error) },
+      });
     } finally {
       setLoadingVisitedSpots(false);
     }
@@ -117,7 +144,12 @@ export const ProfileScreen = ({ navigation }) => {
         setMyCollections(Array.isArray(collections) ? collections : []);
       }
     } catch (error) {
-      console.error('Error loading collections:', error);
+      logger.error({
+        service: "profile",
+        action: "load_collections_error",
+        message: "Error loading collections",
+        metadata: { error: error?.message || String(error) },
+      });
     } finally {
       setLoadingCollections(false);
     }
@@ -323,7 +355,7 @@ export const ProfileScreen = ({ navigation }) => {
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="small" color={theme.primary} />
             </View>
-          ) : !Array.isArray(progression.badges) || progression.badges.length === 0 ? (
+          ) : unlockedBadges.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="ribbon-outline" size={48} color="#ccc" />
               <Text style={styles.emptyText}>No badges yet</Text>
@@ -331,9 +363,49 @@ export const ProfileScreen = ({ navigation }) => {
                 Explore new spots, react with vibes, and grow your collections to unlock badges.
               </Text>
             </View>
+          ) : hasOnlyEntryBadge ? (
+            <View style={{ padding: 16, gap: 12 }}>
+              <View style={[styles.badgeItem, { width: "100%", borderColor: theme.primary, backgroundColor: theme.primarySoft || '#E0F2FE' }]}>
+                <View style={styles.badgeIconWrap}>
+                  <Text style={styles.badgeIconText}>{unlockedBadges[0].icon || '🧭'}</Text>
+                </View>
+                <Text style={[styles.badgeName, { color: theme.text }]} numberOfLines={1}>
+                  {unlockedBadges[0].name}
+                </Text>
+                <Text style={[styles.badgeDescription, { color: theme.textMuted }]} numberOfLines={2}>
+                  {unlockedBadges[0].description}
+                </Text>
+              </View>
+
+              {loadingBadgeProgress || !badgeProgress || badgeProgress?.error ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={theme.primary} />
+                </View>
+              ) : badgeProgress.next_badge ? (
+                <View style={{ gap: 8 }}>
+                  <Text style={[styles.progressLabel, { color: theme.textMuted }]}>
+                    Next badge: {badgeProgress.next_badge.name} ({badgeProgress.current_value}/{badgeProgress.required_value})
+                  </Text>
+                  <View style={[styles.progressBar, { backgroundColor: theme.surfaceAlt || '#E5E7EB' }]}>
+                    <Animated.View
+                      style={[
+                        styles.progressFill,
+                        {
+                          backgroundColor: theme.primary,
+                          width: progressAnim.interpolate({
+                            inputRange: [0, 100],
+                            outputRange: ["0%", "100%"],
+                          }),
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              ) : null}
+            </View>
           ) : (
             <View style={styles.badgesGrid}>
-              {(progression.badges || []).map((badge) => {
+              {unlockedBadges.map((badge) => {
                 const unlocked = badge.unlocked;
                 const isNewest = progression.newestBadge?.id === badge.id;
                 return (

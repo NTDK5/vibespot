@@ -5,6 +5,7 @@ import { AuthProvider } from './src/context/AuthContext';
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "./src/context/ThemeContext";
+import { ToastProvider } from "./src/components/ToastProvider";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -24,8 +25,10 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ThemeProvider>
+          <ToastProvider>
           <StatusBar style="auto" />
           <AppNavigator />
+          </ToastProvider>
         </ThemeProvider>
       </AuthProvider>
       </QueryClientProvider>

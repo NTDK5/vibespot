@@ -16,7 +16,7 @@ import {
   Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { getAllSpots, searchSpots, getNearbySpots } from '../services/spots.service';
+import { getAllSpots, searchSpots, getNearbySpots, getEditorsPicks, getWeeklyChampionSpot } from '../services/spots.service';
 import { getWeeklySpotRanks } from '../services/weeklyRank.service';
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocation } from "../hooks/useLocation";
@@ -25,10 +25,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { SpotCard } from "../components/SpotCard";
 import { NearbySpotCard } from "../components/NearbySpotCard";
 import { RankSpotCard } from "../components/RankSpotCard";
+import EditorsPickCarousel from "../components/EditorsPickCarousel";
 import { CATEGORIES } from "../utils/constants";
 import { useTheme } from "../context/ThemeContext";
 import { ImageBackground } from 'react-native';
 import { usePersonalizedSpots } from "../hooks/usePersonalizedSpots";
+import { logger } from "../utils/logger";
 
 const { width } = Dimensions.get("window");
 
@@ -71,6 +73,8 @@ export const HomeScreen = ({ navigation }) => {
     data: personalizedData,
     isLoading: loadingPersonalized,
   } = usePersonalizedSpots(location);
+  const [editorsPicks, setEditorsPicks] = useState([]);
+  const [weeklyChampion, setWeeklyChampion] = useState(null);
 
   useEffect(() => {
     if (location) {
@@ -78,7 +82,8 @@ export const HomeScreen = ({ navigation }) => {
     }
     loadSpots();
     loadWeeklyRanks();
-    console.log(personalizedData)
+    loadEditorsPicks();
+    loadWeeklyChampion();
   }, [selectedCategory, location]);
 
   useEffect(() => {
@@ -115,7 +120,12 @@ export const HomeScreen = ({ navigation }) => {
         savedSpots: savedCount,
       });
     } catch (error) {
-      console.error('Error loading stats:', error);
+      logger.error({
+        service: "home",
+        action: "load_stats_error",
+        message: "Error loading stats",
+        metadata: { error: error?.message || String(error) },
+      });
     }
   };
 
@@ -127,7 +137,12 @@ export const HomeScreen = ({ navigation }) => {
         setNearbySpots(result);
       }
     } catch (error) {
-      console.error('Error loading nearby spots:', error);
+      logger.error({
+        service: "home",
+        action: "load_nearby_error",
+        message: "Error loading nearby spots",
+        metadata: { error: error?.message || String(error) },
+      });
     }
   };
 
@@ -157,7 +172,12 @@ export const HomeScreen = ({ navigation }) => {
       setSpots(spotsArray);
       loadStats();
     } catch (error) {
-      console.error("Error loading spots:", error);
+      logger.error({
+        service: "home",
+        action: "load_spots_error",
+        message: "Error loading spots",
+        metadata: { error: error?.message || String(error) },
+      });
       setSpots([]);
     } finally {
       setLoading(false);
@@ -173,9 +193,53 @@ export const HomeScreen = ({ navigation }) => {
         setWeeklyRanks(result.spots);
       }
     } catch (error) {
-      console.error('Error loading weekly ranks:', error);
+      logger.error({
+        service: "home",
+        action: "load_weekly_ranks_error",
+        message: "Error loading weekly ranks",
+        metadata: { error: error?.message || String(error) },
+      });
     } finally {
       setLoadingRanks(false);
+    }
+  };
+
+  const loadEditorsPicks = async () => {
+    try {
+      const result = await getEditorsPicks();
+      if (!result.error && Array.isArray(result)) {
+        setEditorsPicks(result);
+      } else {
+        setEditorsPicks([]);
+      }
+    } catch (error) {
+      logger.error({
+        service: "home",
+        action: "load_editors_picks_error",
+        message: "Error loading editor's picks",
+        metadata: { error: error?.message || String(error) },
+      });
+      setEditorsPicks([]);
+      console.log("editors picks error", editorsPicks);
+    }
+  };
+
+  const loadWeeklyChampion = async () => {
+    try {
+      const result = await getWeeklyChampionSpot();
+      if (!result.error && result?.id) {
+        setWeeklyChampion(result);
+      } else {
+        setWeeklyChampion(null);
+      }
+    } catch (error) {
+      logger.error({
+        service: "home",
+        action: "load_weekly_champion_error",
+        message: "Error loading weekly champion",
+        metadata: { error: error?.message || String(error) },
+      });
+      setWeeklyChampion(null);
     }
   };
 
@@ -190,7 +254,12 @@ export const HomeScreen = ({ navigation }) => {
         setSearchResults(results.data || results || []);
       }
     } catch (error) {
-      console.error('Search error:', error);
+      logger.error({
+        service: "home",
+        action: "search_error",
+        message: "Search error",
+        metadata: { error: error?.message || String(error) },
+      });
     } finally {
       setIsSearching(false);
     }
@@ -496,6 +565,40 @@ export const HomeScreen = ({ navigation }) => {
             </ScrollView>
           </View>
         )} */}
+        {/* EDITOR'S PICKS – premium hero carousel */}
+        {editorsPicks.length > 0 && (
+          <View
+            style={[
+              styles.section,
+              {
+                transform: [
+                  { translateY: weeklyChampion ? "5%" : user ? "5%" : "10%" },
+                ],
+              },
+              { backgroundColor: theme.background },
+            ]}
+          >
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                  Editor’s Picks
+                </Text>
+                <Text
+                  style={[styles.sectionSubtitle, { color: theme.textMuted }]}
+                >
+                  Curated highlights hand-picked for the VibeSpot community
+                </Text>
+              </View>
+            </View>
+
+            <EditorsPickCarousel
+              spots={editorsPicks}
+              onPressSpot={(spot) =>
+                navigation.navigate("SpotDetail", { spotId: spot.id })
+              }
+            />
+          </View>
+        )}
 
         {/* FOR YOUR VIBE - personalized recommendations */}
         {user && (
@@ -508,7 +611,7 @@ export const HomeScreen = ({ navigation }) => {
                 </Text>
               </View>
             </View>
-            {personalizedData ? (
+            {loadingPersonalized ? (
               renderPersonalizedSkeleton()
             ) : Array.isArray(personalizedData?.spots) && personalizedData.spots.length > 0 ? (
               <FlatList
@@ -524,35 +627,29 @@ export const HomeScreen = ({ navigation }) => {
             ) : (
               <View style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
                 <Text style={{ color: theme.textMuted, fontSize: 13 }}>
-                  We’re still learning your vibe. Explore and react to a few spots to unlock personalized picks.
+                  No recommendations yet. Explore and react to a few spots to unlock personalized picks.
                 </Text>
               </View>
             )}
           </View>
         )}
 
-        {/* FEATURED */}
-        <View style={[styles.section, { transform: [{ translateY: user ? "5%" : "10%" }] }, { backgroundColor: theme.background }]}>
-          <View style={styles.sectionHeader}>
-            <View>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>Featured Spots</Text>
-              <Text style={[styles.sectionSubtitle, { color: theme.text }]}>Handpicked for you</Text>
+        {/* WEEKLY SPOT CHAMPION */}
+        {weeklyChampion && (
+          <View style={[styles.section, { transform: [{ translateY: user ? "5%" : "10%" }] }, { backgroundColor: theme.background }]}>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>Weekly Spot Champion</Text>
+                <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>
+                  Top-performing spot this week
+                </Text>
+              </View>
             </View>
-            <TouchableOpacity>
-              <Text style={[styles.seeAll, { color: theme.text }]}>See All</Text>
-            </TouchableOpacity>
+            <SpotCard spot={weeklyChampion} onPress={() => navigation.navigate("SpotDetail", { spotId: weeklyChampion.id })} />
           </View>
-          <FlatList
-            data={spots && spots?.slice(0, 10)}
-            horizontal
-            renderItem={renderSpotCard}
-            keyExtractor={(spot) => spot.id}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.spotsRow}
-            snapToInterval={width * 0.8 + 16}
-            decelerationRate="fast"
-          />
-        </View>
+        )}
+
+        
 
         {/* NEARBY */}
         {nearbySpots.length > 0 && (

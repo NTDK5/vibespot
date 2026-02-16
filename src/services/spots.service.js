@@ -54,6 +54,49 @@ export const getAllSpots = async () => {
 };
 
 // ----------------------------
+// Get Editor's Picks
+// ----------------------------
+export const getEditorsPicks = async () => {
+  try {
+    const response = await api.get("/spot/editors-picks", {
+      params: { limit: 10 },
+    });
+    return response.data;
+  } catch (err) {
+    return { error: "Failed to fetch editor's picks" };
+  }
+};
+
+// ----------------------------
+// Toggle Editor's Pick (admin only)
+// ----------------------------
+export const setEditorsPick = async (id, { isEditorsPick, weeklyRank = null }) => {
+  try {
+    const response = await api.put(`/spot/${id}/editors-pick`, {
+      isEditorsPick,
+      weeklyRank,
+    });
+    return response.data;
+  } catch (err) {
+    return {
+      error: err.response?.data?.message || "Failed to update editor's pick",
+    };
+  }
+};
+
+// ----------------------------
+// Get Weekly Champion
+// ----------------------------
+export const getWeeklyChampionSpot = async () => {
+  try {
+    const response = await api.get("/spot/weekly-champion");
+    return response.data;
+  } catch (err) {
+    return { error: "Failed to fetch weekly champion" };
+  }
+};
+
+// ----------------------------
 // Get One Spot
 // ----------------------------
 export const getSpotById = async (id) => {
@@ -171,3 +214,16 @@ export const getSurpriseMeSpot = async () => {
   }
 };
 
+// ----------------------------
+// Track Spot Share (increments sharedCount)
+// ----------------------------
+export const shareSpot = async (id) => {
+  try {
+    const response = await api.post(`/spot/${id}/share`);
+    return response.data;
+  } catch (err) {
+    return {
+      error: err.response?.data?.message || "Failed to track spot share",
+    };
+  }
+};

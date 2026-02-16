@@ -56,6 +56,8 @@ export const EditSpotScreen = ({ route, navigation }) => {
   const [twitter, setTwitter] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [isEditorsPick, setIsEditorsPick] = useState(false);
+  const [weeklyRank, setWeeklyRank] = useState("");
 
   useEffect(() => {
     if (!isSuperAdmin) {
@@ -102,6 +104,12 @@ export const EditSpotScreen = ({ route, navigation }) => {
       setTwitter(spot.twitter || '');
       setPhone(spot.phone || '');
       setEmail(spot.email || '');
+      setIsEditorsPick(spot.isEditorsPick || false);
+      setWeeklyRank(
+        typeof spot.weeklyRank === "number" && !isNaN(spot.weeklyRank)
+          ? String(spot.weeklyRank)
+          : ""
+      );
     } catch (error) {
       console.error('Error loading spot:', error);
       Alert.alert('Error', 'Failed to load spot');
@@ -238,6 +246,51 @@ export const EditSpotScreen = ({ route, navigation }) => {
               />
             </View>
           </View>
+
+          {/* Editor's Pick (Superadmin only) */}
+          {isSuperAdmin && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="ribbon-outline" size={20} color="#6C5CE7" />
+                <Text style={styles.sectionTitle}>Editor’s Picks</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <Text style={styles.label}>Mark as Editor’s Pick</Text>
+                <TouchableOpacity
+                  onPress={() => setIsEditorsPick(!isEditorsPick)}
+                  style={[
+                    styles.togglePill,
+                    isEditorsPick && styles.togglePillActive,
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.togglePillText, isEditorsPick && styles.togglePillTextActive]}>
+                    {isEditorsPick ? "Enabled" : "Disabled"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.helperText}>
+                Display this spot in Editor’s Picks on the home page.
+              </Text>
+              {isEditorsPick && (
+                <>
+                  <Text style={[styles.label, { marginTop: 12 }]}>Weekly rank (optional)</Text>
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="1"
+                      keyboardType="numeric"
+                      value={weeklyRank}
+                      onChangeText={setWeeklyRank}
+                    />
+                  </View>
+                  <Text style={styles.helperText}>
+                    Lower numbers appear first. Leave blank to use default ordering.
+                  </Text>
+                </>
+              )}
+            </View>
+          )}
 
           {/* Category Section */}
           <View style={styles.section}>

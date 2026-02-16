@@ -8,12 +8,13 @@ import {
   StyleSheet,
   Dimensions,
   ActivityIndicator,
+  Share,
 } from "react-native";
 import Carousel from "react-native-snap-carousel";
 import Icon from "react-native-vector-icons/Ionicons";
 import FontAwesome from "react-native-vector-icons/FontAwesome5";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getSpotById } from '../services/spots.service';
+import { getSpotById, setEditorsPick, shareSpot } from '../services/spots.service';
 import { Platform } from "react-native";
 import { Linking } from "react-native";
 import { useVibes } from "../hooks/useVibes";
@@ -96,7 +97,15 @@ export default function SpotDetailsScreen({ route, navigation }) {
   const locationWatchRef = useRef(null);
   const { location, refresh: refreshLocation } = useLocation();
 
-
+  const topVibe = spotVibes.length > 0
+    ? spotVibes.reduce(
+        (prev, current) =>
+          current.count > prev.count ? current : prev
+      )
+    : null;
+  const vibeTheme = topVibe
+    ? createVibeTheme(topVibe.color, theme, isDark)
+    : null;
 
   const openMap = () => {
     if (!spot?.lat || !spot?.lng) return;
@@ -354,6 +363,42 @@ export default function SpotDetailsScreen({ route, navigation }) {
     }
   };
 
+  const handleToggleEditorsPick = async () => {
+    if (!isSuperAdmin || !spot) return;
+    try {
+      const next = !spot.isEditorsPick;
+      const result = await setEditorsPick(spot.id, {
+        isEditorsPick: next,
+        weeklyRank: spot.weeklyRank ?? null,
+      });
+      if (result?.error) {
+        Alert.alert("Error", result.error);
+      } else {
+        setSpot(result);
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to update editor's pick status");
+    }
+  };
+
+  const handleShareSpot = async () => {
+    if (!spot) return;
+    try {
+      await Share.share({
+        message: `${spot.title} - ${spot.address}`,
+        url: spot.images?.[0],
+        title: spot.title,
+      });
+      // Fire-and-forget tracking of share count
+      await shareSpot(spot.id);
+    } catch (error) {
+      // Ignore user cancellations; only show real errors
+      if (error?.message && !/denied|canceled|cancelled/i.test(error.message)) {
+        Alert.alert("Error", "Failed to share this spot");
+      }
+    }
+  };
+
   // Reset selectedVibes to user's existing vibes when modal opens
   useEffect(() => {
     if (vibeModalVisible) {
@@ -456,12 +501,6 @@ export default function SpotDetailsScreen({ route, navigation }) {
       </View>
     );
   }
-  const topVibe = spotVibes.length > 0
-    ? spotVibes.reduce((prev, current) => (current.count > prev.count ? current : prev))
-    : null;
-  const vibeTheme = topVibe
-    ? createVibeTheme(topVibe.color, theme, isDark)
-    : null;
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: vibeTheme ? vibeTheme.background : theme.background }
     ]}>
@@ -486,22 +525,53 @@ export default function SpotDetailsScreen({ route, navigation }) {
                 />
                 <Text style={styles.topVibeText}>{topVibe.name}</Text>
               </View>
-            )}
+          )}
+          {spot.isEditorsPick && (
+            <View style={styles.editorsPickBadge}>
+              <Icon name="star" size={14} color="#FFD700" />
+              <Text style={styles.editorsPickBadgeText}>Editor’s Pick</Text>
+            </View>
+          )}
           </View>
         </View>
 
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {isSuperAdmin && (
-            <TouchableOpacity
-              style={styles.headerBtn}
-              onPress={() => navigation.navigate('EditSpot', { spotId: spot.id })}
-            >
-              <Icon name="create-outline" size={22} color="#007AFF" />
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity style={[styles.headerBtn, { backgroundColor: vibeTheme ? vibeTheme.headerIcon : theme.surface }]}>
-            <Icon name="share-social-outline" size={22} color={vibeTheme ? theme.text : theme.text} />
+        {isSuperAdmin && (
+          <TouchableOpacity
+            style={[
+              styles.headerBtn,
+              spot?.isEditorsPick && styles.editorsPickActive,
+            ]}
+            onPress={handleToggleEditorsPick}
+          >
+            <Icon
+              name={spot?.isEditorsPick ? "star" : "star-outline"}
+              size={22}
+              color={spot?.isEditorsPick ? "#FFD700" : theme.text}
+            />
           </TouchableOpacity>
+        )}
+        {isSuperAdmin && (
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => navigation.navigate('EditSpot', { spotId: spot.id })}
+          >
+            <Icon name="create-outline" size={22} color="#007AFF" />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          style={[
+            styles.headerBtn,
+            { backgroundColor: vibeTheme ? vibeTheme.headerIcon : theme.surface },
+          ]}
+          onPress={handleShareSpot}
+        >
+          <Icon
+            name="share-social-outline"
+            size={22}
+            color={vibeTheme ? theme.text : theme.text}
+          />
+        </TouchableOpacity>
         </View>
       </View>
 
@@ -1095,6 +1165,10 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 
+  editorsPickActive: {
+    backgroundColor: "rgba(255, 215, 0, 0.22)",
+  },
+
   headerCenter: {
     flex: 1,
     alignItems: "center",
@@ -1126,6 +1200,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     marginTop: 2,
+  },
+  editorsPickBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(255, 215, 0, 0.18)",
+  },
+  editorsPickBadgeText: {
+    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#FFD700",
   },
 
   headerRating: {
