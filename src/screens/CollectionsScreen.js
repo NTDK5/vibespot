@@ -1,9 +1,12 @@
+/**
+ * Collections Screen - Bento Grid Architecture
+ * Editorial mood-board layout with 2x2 cover collages
+ */
 import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   TouchableOpacity,
   Image,
   ActivityIndicator,
@@ -12,10 +15,11 @@ import {
   Modal,
   TextInput,
   ScrollView,
+  FlatList,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import {
   getAllCollections,
   createCollection,
@@ -26,6 +30,23 @@ import { getAllSpots } from "../services/spots.service";
 import { useAuth } from "../hooks/useAuth";
 import { Button } from "../components/Button";
 import { useTheme } from "../context/ThemeContext";
+import { spacing, radius, shadows } from "../theme/tokens";
+
+const { width } = Dimensions.get("window");
+const CARD_GAP = 12;
+const CARD_WIDTH = (width - spacing.md * 2 - CARD_GAP) / 2;
+
+const getCoverImages = (item) => {
+  const cover = item.coverImage;
+  const spots = item.spots || [];
+  const fromSpots = spots
+    .slice(0, 4)
+    .map((s) => s?.spot?.images?.[0] || s?.spot?.thumbnail)
+    .filter(Boolean);
+  const urls = cover ? [cover, ...fromSpots] : fromSpots;
+  while (urls.length < 4) urls.push(null);
+  return urls.slice(0, 4);
+};
 
 export const CollectionsScreen = ({ navigation }) => {
   const { user } = useAuth();
@@ -33,13 +54,11 @@ export const CollectionsScreen = ({ navigation }) => {
   const [collections, setCollections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [sortBy, setSortBy] = useState("popular"); // "popular" or "recent"
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [sortBy, setSortBy] = useState("popular");
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredCollections, setFilteredCollections] = useState([]);
-
-  // Create collection form
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedSpots, setSelectedSpots] = useState([]);
@@ -51,15 +70,17 @@ export const CollectionsScreen = ({ navigation }) => {
   }, [sortBy]);
 
   useEffect(() => {
-    if (searchQuery.trim() === "") {
+    if (!searchQuery.trim()) {
       setFilteredCollections(collections);
     } else {
-      const filtered = collections.filter(
-        (collection) =>
-          collection.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          collection.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      const q = searchQuery.toLowerCase();
+      setFilteredCollections(
+        collections.filter(
+          (c) =>
+            c.title?.toLowerCase().includes(q) ||
+            c.description?.toLowerCase().includes(q)
+        )
       );
-      setFilteredCollections(filtered);
     }
   }, [searchQuery, collections]);
 
@@ -71,12 +92,12 @@ export const CollectionsScreen = ({ navigation }) => {
         limit: 50,
       });
       if (!data.error) {
-        const collectionsData = Array.isArray(data) ? data : [];
-        setCollections(collectionsData);
-        setFilteredCollections(collectionsData);
+        const arr = Array.isArray(data) ? data : [];
+        setCollections(arr);
+        setFilteredCollections(arr);
       }
-    } catch (error) {
-      console.error("Error loading collections:", error);
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoading(false);
     }
@@ -92,56 +113,33 @@ export const CollectionsScreen = ({ navigation }) => {
     try {
       const result = await likeCollection(collectionId);
       if (!result.error) {
-        // Update local state
-        setCollections((prev) =>
+        const update = (prev) =>
           prev.map((col) =>
             col.id === collectionId
-              ? {
-                  ...col,
-                  isLiked: result.liked,
-                  likeCount: result.likeCount,
-                }
+              ? { ...col, isLiked: result.liked, likeCount: result.likeCount }
               : col
-          )
-        );
-        setFilteredCollections((prev) =>
-          prev.map((col) =>
-            col.id === collectionId
-              ? {
-                  ...col,
-                  isLiked: result.liked,
-                  likeCount: result.likeCount,
-                }
-              : col
-          )
-        );
+          );
+        setCollections(update);
+        setFilteredCollections(update);
       }
-    } catch (error) {
+    } catch (e) {
       Alert.alert("Error", "Failed to like collection");
     }
   };
 
   const handleDelete = async (collectionId) => {
-    Alert.alert(
-      "Delete Collection",
-      "Are you sure you want to delete this collection?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            const result = await deleteCollection(collectionId);
-            if (!result.error) {
-              loadMyCollections();
-              loadCollections();
-            } else {
-              Alert.alert("Error", result.error);
-            }
-          },
+    Alert.alert("Delete Collection", "This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          const res = await deleteCollection(collectionId);
+          if (!res.error) loadCollections();
+          else Alert.alert("Error", res.error);
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleCreate = async () => {
@@ -149,7 +147,6 @@ export const CollectionsScreen = ({ navigation }) => {
       Alert.alert("Error", "Please enter a title");
       return;
     }
-
     setCreating(true);
     try {
       const result = await createCollection({
@@ -158,18 +155,15 @@ export const CollectionsScreen = ({ navigation }) => {
         spotIds: selectedSpots.map((s) => s.id),
         isPublic: true,
       });
-
       if (!result.error) {
         setShowCreateModal(false);
         setTitle("");
         setDescription("");
         setSelectedSpots([]);
         loadCollections();
-        Alert.alert("Success", "Collection created successfully!");
-      } else {
-        Alert.alert("Error", result.error);
-      }
-    } catch (error) {
+        Alert.alert("Success", "Collection created!");
+      } else Alert.alert("Error", result.error);
+    } catch (e) {
       Alert.alert("Error", "Failed to create collection");
     } finally {
       setCreating(false);
@@ -179,120 +173,123 @@ export const CollectionsScreen = ({ navigation }) => {
   const loadAvailableSpots = async () => {
     try {
       const spots = await getAllSpots();
-      if (!spots.error) {
-        setAvailableSpots(Array.isArray(spots) ? spots : []);
-      }
-    } catch (error) {
-      console.error("Error loading spots:", error);
+      if (!spots.error) setAvailableSpots(Array.isArray(spots) ? spots : []);
+    } catch (e) {
+      console.error(e);
     }
   };
 
   const toggleSpotSelection = (spot) => {
-    setSelectedSpots((prev) => {
-      const exists = prev.find((s) => s.id === spot.id);
-      if (exists) {
-        return prev.filter((s) => s.id !== spot.id);
-      } else {
-        return [...prev, spot];
-      }
-    });
+    setSelectedSpots((prev) =>
+      prev.some((s) => s.id === spot.id)
+        ? prev.filter((s) => s.id !== spot.id)
+        : [...prev, spot]
+    );
   };
 
-  const renderCollectionCard = ({ item, isMine = false }) => {
-    const coverImage =
-      item.coverImage ||
-      item.spots?.[0]?.spot?.thumbnail ||
-      item.spots?.[0]?.spot?.images?.[0];
-  
+  const renderCollectionCard = ({ item }) => {
+    const images = getCoverImages(item);
+    const isMine = user?.id === item.userId;
+
     return (
       <TouchableOpacity
-        style={styles.fullCard}
         activeOpacity={0.9}
+        style={[styles.bentoCard, { backgroundColor: theme.surface }]}
         onPress={() =>
-          navigation.navigate("CollectionDetail", {
-            collectionId: item.id,
-          })
+          navigation.navigate("CollectionDetail", { collectionId: item.id })
         }
       >
-        <Image
-          source={{ uri: coverImage }}
-          style={styles.fullCardImage}
-        />
-  
-        <LinearGradient
-          colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.85)"]}
-          style={styles.fullCardGradient}
-        />
-  
-        {/* Top actions */}
-        <View style={styles.fullCardTop}>
-          <View style={styles.authorRow}>
-            {item.user?.profileImage ? (
-              <Image
-                source={{ uri: item.user.profileImage }}
-                style={styles.authorAvatar}
-              />
-            ) : (
-              <View style={styles.authorAvatarPlaceholder}>
-                <Ionicons name="person" size={14} color="#666" />
-              </View>
-            )}
-            <Text style={styles.authorName} numberOfLines={1}>
-              {item.user?.name || "Unknown"}
-            </Text>
-          </View>
-  
-          {isMine && (
-            <TouchableOpacity onPress={() => handleDelete(item.id)}>
-              <Ionicons name="trash-outline" size={20} color="#fff" />
-            </TouchableOpacity>
-          )}
+        <View style={styles.collage}>
+          {images.map((uri, i) => (
+            <View key={i} style={styles.collageCell}>
+              {uri ? (
+                <Image source={{ uri }} style={styles.collageImage} />
+              ) : (
+                <View
+                  style={[
+                    styles.collagePlaceholder,
+                    { backgroundColor: theme.border },
+                  ]}
+                >
+                  <Ionicons
+                    name="image-outline"
+                    size={24}
+                    color={theme.textMuted}
+                  />
+                </View>
+              )}
+            </View>
+          ))}
         </View>
-  
-        {/* Bottom content */}
-        <View style={styles.fullCardBottom}>
-          <Text style={styles.fullCardTitle} numberOfLines={2}>
+
+        <View style={[styles.cardContent, { borderTopColor: theme.border }]}>
+          <Text
+            style={[styles.cardTitle, { color: theme.text }]}
+            numberOfLines={2}
+          >
             {item.title}
           </Text>
-  
-          {item.description && (
-            <Text style={styles.fullCardDesc} numberOfLines={1}>
-              {item.description}
-            </Text>
-          )}
-  
-          <View style={styles.fullMetaRow}>
-            <View style={styles.metaLeft}>
-              <Ionicons name="location" size={14} color="#fff" />
-              <Text style={styles.metaText}>
-                {item.spotCount || 0} spots
+          <View style={styles.cardMeta}>
+            <View style={styles.cardMetaLeft}>
+              {item.user?.profileImage ? (
+                <Image
+                  source={{ uri: item.user.profileImage }}
+                  style={styles.avatar}
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.avatarPlaceholder,
+                    { backgroundColor: theme.primarySoft },
+                  ]}
+                >
+                  <Ionicons
+                    name="person"
+                    size={12}
+                    color={theme.primary}
+                  />
+                </View>
+              )}
+              <Text
+                style={[styles.authorName, { color: theme.textMuted }]}
+                numberOfLines={1}
+              >
+                {item.user?.name || "Unknown"}
               </Text>
             </View>
-  
             <TouchableOpacity
-              style={styles.likeButton}
+              style={styles.likeBtn}
               onPress={() => handleLike(item.id, item.isLiked)}
             >
               <Ionicons
                 name={item.isLiked ? "heart" : "heart-outline"}
-                size={18}
-                color={item.isLiked ? "#ff4d6d" : "#fff"}
+                size={16}
+                color={item.isLiked ? "#FF4D6D" : theme.textMuted}
               />
-              <Text style={styles.likeCount}>
+              <Text style={[styles.likeCount, { color: theme.textMuted }]}>
                 {item.likeCount || 0}
               </Text>
             </TouchableOpacity>
           </View>
+          {isMine && (
+            <TouchableOpacity
+              style={[styles.deleteBtn, { backgroundColor: theme.error + "20" }]}
+              onPress={() => handleDelete(item.id)}
+            >
+              <Ionicons name="trash-outline" size={14} color={theme.error} />
+            </TouchableOpacity>
+          )}
         </View>
       </TouchableOpacity>
     );
   };
-  
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-        <View style={styles.loadingContainer}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+      >
+        <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={theme.primary} />
         </View>
       </SafeAreaView>
@@ -305,340 +302,284 @@ export const CollectionsScreen = ({ navigation }) => {
       edges={["top"]}
     >
       {/* Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            backgroundColor: theme.surface,
-            borderBottomColor: theme.border,
-            shadowColor: theme.shadowSm,
-          },
-        ]}
-      >
+      <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <Text style={[styles.headerTitle, { color: theme.text }]}>
           Collections
         </Text>
-        <TouchableOpacity
-          style={[
-            styles.createButton,
-            {
-              backgroundColor: theme.primary,
-              shadowColor: theme.shadowMd || theme.primary,
-            },
-          ]}
-          onPress={() => {
-            loadAvailableSpots();
-            setShowCreateModal(true);
-          }}
-        >
-          <Ionicons name="add" size={24} color="#fff" />
-        </TouchableOpacity>
+        <Text style={[styles.headerSub, { color: theme.textMuted }]}>
+          Curated mood boards
+        </Text>
       </View>
 
-      {/* Search Bar */}
-      <View
-        style={[
-          styles.searchContainer,
-          {
-            backgroundColor: theme.surface,
-            borderColor: theme.border,
-          },
-        ]}
-      >
+      {/* Search */}
+      <View style={[styles.searchWrap, { backgroundColor: theme.surface }]}>
         <Ionicons
           name="search"
           size={20}
-          color={theme.textSubtle || theme.textMuted}
+          color={theme.textMuted}
           style={styles.searchIcon}
         />
         <TextInput
           style={[styles.searchInput, { color: theme.text }]}
           placeholder="Search collections..."
-          placeholderTextColor={theme.textSubtle || theme.textMuted}
+          placeholderTextColor={theme.textMuted}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
         {searchQuery.length > 0 && (
-          <TouchableOpacity
-            onPress={() => setSearchQuery("")}
-            style={styles.searchClearButton}
-          >
-            <Ionicons
-              name="close-circle"
-              size={20}
-              color={theme.textSubtle || theme.textMuted}
-            />
+          <TouchableOpacity onPress={() => setSearchQuery("")}>
+            <Ionicons name="close-circle" size={20} color={theme.textMuted} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Sort Tabs */}
-      <View
-        style={[
-          styles.sortTabs,
-          { backgroundColor: theme.surface, borderBottomColor: theme.border },
-        ]}
-      >
-        <TouchableOpacity
-          style={[styles.sortTab, sortBy === "popular" && styles.sortTabActive]}
-          onPress={() => setSortBy("popular")}
-        >
-          <Text
+      {/* Sort Pills */}
+      <View style={styles.pillsRow}>
+        {["popular", "recent"].map((key) => (
+          <TouchableOpacity
+            key={key}
             style={[
-              styles.sortTabText,
-              sortBy === "popular" && styles.sortTabTextActive,
-                {
-                  color:
-                    sortBy === "popular" ? theme.background : theme.textMuted,
-                },
+              styles.pill,
+              sortBy === key && {
+                backgroundColor: theme.primary,
+              },
+              sortBy !== key && { backgroundColor: theme.surface },
             ]}
+            onPress={() => setSortBy(key)}
           >
-            Popular
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.sortTab, sortBy === "recent" && styles.sortTabActive]}
-          onPress={() => setSortBy("recent")}
-        >
-          <Text
-            style={[
-              styles.sortTabText,
-              sortBy === "recent" && styles.sortTabTextActive,
-                {
-                  color:
-                    sortBy === "recent" ? theme.background : theme.textMuted,
-                },
-            ]}
-          >
-            Recent
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={[
+                styles.pillText,
+                { color: sortBy === key ? "#fff" : theme.text },
+              ]}
+            >
+              {key === "popular" ? "Popular" : "Recent"}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
+      {/* Bento Grid */}
       <FlatList
         data={filteredCollections}
-        renderItem={({ item }) => renderCollectionCard({ item })}
+        numColumns={2}
         keyExtractor={(item) => item.id}
+        renderItem={renderCollectionCard}
+        columnWrapperStyle={styles.row}
+        contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.primary}
+          />
         }
         ListEmptyComponent={
-          searchQuery.trim() !== "" ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons
-                name="search-outline"
-                size={64}
-                color={theme.textSubtle || theme.textMuted}
-              />
-              <Text style={[styles.emptyText, { color: theme.text }]}>
-                No collections found
-              </Text>
-              <Text
-                style={[styles.emptySubtext, { color: theme.textMuted }]}
-              >
-                Try a different search term
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.emptyContainer}>
+          <View style={styles.empty}>
+            <View
+              style={[styles.emptyIconWrap, { backgroundColor: theme.surface }]}
+            >
               <Ionicons
                 name="albums-outline"
-                size={64}
-                color={theme.textSubtle || theme.textMuted}
+                size={48}
+                color={theme.textMuted}
               />
-              <Text style={[styles.emptyText, { color: theme.text }]}>
-                No collections yet
-              </Text>
-              <Text
-                style={[styles.emptySubtext, { color: theme.textMuted }]}
-              >
-                Be the first to create a collection!
-              </Text>
             </View>
-          )
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>
+              {searchQuery ? "No collections found" : "No collections yet"}
+            </Text>
+            <Text style={[styles.emptySub, { color: theme.textMuted }]}>
+              {searchQuery
+                ? "Try a different search"
+                : "Create one to get started"}
+            </Text>
+          </View>
         }
-        contentContainerStyle={styles.listContent}
-        numColumns={1}
       />
 
-      {/* Create Collection Modal */}
+      {/* Create FAB */}
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: theme.primary }]}
+        onPress={() => {
+          loadAvailableSpots();
+          setShowCreateModal(true);
+        }}
+      >
+        <Ionicons name="add" size={28} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Create Modal */}
       <Modal
         visible={showCreateModal}
         animationType="slide"
-        transparent={false}
+        transparent
         onRequestClose={() => setShowCreateModal(false)}
       >
-        <SafeAreaView
-          style={[styles.modalContainer, { backgroundColor: theme.background }]}
-        >
+        <View style={styles.modalOverlay}>
           <View
-            style={[styles.modalHeader, { borderBottomColor: theme.border }]}
+            style={[
+              styles.modalSheet,
+              { backgroundColor: theme.background },
+            ]}
           >
-            <TouchableOpacity onPress={() => setShowCreateModal(false)}>
-              <Ionicons name="close" size={24} color={theme.text} />
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>
-              Create Collection
-            </Text>
-            <View style={{ width: 24 }} />
-          </View>
-
-          <ScrollView style={styles.modalContent}>
-            <Text style={[styles.label, { color: theme.text }]}>
-              Title *
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: theme.surface,
-                  borderColor: theme.border,
-                  color: theme.text,
-                },
-              ]}
-              placeholder="e.g., Perfect Date Spots"
-              placeholderTextColor={theme.textSubtle || theme.textMuted}
-              value={title}
-              onChangeText={setTitle}
-            />
-
-            <Text style={[styles.label, { color: theme.text }]}>
-              Description
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                styles.textArea,
-                {
-                  backgroundColor: theme.surface,
-                  borderColor: theme.border,
-                  color: theme.text,
-                },
-              ]}
-              placeholder="Describe your collection..."
-              placeholderTextColor={theme.textSubtle || theme.textMuted}
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={3}
-            />
-
-            <Text style={[styles.label, { color: theme.text }]}>
-              Spots ({selectedSpots.length} selected)
-            </Text>
-            <TouchableOpacity
-              style={[
-                styles.spotPickerButton,
-                {
-                  borderColor: theme.primary,
-                  backgroundColor: theme.primarySoft,
-                },
-              ]}
-              onPress={() => setShowSpotPicker(true)}
-            >
-              <Ionicons
-                name="add-circle-outline"
-                size={20}
-                color={theme.primary}
-              />
-              <Text
-                style={[styles.spotPickerText, { color: theme.primary }]}
-              >
-                Add Spots
+            <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
+                <Ionicons name="close" size={24} color={theme.text} />
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>
+                New Collection
               </Text>
-            </TouchableOpacity>
-
-            {selectedSpots.length > 0 && (
-              <View style={styles.selectedSpots}>
-                {selectedSpots.map((spot) => (
-                  <View key={spot.id} style={styles.selectedSpotChip}>
-                    <Text
-                      style={[styles.selectedSpotText, { color: theme.primary }]}
+              <View style={{ width: 24 }} />
+            </View>
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalContent}
+            >
+              <Text style={[styles.label, { color: theme.text }]}>Title</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                    color: theme.text,
+                  },
+                ]}
+                placeholder="e.g. Weekend Vibes"
+                placeholderTextColor={theme.textMuted}
+                value={title}
+                onChangeText={setTitle}
+              />
+              <Text style={[styles.label, { color: theme.text }]}>
+                Description
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  styles.textArea,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                    color: theme.text,
+                  },
+                ]}
+                placeholder="What's the vibe?"
+                placeholderTextColor={theme.textMuted}
+                value={description}
+                onChangeText={setDescription}
+                multiline
+              />
+              <Text style={[styles.label, { color: theme.text }]}>
+                Spots ({selectedSpots.length})
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.spotPickerBtn,
+                  {
+                    borderColor: theme.primary,
+                    backgroundColor: theme.primarySoft,
+                  },
+                ]}
+                onPress={() => setShowSpotPicker(true)}
+              >
+                <Ionicons name="add-circle-outline" size={20} color={theme.primary} />
+                <Text style={[styles.spotPickerText, { color: theme.primary }]}>
+                  Add spots
+                </Text>
+              </TouchableOpacity>
+              {selectedSpots.length > 0 && (
+                <View style={styles.chips}>
+                  {selectedSpots.map((s) => (
+                    <View
+                      key={s.id}
+                      style={[
+                        styles.chip,
+                        {
+                          backgroundColor: theme.primarySoft,
+                          borderColor: theme.primary,
+                        },
+                      ]}
                     >
-                      {spot.title}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => toggleSpotSelection(spot)}
-                      style={styles.removeSpotButton}
-                    >
-                      <Ionicons name="close-circle" size={18} color="#666" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            <Button
-              title={creating ? "Creating..." : "Create Collection"}
-              onPress={handleCreate}
-              loading={creating}
-              style={styles.createCollectionButton}
-            />
-          </ScrollView>
-        </SafeAreaView>
+                      <Text
+                        style={[styles.chipText, { color: theme.primary }]}
+                        numberOfLines={1}
+                      >
+                        {s.title}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => toggleSpotSelection(s)}
+                      >
+                        <Ionicons name="close" size={16} color={theme.primary} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+              <Button
+                title={creating ? "Creating..." : "Create"}
+                onPress={handleCreate}
+                loading={creating}
+                style={styles.createBtn}
+              />
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       {/* Spot Picker Modal */}
       <Modal
         visible={showSpotPicker}
         animationType="slide"
-        transparent={false}
         onRequestClose={() => setShowSpotPicker(false)}
       >
         <SafeAreaView
-          style={[styles.modalContainer, { backgroundColor: theme.background }]}
+          style={[styles.pickerContainer, { backgroundColor: theme.background }]}
         >
-          <View
-            style={[styles.modalHeader, { borderBottomColor: theme.border }]}
-          >
+          <View style={[styles.pickerHeader, { borderBottomColor: theme.border }]}>
             <TouchableOpacity onPress={() => setShowSpotPicker(false)}>
               <Ionicons name="arrow-back" size={24} color={theme.text} />
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>
-              Select Spots
+            <Text style={[styles.pickerTitle, { color: theme.text }]}>
+              Add spots
             </Text>
             <View style={{ width: 24 }} />
           </View>
-
           <FlatList
             data={availableSpots}
             keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.pickerList}
             renderItem={({ item }) => {
-              const isSelected = selectedSpots.find((s) => s.id === item.id);
+              const sel = selectedSpots.some((s) => s.id === item.id);
               return (
                 <TouchableOpacity
                   style={[
-                    styles.spotItem,
+                    styles.pickerItem,
                     {
                       backgroundColor: theme.surface,
-                      shadowColor: theme.shadowSm,
+                      borderColor: sel ? theme.primary : theme.border,
                     },
                   ]}
                   onPress={() => toggleSpotSelection(item)}
                 >
                   <Image
                     source={{ uri: item.thumbnail || item.images?.[0] }}
-                    style={styles.spotItemImage}
+                    style={styles.pickerThumb}
                   />
-                  <View style={styles.spotItemInfo}>
-                    <Text
-                      style={[styles.spotItemTitle, { color: theme.text }]}
-                    >
+                  <View style={styles.pickerInfo}>
+                    <Text style={[styles.pickerItemTitle, { color: theme.text }]}>
                       {item.title}
                     </Text>
-                    <Text
-                      style={[styles.spotItemCategory, { color: theme.textMuted }]}
-                    >
+                    <Text style={[styles.pickerItemCat, { color: theme.textMuted }]}>
                       {item.category?.replace("_", " ")}
                     </Text>
                   </View>
-                  {isSelected && (
-                    <Ionicons name="checkmark-circle" size={24} color="#6C5CE7" />
+                  {sel && (
+                    <Ionicons name="checkmark-circle" size={24} color={theme.primary} />
                   )}
                 </TouchableOpacity>
               );
             }}
-            contentContainerStyle={styles.spotList}
           />
         </SafeAreaView>
       </Modal>
@@ -647,474 +588,255 @@ export const CollectionsScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8F9FA",
-  },
-  loadingContainer: {
+  container: { flex: 1 },
+  loadingWrap: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "#fff",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#1A1A1A",
   },
-  createButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#6C5CE7",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#6C5CE7",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    marginHorizontal: 20,
-    marginTop: 12,
-    marginBottom: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-  },
-  searchIcon: {
-    marginRight: 12,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: "#1A1A1A",
-  },
-  searchClearButton: {
-    padding: 4,
-  },
-  sortTabs: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-    gap: 12,
-  },
-  sortTab: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#f0f0f0",
-  },
-  sortTabActive: {
-    backgroundColor: "#6C5CE7",
-  },
-  sortTabText: {
+  headerSub: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#666",
+    marginTop: 2,
   },
-  sortTabTextActive: {
-    color: "#fff",
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    ...shadows.subtle,
   },
-  section: {
-    marginTop: 20,
-    marginBottom: 16,
+  searchIcon: { marginRight: spacing.sm },
+  searchInput: { flex: 1, fontSize: 16 },
+  pillsRow: {
+    flexDirection: "row",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    gap: spacing.sm,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    paddingHorizontal: 20,
-    marginBottom: 12,
+  pill: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
   },
-  horizontalList: {
-    paddingHorizontal: 20,
-    gap: 12,
+  pillText: { fontSize: 14, fontWeight: "600" },
+  row: {
+    paddingHorizontal: spacing.md,
+    marginBottom: CARD_GAP,
+    justifyContent: "space-between",
   },
   listContent: {
-    padding: 20,
-    paddingTop: 0,
+    paddingBottom: 100,
   },
-  emptyContainer: {
-    padding: 60,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#666",
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: "#999",
-    marginTop: 8,
-    textAlign: "center",
-  },
-  row: {
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  collectionCard: {
-    borderRadius: 16,
+  bentoCard: {
+    width: CARD_WIDTH,
+    borderRadius: radius.lg,
     overflow: "hidden",
-    backgroundColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    ...shadows.md,
   },
-  collectionImageContainer: {
-    width: "100%",
-    height: 200,
-    position: "relative",
+  collage: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    height: CARD_WIDTH * 0.9,
   },
-  collectionImage: {
+  collageCell: {
+    width: "50%",
+    height: "50%",
+    padding: 1,
+  },
+  collageImage: {
     width: "100%",
     height: "100%",
   },
-  collectionImagePlaceholder: {
+  collagePlaceholder: {
     width: "100%",
     height: "100%",
-    backgroundColor: "#f0f0f0",
     justifyContent: "center",
     alignItems: "center",
   },
-  collectionGradient: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: "60%",
+  cardContent: {
+    padding: spacing.sm,
+    borderTopWidth: 1,
   },
-  collectionOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 12,
-  },
-  collectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  collectionUserInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  userAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: 6,
-  },
-  userAvatarPlaceholder: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 6,
-  },
-  collectionAuthor: {
-    fontSize: 12,
-    color: "#fff",
-    fontWeight: "600",
-    flex: 1,
-  },
-  deleteButton: {
-    padding: 4,
-  },
-  collectionFooter: {
-    marginTop: 4,
-  },
-  collectionTitle: {
-    fontSize: 16,
+  cardTitle: {
+    fontSize: 15,
     fontWeight: "700",
-    color: "#fff",
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
-  collectionDescription: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.8)",
-    marginBottom: 8,
-  },
-  collectionMeta: {
+  cardMeta: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  metaItem: {
+  cardMetaLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    flex: 1,
   },
-  metaText: {
+  avatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginRight: 6,
+  },
+  avatarPlaceholder: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginRight: 6,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  authorName: {
     fontSize: 12,
-    color: "#fff",
-    fontWeight: "600",
+    flex: 1,
   },
-  likeButton: {
+  likeBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    padding: 4,
   },
-  likeCount: {
+  likeCount: { fontSize: 12, fontWeight: "600" },
+  deleteBtn: {
+    position: "absolute",
+    top: spacing.xs,
+    right: spacing.xs,
+    padding: 4,
+    borderRadius: radius.xs,
+  },
+  empty: {
+    paddingVertical: spacing.xxl * 2,
+    alignItems: "center",
+  },
+  emptyIconWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: spacing.lg,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  emptySub: {
     fontSize: 14,
-    color: "#fff",
-    fontWeight: "700",
+    marginTop: spacing.xs,
   },
-  modalContainer: {
+  fab: {
+    position: "absolute",
+    bottom: spacing.xl + 16,
+    right: spacing.lg,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    ...shadows.lg,
+  },
+  modalOverlay: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    maxHeight: "85%",
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginTop: spacing.sm,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    padding: spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1A1A1A",
-  },
-  modalContent: {
-    flex: 1,
-    padding: 20,
-  },
+  modalTitle: { fontSize: 20, fontWeight: "700" },
+  modalScroll: { maxHeight: 400 },
+  modalContent: { padding: spacing.lg },
   label: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
-    color: "#333",
-    marginBottom: 8,
-    marginTop: 16,
+    marginBottom: spacing.xs,
+    marginTop: spacing.md,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#e0e0e0",
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: radius.md,
+    padding: spacing.md,
     fontSize: 16,
-    backgroundColor: "#fff",
   },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: "top",
-  },
-  spotPickerButton: {
+  textArea: { minHeight: 80, textAlignVertical: "top" },
+  spotPickerBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: "#6C5CE7",
-    borderRadius: 12,
-    padding: 14,
-    backgroundColor: "#f8f9ff",
   },
-  spotPickerText: {
-    fontSize: 16,
-    color: "#6C5CE7",
-    fontWeight: "600",
-  },
-  selectedSpots: {
+  spotPickerText: { fontSize: 16, fontWeight: "600" },
+  chips: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginTop: 12,
-    gap: 8,
+    marginTop: spacing.sm,
+    gap: spacing.sm,
   },
-  selectedSpotChip: {
+  chip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#e3f2fd",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 8,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    gap: spacing.xs,
   },
-  selectedSpotText: {
-    fontSize: 14,
-    color: "#6C5CE7",
-    fontWeight: "600",
-  },
-  removeSpotButton: {
-    padding: 2,
-  },
-  createCollectionButton: {
-    marginTop: 24,
-    marginBottom: 32,
-  },
-  spotList: {
-    padding: 20,
-  },
-  spotItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  spotItemImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    marginRight: 12,
-  },
-  spotItemInfo: {
-    flex: 1,
-  },
-  spotItemTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    marginBottom: 4,
-  },
-  spotItemCategory: {
-    fontSize: 13,
-    color: "#666",
-    textTransform: "capitalize",
-  },
-  fullCard: {
-    width: "100%",
-    height: 280,
-    borderRadius: 22,
-    overflow: "hidden",
-    marginBottom: 20,
-    backgroundColor: "#000",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  
-  fullCardImage: {
-    width: "100%",
-    height: "100%",
-  },
-  
-  fullCardGradient: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: "70%",
-  },
-  
-  fullCardTop: {
-    position: "absolute",
-    top: 16,
-    left: 16,
-    right: 16,
+  chipText: { flex: 1, fontSize: 13, maxWidth: 120 },
+  createBtn: { marginTop: spacing.xl },
+  pickerContainer: { flex: 1 },
+  pickerHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    padding: spacing.lg,
+    borderBottomWidth: 1,
   },
-  
-  authorRow: {
+  pickerTitle: { fontSize: 18, fontWeight: "700" },
+  pickerList: { padding: spacing.md },
+  pickerItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.4)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
+    borderWidth: 2,
   },
-  
-  authorAvatar: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    marginRight: 6,
+  pickerThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.sm,
+    marginRight: spacing.md,
   },
-  
-  authorAvatarPlaceholder: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 6,
-  },
-  
-  authorName: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#fff",
-    maxWidth: 140,
-  },
-  
-  fullCardBottom: {
-    position: "absolute",
-    bottom: 16,
-    left: 16,
-    right: 16,
-  },
-  
-  fullCardTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#fff",
-    marginBottom: 4,
-  },
-  
-  fullCardDesc: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.85)",
-    marginBottom: 10,
-  },
-  
-  fullMetaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  
-  metaLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  
-  metaText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 13,
-  },
-  
+  pickerInfo: { flex: 1 },
+  pickerItemTitle: { fontSize: 16, fontWeight: "700" },
+  pickerItemCat: { fontSize: 13, marginTop: 2 },
 });
-

@@ -22,6 +22,7 @@ import { useSpotVibes } from "../hooks/useSpotVibes";
 import { useMySpotVibes } from "../hooks/useMySpotVibes";
 import { useUpdateSpotVibes } from "../hooks/useUpdateSpotVibes";
 import { Modal, TextInput, Alert } from "react-native";
+import { VibeModal } from "../components/ui/VibeModal";
 import { useAuth } from "../hooks/useAuth";
 import { getSpotComments, createComment, deleteComment } from "../services/comments.service";
 import { saveSpot, unsaveSpot, isSpotSaved } from "../services/savedSpots.service";
@@ -75,7 +76,6 @@ export default function SpotDetailsScreen({ route, navigation }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [liked, setLiked] = useState(false);
   const [showMore, setShowMore] = useState(false);
-  const [selectedVibes, setSelectedVibes] = useState([]);
   const { user, isSuperAdmin } = useAuth();
 
   // Comments state
@@ -452,14 +452,14 @@ export default function SpotDetailsScreen({ route, navigation }) {
     }
   };
 
-  // Reset selectedVibes to user's existing vibes when modal opens
-  useEffect(() => {
-    if (vibeModalVisible) {
-      // Always reset to user's existing vibes when modal opens
-      const existingVibes = Array.isArray(myVibes) ? myVibes : [];
-      setSelectedVibes([...existingVibes]);
-    }
-  }, [vibeModalVisible]);
+  // Normalize myVibes to array of IDs (API returns [vibeId, ...])
+  const myVibeIds = React.useMemo(() => {
+    const raw = myVibes;
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw.map((v) => (typeof v === "object" && v?.id != null ? v.id : v)).filter(Boolean);
+    if (raw?.vibeIds && Array.isArray(raw.vibeIds)) return raw.vibeIds;
+    return [];
+  }, [myVibes]);
 
   const loadComments = async () => {
     setLoadingComments(true);
@@ -948,6 +948,25 @@ export default function SpotDetailsScreen({ route, navigation }) {
             </TouchableOpacity>
           </View>
 
+          {myVibeIds.length > 0 && (
+            <View style={styles.yourVibesRow}>
+              <Text style={[styles.yourVibesLabel, { color: theme.textMuted }]}>Your vibes</Text>
+              <View style={styles.yourVibesChips}>
+                {myVibeIds.map((vid) => {
+                  const vibe = allVibes.find((v) => v.id === vid) || spotVibes.find((v) => v.id === vid);
+                  if (!vibe) return null;
+                  const iconName = (vibe.icon || "heart").replace(/^Fa/, "").toLowerCase();
+                  return (
+                    <View key={vid} style={[styles.yourVibeChip, { backgroundColor: vibe.color }]}>
+                      <FontAwesome name={iconName} size={14} color="#fff" />
+                      <Text style={styles.yourVibeChipText}>{vibe.name}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
           {spotVibes.length === 0 ? (
             <View style={styles.emptyVibes}>
               <Text style={[styles.emptyTitle, { color: theme.text }]}>No vibes yet ✨</Text>
@@ -956,31 +975,30 @@ export default function SpotDetailsScreen({ route, navigation }) {
               </Text>
 
               <TouchableOpacity
-                style={[styles.emptyAction, { backgroundColor: theme.primary }]}
+                style={[styles.emptyAction, { backgroundColor: topVibe ? topVibe.color : theme.primary }]}
                 onPress={() => setVibeModalVisible(true)}
               >
-                <Text style={[styles.emptyActionText, { color: theme.text }]}>Add a vibe</Text>
+                <Text style={[styles.emptyActionText, { color: "#fff" }]}>Add a vibe</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.vibeGrid}>
               {spotVibes.map((vibe) => {
-                const iconName = vibe.icon;
-
+                const iconName = (vibe.icon || "heart").replace(/^Fa/, "").toLowerCase();
+                const isMyVibe = myVibeIds.includes(vibe.id);
                 return (
                   <View key={vibe.id} style={[styles.vibeCard, { backgroundColor: vibe.color }]}>
-                    <FontAwesome
-                      name={iconName}
-                      size={22}
-                      color={"#fff"}
-                    />
+                    <FontAwesome name={iconName} size={22} color="#fff" />
                     <Text style={[styles.vibeLabel, { color: "#fff" }]}>{vibe.name}</Text>
                     <Text style={[styles.vibeCount, { color: "#fff", fontWeight: "bold" }]}>{vibe.count}</Text>
+                    {isMyVibe && (
+                      <View style={styles.myVibeDot}>
+                        <Icon name="checkmark-circle" size={12} color="#fff" />
+                      </View>
+                    )}
                   </View>
-                )
-              }
-
-              )}
+                );
+              })}
             </View>
           )}
         </View>
@@ -1080,109 +1098,17 @@ export default function SpotDetailsScreen({ route, navigation }) {
 
       </ScrollView>
 
-      <Modal
+      <VibeModal
         visible={vibeModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setVibeModalVisible(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add your vibe</Text>
-              <TouchableOpacity onPress={() => setVibeModalVisible(false)}>
-                <Icon name="close" size={22} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView
-              style={{ flexGrow: 0 }}
-              contentContainerStyle={{ paddingBottom: 16 }}
-            >
-              <View style={styles.vibeGrid}>
-                {allVibes.map((vibe) => {
-                  const active = selectedVibes.includes(vibe.id);
-                  const isExistingVibe = myVibes && myVibes.includes(vibe.id);
-                  const iconName = vibe.icon.replace(/^Fa/, '').toLowerCase();
-
-                  const toggleVibe = () => {
-                    if (active) {
-                      setSelectedVibes(selectedVibes.filter((id) => id !== vibe.id));
-                    } else if (selectedVibes.length < 3) {
-                      setSelectedVibes([...selectedVibes, vibe.id]);
-                    }
-                  };
-
-                  return (
-                    <TouchableOpacity
-                      key={vibe.id}
-                      style={[
-                        styles.vibeCard,
-                        active && { backgroundColor: vibe.color },
-                        isExistingVibe && styles.existingVibeCard,
-                        isExistingVibe && !active && styles.existingVibeCardUnselected,
-                      ]}
-                      onPress={toggleVibe}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.vibeCardContent}>
-                        <FontAwesome
-                          name={iconName}
-                          size={22}
-                          color={active ? "#fff" : vibe.color}
-                        />
-                        <Text style={[
-                          styles.vibeLabel,
-                          active && { color: "#fff" },
-                          !active && { color: "#333" }
-                        ]}>
-                          {vibe.name}
-                        </Text>
-                        {isExistingVibe && active && (
-                          <View style={styles.existingBadge}>
-                            <Icon name="checkmark-circle" size={16} color="#fff" />
-                            <Text style={styles.existingBadgeText}>Your vibe</Text>
-                          </View>
-                        )}
-                        {isExistingVibe && !active && (
-                          <View style={styles.existingBadgeUnselected}>
-                            <Icon name="checkmark-circle" size={14} color="#FFD700" />
-                            <Text style={styles.existingBadgeTextUnselected}>Previously added</Text>
-                          </View>
-                        )}
-                      </View>
-                      {isExistingVibe && (
-                        <View style={[
-                          styles.existingIndicator,
-                          !active && styles.existingIndicatorUnselected
-                        ]} />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              <TouchableOpacity
-                style={{
-                  marginTop: 16,
-                  backgroundColor: "#ff9900",
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  alignItems: "center",
-                }}
-                onPress={() => {
-                  updateVibes.mutate(selectedVibes);
-                  setVibeModalVisible(false);
-                }}
-                disabled={selectedVibes.length === 0}
-              >
-                <Text style={{ fontWeight: "700", color: "#fff" }}>
-                  Continue ({selectedVibes.length}/3)
-                </Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setVibeModalVisible(false)}
+        allVibes={allVibes}
+        myVibes={myVibes}
+        onSave={(ids) => {
+          updateVibes.mutate(ids);
+          setVibeModalVisible(false);
+        }}
+        isSaving={updateVibes.isPending}
+      />
 
       {/* Add to Collection Modal */}
       <Modal
@@ -1806,6 +1732,40 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+
+  yourVibesRow: {
+    marginBottom: 12,
+  },
+  yourVibesLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  yourVibesChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  yourVibeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  yourVibeChipText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  myVibeDot: {
+    position: "absolute",
+    top: 4,
+    right: 4,
   },
 
   addVibeBtn: {

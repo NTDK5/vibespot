@@ -13,7 +13,7 @@ import { useSpotVibes } from "../hooks/useSpotVibes";
 import { LinearGradient } from "expo-linear-gradient";
 import { getStars } from "../utils/helpers";
 import { useTheme } from "../context/ThemeContext";
-
+import { radius, shadows } from "../theme/tokens";
 
 const { width } = Dimensions.get("window");
 const safeHex = (color, fallback = "#111111") => {
@@ -148,16 +148,15 @@ export const SpotCard = ({ spot, onPress }) => {
 
 const styles = StyleSheet.create({
   wrapper: {
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.35,
-    shadowRadius: 24,
-    elevation: 10,
+    ...shadows.lg,
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
   },
 
   spotCard: {
     width: width * 0.6,
     height: 240,
-    borderRadius: 18,
+    borderRadius: radius.lg,
     overflow: "hidden",
   },
 
@@ -175,7 +174,7 @@ const styles = StyleSheet.create({
     right: 16,
     backgroundColor: "rgba(0,0,0,0.45)",
     padding: 10,
-    borderRadius: 18,
+    borderRadius: radius.pill,
   },
 
   categoryPill: {

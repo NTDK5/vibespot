@@ -31,6 +31,7 @@ import { Platform } from 'react-native';
 import { useBadgeProgress } from "../hooks/useBadgeProgress";
 import { logger } from "../utils/logger";
 import { showToast } from "../utils/toastBus";
+import { XPBadgeCelebration } from "../components/ui/XPBadgeCelebration";
 const { width } = Dimensions.get("window");
 export const ProfileScreen = ({ navigation }) => {
   const { user, isSuperAdmin, logout } = useAuth();
@@ -79,13 +80,12 @@ export const ProfileScreen = ({ navigation }) => {
     }).start();
   }, [badgeProgress, progressAnim]);
   const [lastBadgeId, setLastBadgeId] = useState(null);
+  const [showBadgeCelebration, setShowBadgeCelebration] = useState(false);
 
-  // Show a toast-like alert when a new badge is unlocked
+  // Show XPBadgeCelebration when a new badge is unlocked
   useEffect(() => {
     if (progression?.newestBadge?.id && progression.newestBadge.id !== lastBadgeId) {
-      const name = progression.newestBadge.name || 'badge';
-      showToast(`Unlocked: ${name}`, { variant: "success" });
-
+      setShowBadgeCelebration(true);
       setLastBadgeId(progression.newestBadge.id);
     }
   }, [progression, lastBadgeId]);
@@ -685,6 +685,16 @@ export const ProfileScreen = ({ navigation }) => {
           />
         </View>
       </ScrollView>
+
+      <XPBadgeCelebration
+        visible={showBadgeCelebration}
+        onDismiss={() => setShowBadgeCelebration(false)}
+        type="badge"
+        badgeName={progression?.newestBadge?.name}
+        badgeIcon={progression?.newestBadge?.icon}
+        message={progression?.newestBadge?.description}
+        durationMs={2500}
+      />
 
       {/* Password Change Modal */}
       <Modal

@@ -407,24 +407,12 @@ export const HomeScreen = ({ navigation }) => {
               </Text> */}
               </View>
               <View style={styles.headerActions}>
-                <TouchableOpacity
-                  style={[styles.iconButton, { backgroundColor: theme.background }]}
-                  onPress={() => setShowSearch(true)}
-                >
-                  <Ionicons name="search-outline" size={22} color={theme.text} />
-                </TouchableOpacity>
+
                 <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surface }]}>
                   <Ionicons name="notifications-outline" size={22} color={theme.text} />
                   <View style={styles.notificationDot} />
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.iconButton, { backgroundColor: theme.surface }]}
-                  onPress={() => navigation.navigate("Profile")}
-                >
-                  <View style={styles.avatar}>
-                    <Ionicons name="person" size={18} color={theme.primary} />
-                  </View>
-                </TouchableOpacity>
+
               </View>
             </View>
 
@@ -462,7 +450,6 @@ export const HomeScreen = ({ navigation }) => {
         {/* STATS */}
 
 
-        {/* CATEGORIES */}
         {/* CATEGORIES */}
         <View style={[styles.section, { backgroundColor: theme.background }, { transform: [{ translateY: "20%" }] }]}>
           {/* Header */}
@@ -603,7 +590,7 @@ export const HomeScreen = ({ navigation }) => {
 
         {/* FOR YOUR VIBE - personalized recommendations */}
         {user && (
-          <View style={[styles.section, { transform: [{ translateY: "10%" }] }, { backgroundColor: theme.background }]}>
+          <View style={[styles.section, styles.forYourVibeSection, { backgroundColor: theme.background }]}>
             <View style={styles.sectionHeader}>
               <View>
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>For Your Vibe</Text>
@@ -618,16 +605,23 @@ export const HomeScreen = ({ navigation }) => {
               <FlatList
                 data={personalizedData.spots}
                 horizontal
-                renderItem={renderSpotCard}
+                renderItem={({ item }) => (
+                  <View style={styles.forYourVibeCardWrap}>
+                    <SpotCard
+                      spot={item}
+                      onPress={() => navigation.navigate("SpotDetail", { spotId: item.id })}
+                    />
+                  </View>
+                )}
                 keyExtractor={(spot) => spot.id}
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.spotsRow}
-                snapToInterval={width * 0.8 + 16}
+                contentContainerStyle={styles.forYourVibeList}
+                snapToInterval={width * 0.6 + 16}
                 decelerationRate="fast"
               />
             ) : (
-              <View style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
-                <Text style={{ color: theme.textMuted, fontSize: 13 }}>
+              <View style={styles.forYourVibeEmpty}>
+                <Text style={[styles.forYourVibeEmptyText, { color: theme.textMuted }]}>
                   No recommendations yet. Explore and react to a few spots to unlock personalized picks.
                 </Text>
               </View>
@@ -919,8 +913,10 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   greeting: {
-    fontSize: 28,
-    fontWeight: "800",
+    fontSize: 24,
+    lineHeight: 26,
+    fontWeight: "700",
+    letterSpacing: 1,
     // color: "#1A1A1A",
     marginTop: 4,
   },
@@ -1006,7 +1002,7 @@ const styles = StyleSheet.create({
   },
   sectionTitleSm: {
     fontSize: 22,
-    fontWeight: "900",
+    fontWeight: "600",
     letterSpacing: 0.2,
   },
   statsContainer: {
@@ -1041,7 +1037,7 @@ const styles = StyleSheet.create({
   },
   statNumber: {
     fontSize: 22,
-    fontWeight: "800",
+    fontWeight: "700",
     //color: "#1A1A1A",
   },
   statLabel: {
@@ -1078,7 +1074,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 22,
-    fontWeight: "800",
+    fontWeight: "700",
     // color: "#1A1A1A",
   },
   sectionSubtitle: {
@@ -1173,7 +1169,7 @@ const styles = StyleSheet.create({
   rankNumber: {
     color: "#1A1A1A",
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "600",
   },
   rankImage: {
     width: "100%",
@@ -1189,7 +1185,7 @@ const styles = StyleSheet.create({
   },
   rankTitle: {
     fontSize: 24,
-    fontWeight: "800",
+    fontWeight: "600",
     // color: "#fff",
     marginBottom: 12,
   },
@@ -1229,6 +1225,25 @@ const styles = StyleSheet.create({
   spotsRow: {
     paddingHorizontal: 20,
     gap: 16,
+  },
+  forYourVibeSection: {
+    marginTop: 24,
+  },
+  forYourVibeList: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  forYourVibeCardWrap: {
+    marginRight: 16,
+  },
+  forYourVibeEmpty: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  forYourVibeEmptyText: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
   },
   spotCard: {
     width: width * 0.8,
