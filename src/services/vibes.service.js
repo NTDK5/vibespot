@@ -1,12 +1,18 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../config/axios";
+import { ETHIOPIAN_VIBES } from "../data/vibes";
 
 /* ---------------------------
    Global Vibes
 ---------------------------- */
 export const getAllVibes = async () => {
-  const { data } = await api.get("/vibes");
-  return data;
+  try {
+    const { data } = await api.get("/vibes");
+    return data;
+  } catch {
+    // Fallback to local Ethiopian vibe seed data when offline
+    return ETHIOPIAN_VIBES;
+  }
 };
 
 /* ---------------------------

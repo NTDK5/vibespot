@@ -1,4 +1,5 @@
 import api from "../config/axios";
+import { ETHIOPIAN_SPOTS } from "../data/spots.ethiopia";
 
 // ----------------------------
 // Create Spot (text only)
@@ -49,7 +50,9 @@ export const getAllSpots = async () => {
     const response = await api.get("/spot");
     return response.data;
   } catch (err) {
-    return { error: "Failed to fetch spots" };
+    // Fallback to rich local Ethiopian seed data when offline
+    // or when the backend has no spots yet.
+    return ETHIOPIAN_SPOTS;
   }
 };
 
@@ -104,6 +107,8 @@ export const getSpotById = async (id) => {
     const response = await api.get(`/spot/${id}`);
     return response.data;
   } catch (err) {
+    const fallback = ETHIOPIAN_SPOTS.find((spot) => spot.id === id);
+    if (fallback) return fallback;
     return { error: "Spot not found" };
   }
 };

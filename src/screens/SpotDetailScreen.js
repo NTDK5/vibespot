@@ -33,6 +33,7 @@ import * as Location from 'expo-location';
 import { luminance, hexToRgb, mix, createVibeTheme } from '../utils/colors'
 import { useTheme } from "../context/ThemeContext";
 import { useColorScheme } from "react-native";
+import { useAppStore } from "../store/appStore";
 
 
 const { width } = Dimensions.get("window");
@@ -102,6 +103,9 @@ export default function SpotDetailsScreen({ route, navigation }) {
   const countdownIntervalRef = useRef(null);
   const locationWatchRef = useRef(null);
   const { location, refresh: refreshLocation } = useLocation();
+  const addRecentlyViewedSpot = useAppStore((s) => s.addRecentlyViewedSpot);
+  const visitedSpotIds = useAppStore((s) => s.visitedSpotIds);
+  const setVisitedSpotIds = useAppStore((s) => s.setVisitedSpotIds);
 
   const topVibe = spotVibes.length > 0
     ? spotVibes.reduce(
@@ -132,6 +136,9 @@ export default function SpotDetailsScreen({ route, navigation }) {
         setSpot(null);
       } else {
         setSpot(data);
+        if (data.id) {
+          addRecentlyViewedSpot(data.id);
+        }
       }
       setLoading(false);
     };
@@ -173,6 +180,9 @@ export default function SpotDetailsScreen({ route, navigation }) {
     if (!user) return;
     const visited = await isSpotVisited(spotId);
     setIsVisited(visited);
+    if (visited && !visitedSpotIds.includes(spotId)) {
+      setVisitedSpotIds([...visitedSpotIds, spotId]);
+    }
   };
 
   // Calculate distance between two coordinates (Haversine formula)
@@ -322,6 +332,9 @@ export default function SpotDetailsScreen({ route, navigation }) {
       const result = await markSpotAsVisited(spotId);
       if (!result.error) {
         setIsVisited(true);
+        if (!visitedSpotIds.includes(spotId)) {
+          setVisitedSpotIds([...visitedSpotIds, spotId]);
+        }
         Alert.alert("Success!", "Spot marked as visited! 🎉");
       } else {
         Alert.alert("Error", result.error);

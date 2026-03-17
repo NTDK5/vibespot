@@ -28,9 +28,10 @@ import { RankSpotCard } from "../components/RankSpotCard";
 import EditorsPickCarousel from "../components/EditorsPickCarousel";
 import { CATEGORIES } from "../utils/constants";
 import { useTheme } from "../context/ThemeContext";
-import { ImageBackground } from 'react-native';
+import { ImageBackground } from "react-native";
 import { usePersonalizedSpots } from "../hooks/usePersonalizedSpots";
 import { logger } from "../utils/logger";
+import { useAppStore } from "../store/appStore";
 
 const { width } = Dimensions.get("window");
 
@@ -50,6 +51,7 @@ const categories = CATEGORIES.map((cat, index) => {
 export const HomeScreen = ({ navigation }) => {
   const { user } = useAuth();
   const { theme } = useTheme();
+  const setVisitedSpotIds = useAppStore((s) => s.setVisitedSpotIds);
   const [spots, setSpots] = useState([]);
   const { location, loading: locationLoading } = useLocation();
   const [loading, setLoading] = useState(true);
@@ -110,8 +112,17 @@ export const HomeScreen = ({ navigation }) => {
         getVisitedSpots(),
       ]);
 
-      const savedCount = savedResult.error ? 0 : (Array.isArray(savedResult) ? savedResult.length : 0);
-      const visitedCount = visitedResult.error ? 0 : (Array.isArray(visitedResult) ? visitedResult.length : 0);
+      const savedCount = savedResult.error
+        ? 0
+        : Array.isArray(savedResult)
+        ? savedResult.length
+        : 0;
+      const visitedArray =
+        visitedResult.error || !Array.isArray(visitedResult)
+          ? []
+          : visitedResult;
+      const visitedCount = visitedArray.length;
+      const visitedIds = visitedArray.map((spot) => spot.id).filter(Boolean);
       const nearbyCount = nearbySpots.length;
 
       setStats({
@@ -119,6 +130,7 @@ export const HomeScreen = ({ navigation }) => {
         nearbyCount: nearbyCount,
         savedSpots: savedCount,
       });
+      setVisitedSpotIds(visitedIds);
     } catch (error) {
       logger.error({
         service: "home",
@@ -162,12 +174,11 @@ export const HomeScreen = ({ navigation }) => {
         ? await searchSpots({ category: selectedCategory })
         : await getAllSpots();
 
-      const spotsArray =
-        Array.isArray(response?.data)
-          ? response.data
-          : Array.isArray(response)
-            ? response
-            : [];
+      const spotsArray = Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response)
+        ? response
+        : [];
 
       setSpots(spotsArray);
       loadStats();
@@ -452,13 +463,7 @@ export const HomeScreen = ({ navigation }) => {
 
         {/* CATEGORIES */}
         <View style={[styles.section, { backgroundColor: theme.background }, { transform: [{ translateY: "20%" }] }]}>
-          {/* Header */}
-          <View style={[styles.sectionHeader, { backgroundColor: theme.background }]}>
-            <View>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>Explore</Text>
-              <Text style={[styles.sectionSubtitle, { color: theme.text }]}>Find spots by vibe</Text>
-            </View>
-          </View>
+0
 
           {/* Horizontal Rail */}
           <ScrollView

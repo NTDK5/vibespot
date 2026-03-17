@@ -70,14 +70,17 @@ export const ExploreScreen = ({ navigation }) => {
 
   /* ----------------------------------
      Render Spot Card
-  ----------------------------------- */
-  const renderSpot = ({ item }) => (
-    <NearbySpotCard
-      spot={item}
-      onPress={() =>
-        navigation.navigate('SpotDetail', { spotId: item.id })
-      }
-    />
+   ----------------------------------- */
+  const renderSpot = useCallback(
+    ({ item }) => (
+      <NearbySpotCard
+        spot={item}
+        onPress={() =>
+          navigation.navigate('SpotDetail', { spotId: item.id })
+        }
+      />
+    ),
+    [navigation]
   );
 
   return (
@@ -149,6 +152,11 @@ export const ExploreScreen = ({ navigation }) => {
         data={spots}
         renderItem={renderSpot}
         keyExtractor={(item) => item.id}
+        windowSize={5}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        removeClippedSubviews
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           !loading && (

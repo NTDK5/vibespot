@@ -9,6 +9,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSpotVibes } from "../hooks/useSpotVibes";
 import { useTheme } from "../context/ThemeContext";
+import Animated, { FadeInDown } from "react-native-reanimated";
 const safeHex = (color, fallback = "#1f1f1f") => {
   if (!color) return fallback;
   if (/^#([0-9A-F]{6})$/i.test(color)) return color;
@@ -40,18 +41,19 @@ export const NearbySpotCard = ({ spot, onPress }) => {
   const textColor = hasTopVibe ? "#fff" : theme.text;
   const mutedTextColor = hasTopVibe ? "rgba(255,255,255,0.85)" : theme.textMuted;
   return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={onPress}
-      style={[
-        styles.card,
-        {
-          backgroundColor: cardBackgroundColor,
-          borderColor: theme.border,
-          shadowColor: "#000",
-        },
-      ]}
-    >
+    <Animated.View entering={FadeInDown.springify().mass(0.8)}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={onPress}
+        style={[
+          styles.card,
+          {
+            backgroundColor: cardBackgroundColor,
+            borderColor: theme.border,
+            shadowColor: "#000",
+          },
+        ]}
+      >
       {/* IMAGE */}
       <View style={styles.imageWrap}>
         <Image
@@ -145,7 +147,8 @@ export const NearbySpotCard = ({ spot, onPress }) => {
           </View>
         </View>
       </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
 
