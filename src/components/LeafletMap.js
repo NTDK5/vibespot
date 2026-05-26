@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Asset } from 'expo-asset';
@@ -43,6 +43,27 @@ export const LeafletMap = ({
   const [mapReady, setMapReady] = useState(false);
   const [markerImageBase64, setMarkerImageBase64] = useState(null);
   const { isDark } = useTheme(); // Use 'isDark' property from useTheme
+
+  // ── Stable-mount snapshots ─────────────────────────────────────────
+  // The HTML we hand to WebView is interpolated from props. If those
+  // props are read fresh on every render, the html string differs each
+  // time → react-native-webview swaps `source.html` → the whole map
+  // page reloads (visible blinking + lost markers). We freeze the
+  // values that get baked into the HTML at first mount and use the
+  // imperative bridge (centerMap / setUserLocation / updateMarkers)
+  // for every subsequent change.
+  const initialLatRef             = useRef(latitude);
+  const initialLngRef             = useRef(longitude);
+  const initialInteractiveRef     = useRef(interactive);
+  const initialShowUserLocRef     = useRef(showUserLocation);
+  const initialUserLocationRef    = useRef(userLocation);
+  const initialTileStyleRef       = useRef(tileStyle);
+  const initialMarkersRef         = useRef(markers);
+  const initialPinTemplateRef     = useRef(pinTemplate);
+  // markerImageBase64 starts null and resolves asynchronously; the
+  // initial paint never has it, and `setMarkerImage` updates it later.
+  const initialMarkerImageRef     = useRef(null);
+  const hasPinTemplate            = useRef(typeof pinTemplate === 'function').current;
 
   // Load marker image and convert to base64 for WebView
   useEffect(() => {
@@ -97,11 +118,30 @@ export const LeafletMap = ({
   }, [markers, mapReady, markerImageBase64]);
 
   useEffect(() => {
-    if (mapReady && webViewRef.current && onLocationChange) {
-      // Center map on initial location
+    // Re-center imperatively so the HTML template (and thus the
+    // WebView page) doesn't need to be rebuilt when the host updates
+    // the center.
+    if (mapReady && webViewRef.current) {
       centerMap(latitude, longitude);
     }
   }, [latitude, longitude, mapReady]);
+
+  // Push user-location changes through the bridge — the initial HTML
+  // can't bake them in because useLocation() resolves asynchronously.
+  useEffect(() => {
+    if (!mapReady || !webViewRef.current) return;
+    if (!showUserLocation || !userLocation) return;
+    const lat = userLocation.latitude ?? userLocation.lat;
+    const lng = userLocation.longitude ?? userLocation.lng;
+    if (typeof lat !== 'number' || typeof lng !== 'number') return;
+    const script = `
+      if (window.setUserLocation) {
+        window.setUserLocation(${lat}, ${lng});
+      }
+      true;
+    `;
+    webViewRef.current.injectJavaScript(script);
+  }, [userLocation, showUserLocation, mapReady]);
 
   // Sync theme with WebView
   useEffect(() => {
@@ -117,9 +157,15 @@ export const LeafletMap = ({
   }, [isDark, mapReady]);
 
   const centerMap = (lat, lng) => {
+    // In FG mode the main marker is suppressed (not added to the
+    // map), so split the two side-effects: pan the view as long as
+    // the Leaflet map exists; only re-anchor the legacy main marker
+    // when it's actually present.
     const script = `
-      if (window.map && window.currentMarker) {
+      if (window.map) {
         window.map.setView([${lat}, ${lng}], 15);
+      }
+      if (window.currentMarker) {
         window.currentMarker.setLatLng([${lat}, ${lng}]);
       }
       true;
@@ -246,7 +292,11 @@ export const LeafletMap = ({
     }
   };
 
-  const leafletHTML = `
+  // Built ONCE at mount. All interpolations read from refs captured at
+  // first render so subsequent prop changes never alter the html
+  // string (which would trigger a full WebView reload).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const leafletHTML = useMemo(() => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -457,10 +507,13 @@ export const LeafletMap = ({
   <script>
     // Initialize map
     const map = L.map('map', {
-      zoomControl: true,
+      // Hide the built-in zoom buttons when the host owns the chrome
+      // (i.e. supplies a pinTemplate). They would otherwise overlap
+      // the Field Guide SearchBar in the top-left.
+      zoomControl: ${hasPinTemplate ? 'false' : 'true'},
       attributionControl: false,
-      ${!interactive ? 'dragging: false, touchZoom: false, doubleClickZoom: false, scrollWheelZoom: false, boxZoom: false, keyboard: false' : ''}
-    }).setView([${latitude}, ${longitude}], 15);
+      ${!initialInteractiveRef.current ? 'dragging: false, touchZoom: false, doubleClickZoom: false, scrollWheelZoom: false, boxZoom: false, keyboard: false' : ''}
+    }).setView([${initialLatRef.current}, ${initialLngRef.current}], 15);
     
     window.map = map;
     
@@ -476,9 +529,9 @@ export const LeafletMap = ({
     });
 
     // Field Guide tile preset injected from the RN host via the
-    // `tileStyle` prop. When provided, it takes precedence over the
+    // tileStyle prop. When provided, it takes precedence over the
     // theme-driven light/dark swap.
-    const tileStyleConfig = ${JSON.stringify(tileStyle || null)};
+    const tileStyleConfig = ${JSON.stringify(initialTileStyleRef.current || null)};
     let fieldGuideLayer = null;
     if (tileStyleConfig && tileStyleConfig.url) {
       fieldGuideLayer = L.tileLayer(tileStyleConfig.url, {
@@ -607,20 +660,20 @@ export const LeafletMap = ({
     // When the host supplies a pinTemplate it's signalling "I render
     // the pins myself" — suppress the legacy main marker + the
     // click-to-place handler so the Field Guide pins own the chrome.
-    const suppressMainMarker = ${pinTemplate ? 'true' : 'false'};
+    const suppressMainMarker = ${hasPinTemplate ? 'true' : 'false'};
 
-    // Add main marker (kept on `window` so legacy callers like
+    // Add main marker (kept on window so legacy callers like
     // centerMap() can address it; just not rendered on the map when
     // suppressed).
-    currentMarker = L.marker([${latitude}, ${longitude}], {
-      draggable: ${interactive},
+    currentMarker = L.marker([${initialLatRef.current}, ${initialLngRef.current}], {
+      draggable: ${initialInteractiveRef.current},
       icon: createMainMarker(),
     });
     if (!suppressMainMarker) {
       currentMarker.addTo(map);
     }
     
-    if (${interactive} && !suppressMainMarker) {
+    if (${initialInteractiveRef.current} && !suppressMainMarker) {
       currentMarker.on('dragend', function(e) {
         const pos = e.target.getLatLng();
         window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -633,7 +686,7 @@ export const LeafletMap = ({
     
     // Click to place marker (legacy AddSpot flow). Disabled when the
     // FG MapScreen owns pin rendering.
-    if (${interactive} && !suppressMainMarker) {
+    if (${initialInteractiveRef.current} && !suppressMainMarker) {
       map.on('click', function(e) {
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
@@ -733,21 +786,28 @@ export const LeafletMap = ({
       }));
     });
     
-    // Add user location if provided
-    ${userLocation && showUserLocation ? `window.setUserLocation(${userLocation.latitude}, ${userLocation.longitude});` : ''}
+    // Initial user-location stamp. Most of the time useLocation() is
+    // still resolving at first paint, so this comes in via the
+    // setUserLocation injectJavaScript path later.
+    ${(initialUserLocationRef.current && initialShowUserLocRef.current)
+      ? `window.setUserLocation(${initialUserLocationRef.current.latitude}, ${initialUserLocationRef.current.longitude});`
+      : ''}
     
-    // Add initial markers — prefer pinTemplate HTML when available so
-    // first paint already shows the Field Guide pin styling.
-    ${markers.map((marker, index) => {
+    // Initial markers — usually empty at first mount because the
+    // nearby spots fetch hasn't resolved yet. Later updates flow
+    // through window.clearMarkers + addHtmlMarker via the imperative
+    // updateMarkers() bridge.
+    ${initialMarkersRef.current.map((marker, index) => {
     const lat = marker.latitude || marker.lat;
     const lng = marker.longitude || marker.lng;
     const color = marker.color || '#667eea';
     const id = marker.id || index;
-    const imageUrl = markerImageBase64 || '';
+    const imageUrl = initialMarkerImageRef.current || '';
 
     let template = null;
-    if (typeof pinTemplate === 'function') {
-      try { template = pinTemplate(marker, index); } catch (e) { template = null; }
+    const tplFn = initialPinTemplateRef.current;
+    if (typeof tplFn === 'function') {
+      try { template = tplFn(marker, index); } catch (e) { template = null; }
     }
 
     if (template && template.html) {
@@ -772,7 +832,7 @@ export const LeafletMap = ({
   </script>
 </body>
 </html>
-  `;
+  `, []);
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }, { height }, style]}>

@@ -83,6 +83,7 @@ import {
   vibeForCategory,
   zeroPad,
 } from '../utils/spotHelpers';
+import { haversineKm } from '../utils/geo';
 
 /* ─────────────────────────────────────────────────────────────────── */
 /*  CONSTANTS                                                          */
@@ -258,8 +259,18 @@ export const MapScreen = ({ navigation }) => {
   /* ── data ───────────────────────────────────────────────────────── */
   const { location } = useLocation();
   const [spots, setSpots] = useState([]);
-  const [mapRegion, setMapRegion] = useState(null);
-  const [fetchCenter, setFetchCenter] = useState(null);
+
+  // `mapCenter` is the lat/lng we hand to LeafletMap. We deliberately
+  // do NOT update it on every `region_changed` — that would make
+  // MapScreen re-render with new lat/lng props on every pan, and the
+  // WebView page would be tempted to re-paint. Only initial-mount,
+  // surprise-me, and "center on me" flips touch this state.
+  const [mapCenter, setMapCenter] = useState(null);
+
+  // Refs for the rolling map position used by the "Search this area"
+  // heuristic. These don't need to drive re-renders.
+  const fetchCenterRef = useRef(null);    // {lat, lng} of the last spots fetch
+  const currentRegionRef = useRef(null);  // {lat, lng} from the most recent moveend
   const [regionMoved, setRegionMoved] = useState(false);
 
   /* ── chrome ─────────────────────────────────────────────────────── */
@@ -309,7 +320,7 @@ export const MapScreen = ({ navigation }) => {
       const data = await getNearbySpots(lat, lng, 5000);
       if (data && !data.error) {
         setSpots(Array.isArray(data) ? data : []);
-        setFetchCenter({ lat, lng });
+        fetchCenterRef.current = { lat, lng };
         setRegionMoved(false);
       } else if (data?.error) {
         logger.error('MapScreen.loadNearby returned error', data.error);
@@ -319,13 +330,14 @@ export const MapScreen = ({ navigation }) => {
     }
   }, []);
 
-  // initial center + load
+  // Initial center + load on first location resolve. Runs exactly
+  // once per session.
   useEffect(() => {
-    if (location && !mapRegion) {
-      setMapRegion({ latitude: location.latitude, longitude: location.longitude });
+    if (location && !mapCenter) {
+      setMapCenter({ latitude: location.latitude, longitude: location.longitude });
       loadNearby(location.latitude, location.longitude);
     }
-  }, [location, mapRegion, loadNearby]);
+  }, [location, mapCenter, loadNearby]);
 
   // hydrate saved-state for visible spots
   useEffect(() => {
@@ -359,25 +371,32 @@ export const MapScreen = ({ navigation }) => {
   /*  REGION CHANGES                                                  */
   /* ─────────────────────────────────────────────────────────────── */
 
+  // Region updates come in continuously while the user pans / zooms.
+  // We only touch state when the "Search this area" pill needs to
+  // appear; the lat/lng themselves stay in a ref so we don't force a
+  // MapScreen re-render (and therefore a LeafletMap re-render) on
+  // every gesture frame.
   const handleRegionChange = useCallback(({ lat, lng }) => {
-    setMapRegion({ latitude: lat, longitude: lng });
-
-    if (!fetchCenter) {
-      setRegionMoved(false);
-      return;
+    currentRegionRef.current = { lat, lng };
+    const fc = fetchCenterRef.current;
+    if (!fc) return;
+    const km = haversineKm(lat, lng, fc.lat, fc.lng);
+    if (km != null && km >= REGION_MOVED_KM) {
+      setRegionMoved((v) => (v ? v : true));
+    } else if (km != null && km < REGION_MOVED_KM * 0.5) {
+      // Allow the pill to retract once the user has panned back near
+      // the fetched center.
+      setRegionMoved((v) => (v ? false : v));
     }
-    const dMi = distanceMiles(
-      { lat, lng },
-      { lat: fetchCenter.lat, lng: fetchCenter.lng }
-    );
-    if (dMi != null && dMi * 1.609 >= REGION_MOVED_KM) {
-      setRegionMoved(true);
-    }
-  }, [fetchCenter]);
+  }, []);
 
   const onSearchThisArea = () => {
-    if (!mapRegion) return;
-    loadNearby(mapRegion.latitude, mapRegion.longitude);
+    const r = currentRegionRef.current;
+    if (r) {
+      loadNearby(r.lat, r.lng);
+    } else if (location) {
+      loadNearby(location.latitude, location.longitude);
+    }
   };
 
   const onCenterOnUser = () => {
@@ -385,7 +404,7 @@ export const MapScreen = ({ navigation }) => {
       toast?.show('Location unavailable.', { variant: 'warning' });
       return;
     }
-    setMapRegion({ latitude: location.latitude, longitude: location.longitude });
+    setMapCenter({ latitude: location.latitude, longitude: location.longitude });
   };
 
   /* ─────────────────────────────────────────────────────────────── */
@@ -417,14 +436,22 @@ export const MapScreen = ({ navigation }) => {
   /* ─────────────────────────────────────────────────────────────── */
 
   const markers = useMemo(() => {
+    // Spots can arrive shaped a few different ways depending on which
+    // endpoint produced them — accept lat/lng, latitude/longitude, or
+    // a nested location object before giving up on a spot.
+    const pickLat = (s) =>
+      s?.lat ?? s?.latitude ?? s?.location?.lat ?? s?.location?.latitude;
+    const pickLng = (s) =>
+      s?.lng ?? s?.longitude ?? s?.location?.lng ?? s?.location?.longitude;
+
     return visibleSpots
-      .filter((s) => Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng)))
       .map((s) => ({
         id: s.id,
-        lat: Number(s.lat),
-        lng: Number(s.lng),
+        lat: Number(pickLat(s)),
+        lng: Number(pickLng(s)),
         spot: s,
-      }));
+      }))
+      .filter((m) => Number.isFinite(m.lat) && Number.isFinite(m.lng));
   }, [visibleSpots]);
 
   const pinTemplate = useCallback((marker) => {
@@ -546,7 +573,7 @@ export const MapScreen = ({ navigation }) => {
 
       if (spot.lat && spot.lng) {
         setTimeout(() => {
-          setMapRegion({ latitude: Number(spot.lat), longitude: Number(spot.lng) });
+          setMapCenter({ latitude: Number(spot.lat), longitude: Number(spot.lng) });
         }, 500);
       }
 
@@ -628,8 +655,8 @@ export const MapScreen = ({ navigation }) => {
         {/* Layer 0 — the map engine */}
         <LeafletMap
           ref={mapRef}
-          latitude={mapRegion?.latitude ?? location?.latitude ?? 9.0080}
-          longitude={mapRegion?.longitude ?? location?.longitude ?? 38.7886}
+          latitude={mapCenter?.latitude ?? location?.latitude ?? 9.0080}
+          longitude={mapCenter?.longitude ?? location?.longitude ?? 38.7886}
           markers={markers}
           pinTemplate={pinTemplate}
           onMarkerPress={onMarkerPress}
