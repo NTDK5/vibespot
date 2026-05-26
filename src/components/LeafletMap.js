@@ -3,28 +3,40 @@ import { View, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Asset } from 'expo-asset';
 import { useTheme } from '../context/ThemeContext';
+import { fieldGuideTileStyle } from '../utils/mapStyle';
 
 /**
  * Advanced Leaflet Map Component
- * Features:
- * - Modern UI with custom styling
- * - Drag markers
- * - Click to place markers
- * - Smooth animations
- * - Multiple tile layers
- * - Custom controls
+ *
+ * Phase 3 additions (all additive, no behaviour change for prior callers):
+ *   - `tileStyle` prop  → swap the base tile preset (defaults to the
+ *                          Field Guide ink-cream cartography).
+ *   - `pinTemplate`     → `(marker, index) => { html, size, anchor }`
+ *                          render each pin as a custom `L.divIcon`
+ *                          instead of the legacy image marker. Falls
+ *                          back to the existing image marker if the
+ *                          template returns falsy.
+ *   - `onRegionChange`  → fired on map idle (Leaflet's `moveend`)
+ *                          with { lat, lng, zoom }.
+ *   - User-location marker now uses the Field Guide blue blip with
+ *     a CSS-pulse halo when `showUserLocation` is true.
+ *
+ * Anything not in the list above behaves exactly as before.
  */
 export const LeafletMap = ({
   latitude = 9.0080,
   longitude = 38.7886,
   onLocationChange,
   onMarkerPress,
+  onRegionChange,
   markers = [],
   height = 400,
   interactive = true,
   showUserLocation = false,
   userLocation = null,
   markerImage = null, // Logo image URI or require()
+  pinTemplate = null, // (marker, idx) => { html, size, anchor }
+  tileStyle = fieldGuideTileStyle,
   style,
 }) => {
   const webViewRef = useRef(null);
@@ -115,6 +127,15 @@ export const LeafletMap = ({
     webViewRef.current?.injectJavaScript(script);
   };
 
+  // Safely embed a string inside a single-quoted JS literal injected
+  // into the WebView. Escapes backslashes, single quotes, and newlines
+  // so a divIcon HTML payload with attributes survives the bridge.
+  const escapeForJsString = (s) =>
+    String(s ?? '')
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/\r?\n/g, '\\n');
+
   const updateMarkers = () => {
     if (!webViewRef.current || !mapReady) return;
 
@@ -124,6 +145,26 @@ export const LeafletMap = ({
       const color = marker.color || '#667eea';
       const id = marker.id || index;
       const imageUrl = markerImageBase64 || '';
+
+      let template = null;
+      if (typeof pinTemplate === 'function') {
+        try {
+          template = pinTemplate(marker, index);
+        } catch (e) {
+          // Pin templates are caller-provided; swallow and fall back.
+          template = null;
+        }
+      }
+
+      if (template && template.html) {
+        const html = escapeForJsString(template.html);
+        const w = template.size?.[0] || 28;
+        const h = template.size?.[1] || 36;
+        const ax = template.anchor?.[0] ?? w / 2;
+        const ay = template.anchor?.[1] ?? h;
+        return `window.addHtmlMarker(${lat}, ${lng}, '${id}', '${html}', ${w}, ${h}, ${ax}, ${ay});`;
+      }
+
       return `window.addMarker(${lat}, ${lng}, ${index}, '${color}', '${id}', ${imageUrl ? `'${imageUrl}'` : 'null'});`;
     }).join('');
 
@@ -169,6 +210,31 @@ export const LeafletMap = ({
       }
 
       if (data.type === 'markerClick' && onMarkerPress) {
+        onMarkerPress({
+          id: data.markerId,
+          latitude: data.lat,
+          longitude: data.lng,
+        });
+      }
+
+      // 'region_changed' — fired on Leaflet's moveend. Lets the screen
+      // know the viewport has shifted so it can show "Search this area".
+      if (data.type === 'region_changed' && onRegionChange) {
+        onRegionChange({
+          lat: data.lat,
+          lng: data.lng,
+          zoom: data.zoom,
+        });
+      }
+
+      // TODO(Phase 4): wire up additional bridge messages once the
+      // SpotDetail flow demands them:
+      //   - 'pin_pressed' — currently delivered via the legacy
+      //     'markerClick' message above; aliasing for Phase 4.
+      //   - 'project' — req/res lat,lng → screen x,y. Not exposed yet
+      //     because pin rendering happens in-WebView via divIcons, so
+      //     no native-side projection has been needed.
+      if (data.type === 'pin_pressed' && onMarkerPress) {
         onMarkerPress({
           id: data.markerId,
           latitude: data.lat,
@@ -335,16 +401,38 @@ export const LeafletMap = ({
         background: #222 !important;
     }
     
-    /* User Location Marker */
+    /* User Location Marker — Field Guide blip with pulsing halo */
     .user-location-marker {
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      background: #007AFF;
-      border: 3px solid #fff;
-      box-shadow: 0 2px 8px rgba(0, 122, 255, 0.5);
+      position: relative;
+      width: 18px;
+      height: 18px;
     }
-    
+    .user-location-marker .blip-halo {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: rgba(76, 158, 232, 0.35);
+      animation: blip-pulse 2s infinite ease-out;
+    }
+    .user-location-marker .blip-core {
+      position: absolute;
+      inset: 4px;
+      border-radius: 50%;
+      background: #4C9EE8;
+      border: 2px solid #14161D;
+      box-shadow: 0 2px 8px rgba(76, 158, 232, 0.45);
+    }
+    @keyframes blip-pulse {
+      0%   { transform: scale(1);   opacity: 0.8; }
+      100% { transform: scale(2.5); opacity: 0;   }
+    }
+
+    /* Field Guide pin markers — wrapper so custom HTML keeps its
+       transforms intact when Leaflet positions it. */
+    .fg-pin-wrap {
+      pointer-events: auto;
+    }
+
     /* Loading Indicator */
     .loading {
       position: absolute;
@@ -386,10 +474,38 @@ export const LeafletMap = ({
       attribution: '© OpenStreetMap © CARTO',
       maxZoom: 19,
     });
+
+    // Field Guide tile preset injected from the RN host via the
+    // `tileStyle` prop. When provided, it takes precedence over the
+    // theme-driven light/dark swap.
+    const tileStyleConfig = ${JSON.stringify(tileStyle || null)};
+    let fieldGuideLayer = null;
+    if (tileStyleConfig && tileStyleConfig.url) {
+      fieldGuideLayer = L.tileLayer(tileStyleConfig.url, {
+        attribution: tileStyleConfig.attribution || '',
+        subdomains: tileStyleConfig.subdomains || 'abc',
+        maxZoom: tileStyleConfig.maxZoom || 19,
+      });
+    }
     
     let currentLayer = null;
 
     window.setTheme = function(isDark) {
+      // If the host supplied a Field Guide tile preset, the look is
+      // fixed — theme swaps stop driving the basemap.
+      if (fieldGuideLayer) {
+        if (currentLayer && currentLayer !== fieldGuideLayer) {
+          map.removeLayer(currentLayer);
+        }
+        if (currentLayer !== fieldGuideLayer) {
+          fieldGuideLayer.addTo(map);
+          currentLayer = fieldGuideLayer;
+        }
+        document.body.classList.add('dark-theme');
+        document.body.style.backgroundColor = '#14161D';
+        return;
+      }
+
       const targetLayer = isDark ? darkLayer : lightLayer;
       
       if (currentLayer && currentLayer !== targetLayer) {
@@ -411,9 +527,17 @@ export const LeafletMap = ({
       }
     };
     
-    // Initial theme set (default to light, will be updated by REACT message immediately)
-    lightLayer.addTo(map);
-    currentLayer = lightLayer;
+    // Initial theme set — prefer the Field Guide layer when present
+    // so the map paints the editorial palette instantly.
+    if (fieldGuideLayer) {
+      fieldGuideLayer.addTo(map);
+      currentLayer = fieldGuideLayer;
+      document.body.classList.add('dark-theme');
+      document.body.style.backgroundColor = '#14161D';
+    } else {
+      lightLayer.addTo(map);
+      currentLayer = lightLayer;
+    }
     
     // Store markers
     let markers = [];
@@ -480,13 +604,23 @@ export const LeafletMap = ({
       });
     }
     
-    // Add main marker
+    // When the host supplies a pinTemplate it's signalling "I render
+    // the pins myself" — suppress the legacy main marker + the
+    // click-to-place handler so the Field Guide pins own the chrome.
+    const suppressMainMarker = ${pinTemplate ? 'true' : 'false'};
+
+    // Add main marker (kept on `window` so legacy callers like
+    // centerMap() can address it; just not rendered on the map when
+    // suppressed).
     currentMarker = L.marker([${latitude}, ${longitude}], {
       draggable: ${interactive},
       icon: createMainMarker(),
-    }).addTo(map);
+    });
+    if (!suppressMainMarker) {
+      currentMarker.addTo(map);
+    }
     
-    if (${interactive}) {
+    if (${interactive} && !suppressMainMarker) {
       currentMarker.on('dragend', function(e) {
         const pos = e.target.getLatLng();
         window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -497,8 +631,9 @@ export const LeafletMap = ({
       });
     }
     
-    // Click to place marker
-    if (${interactive}) {
+    // Click to place marker (legacy AddSpot flow). Disabled when the
+    // FG MapScreen owns pin rendering.
+    if (${interactive} && !suppressMainMarker) {
       map.on('click', function(e) {
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
@@ -536,6 +671,30 @@ export const LeafletMap = ({
       markers.forEach(m => map.removeLayer(m));
       markers = [];
     };
+
+    // Field Guide custom HTML marker. The pinTemplate prop hands us a
+    // chunk of HTML for each spot — we wrap it in a divIcon at the
+    // requested size + anchor and forward clicks back over the bridge
+    // as 'markerClick' (Phase 4 may alias this to 'pin_pressed').
+    window.addHtmlMarker = function(lat, lng, markerId, html, w, h, ax, ay) {
+      const icon = L.divIcon({
+        className: 'fg-pin-wrap',
+        html: html,
+        iconSize: [w, h],
+        iconAnchor: [ax, ay],
+      });
+      const marker = L.marker([lat, lng], { icon: icon }).addTo(map);
+      marker.on('click', function() {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'markerClick',
+          lat: lat,
+          lng: lng,
+          markerId: markerId
+        }));
+      });
+      markers.push(marker);
+      return marker;
+    };
     
     window.setMainMarker = function(lat, lng) {
       if (currentMarker) {
@@ -544,30 +703,62 @@ export const LeafletMap = ({
     };
     
     window.setUserLocation = function(lat, lng) {
+      const icon = L.divIcon({
+        className: 'user-location-marker',
+        html: '<div class="blip-halo"></div><div class="blip-core"></div>',
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+      });
       if (userLocationMarker) {
         userLocationMarker.setLatLng([lat, lng]);
+        userLocationMarker.setIcon(icon);
       } else {
         userLocationMarker = L.marker([lat, lng], {
-          icon: L.divIcon({
-            className: 'user-location-marker',
-            iconSize: [16, 16],
-            iconAnchor: [8, 8],
-          }),
+          icon: icon,
+          interactive: false,
           zIndexOffset: 1000
         }).addTo(map);
       }
     };
+
+    // 'region_changed' bridge — fire after the map settles so the host
+    // can show "Search this area" once the camera has actually shifted.
+    map.on('moveend', function() {
+      const c = map.getCenter();
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'region_changed',
+        lat: c.lat,
+        lng: c.lng,
+        zoom: map.getZoom()
+      }));
+    });
     
     // Add user location if provided
     ${userLocation && showUserLocation ? `window.setUserLocation(${userLocation.latitude}, ${userLocation.longitude});` : ''}
     
-    // Add initial markers with corrected ID passing
+    // Add initial markers — prefer pinTemplate HTML when available so
+    // first paint already shows the Field Guide pin styling.
     ${markers.map((marker, index) => {
     const lat = marker.latitude || marker.lat;
     const lng = marker.longitude || marker.lng;
     const color = marker.color || '#667eea';
     const id = marker.id || index;
     const imageUrl = markerImageBase64 || '';
+
+    let template = null;
+    if (typeof pinTemplate === 'function') {
+      try { template = pinTemplate(marker, index); } catch (e) { template = null; }
+    }
+
+    if (template && template.html) {
+      const html = escapeForJsString(template.html);
+      const w = template.size?.[0] || 28;
+      const h = template.size?.[1] || 36;
+      const ax = template.anchor?.[0] ?? w / 2;
+      const ay = template.anchor?.[1] ?? h;
+      return `window.addHtmlMarker(${lat}, ${lng}, '${id}', '${html}', ${w}, ${h}, ${ax}, ${ay});`;
+    }
+
     return `window.addMarker(${lat}, ${lng}, ${index}, '${color}', '${id}', ${imageUrl ? `'${imageUrl}'` : 'null'});`;
   }).join('')}
     

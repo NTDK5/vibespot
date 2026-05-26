@@ -23,6 +23,7 @@ export { default as TopBar } from './chrome/TopBar';
 export { default as SectionHead } from './chrome/SectionHead';
 export { default as Pill, PillRow } from './chrome/Pill';
 export { default as Segmented } from './chrome/Segmented';
+export { default as IconSquare } from './chrome/IconSquare';
 
 // form
 export { default as EditorialButton } from './form/EditorialButton';
@@ -57,6 +58,7 @@ export {
   DEFAULT_FILTERS,
   filtersEqual,
 } from './sheets/FilterSheet';
+export { default as MapStylePopover } from './sheets/MapStylePopover';
 
 import MonoMeta from './primitives/MonoMeta';
 import DisplayTitle from './primitives/DisplayTitle';
@@ -67,6 +69,7 @@ import TopBar from './chrome/TopBar';
 import SectionHead from './chrome/SectionHead';
 import Pill, { PillRow } from './chrome/Pill';
 import Segmented from './chrome/Segmented';
+import IconSquare from './chrome/IconSquare';
 import EditorialButton from './form/EditorialButton';
 import FloatingLabelInput from './form/FloatingLabelInput';
 import SearchBar from './form/SearchBar';
@@ -87,6 +90,7 @@ import OfflineBanner from './state/OfflineBanner';
 import ErrorScreen from './state/ErrorScreen';
 import SuccessSheet from './state/SuccessSheet';
 import FilterSheet from './sheets/FilterSheet';
+import MapStylePopover from './sheets/MapStylePopover';
 
 export const FG = Object.freeze({
   MonoMeta,
@@ -119,6 +123,8 @@ export const FG = Object.freeze({
   ErrorScreen,
   SuccessSheet,
   FilterSheet,
+  MapStylePopover,
+  IconSquare,
 });
 
 export default FG;
