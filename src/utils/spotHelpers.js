@@ -108,6 +108,83 @@ export function indexForSpot(spot, fallbackIndex = 0) {
   return zeroPad(fallbackIndex + 1);
 }
 
+/**
+ * Index number formatter that prefers an explicit `spot.indexNumber`
+ * (some endpoints expose one) and otherwise reuses indexForSpot's
+ * digit-extraction logic. No fallback to the list index — caller can
+ * pass a list index via `indexForSpot` directly when needed.
+ */
+export function indexNumberFor(spot) {
+  if (spot?.indexNumber != null) {
+    return zeroPad(spot.indexNumber);
+  }
+  return indexForSpot(spot, 0);
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+/*  TITLE / NAME HELPERS                                               */
+/* ─────────────────────────────────────────────────────────────────── */
+
+/**
+ * splitTitle — for the Spot Detail / Photo Viewer kicker. Returns the
+ * title broken into two lines (last word on its own) when the input is
+ * a multi-word string longer than `maxLineLen`. Single-word or short
+ * titles render on one line ({ line2: null }).
+ */
+export function splitTitle(title, maxLineLen = 12) {
+  if (!title || typeof title !== 'string') {
+    return { line1: String(title || ''), line2: null };
+  }
+  const t = title.trim();
+  if (t.length <= maxLineLen || !t.includes(' ')) {
+    return { line1: t, line2: null };
+  }
+  const last = t.lastIndexOf(' ');
+  return { line1: t.slice(0, last), line2: t.slice(last + 1) };
+}
+
+/**
+ * Single uppercase initial for an avatar tile, "?" when name is empty.
+ */
+export function initialFor(name) {
+  if (!name || typeof name !== 'string') return '?';
+  const ch = name.trim().charAt(0).toUpperCase();
+  return ch || '?';
+}
+
+/**
+ * Deterministic palette pick for an avatar tile. Returns a Field
+ * Guide accent key — caller looks the colour up in `fieldGuide.{key}`.
+ */
+const AVATAR_HUES = ['emberSoft', 'moss', 'gold', 'rose'];
+export function avatarHueFor(seed) {
+  const s = String(seed || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return AVATAR_HUES[h % AVATAR_HUES.length];
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+/*  WALKING ESTIMATE                                                   */
+/* ─────────────────────────────────────────────────────────────────── */
+
+/**
+ * walkMinutes — integer minute estimate for a meter-distance value
+ * using a slow-city pace (default 5 km/h). Returns null when the
+ * input cannot be coerced to a positive number.
+ *
+ * Mirrors `walkingMinutes` from utils/geo (km input) but operates in
+ * meters so callers handling raw distance fields can drop in.
+ */
+export function walkMinutes(distanceMeters, kmh = 5) {
+  if (typeof distanceMeters !== 'number' || !Number.isFinite(distanceMeters)) {
+    return null;
+  }
+  if (distanceMeters <= 0) return null;
+  const km = distanceMeters / 1000;
+  return Math.max(1, Math.round((km / kmh) * 60));
+}
+
 /* ─────────────────────────────────────────────────────────────────── */
 /*  DISTANCE                                                           */
 /* ─────────────────────────────────────────────────────────────────── */

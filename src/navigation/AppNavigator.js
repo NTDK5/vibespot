@@ -28,6 +28,7 @@ import { CollectionDetailScreen } from '../screens/CollectionDetailScreen';
 import { CreateCollectionScreen } from '../screens/CreateCollectionScreen';
 import { ReviewsScreen } from '../screens/ReviewsScreen';
 import { WriteReviewScreen } from '../screens/WriteReviewScreen';
+import { PhotoViewerScreen } from '../screens/PhotoViewerScreen';
 
 import fieldGuide from '../theme/fieldGuide';
 import FieldGuideTabBar from './FieldGuideTabBar';
@@ -150,6 +151,15 @@ export const AppNavigator = () => {
               name="WriteReview"
               component={WriteReviewScreen}
               options={{ presentation: 'modal' }}
+            />
+            <Stack.Screen
+              name="PhotoViewer"
+              component={PhotoViewerScreen}
+              options={{
+                presentation: 'transparentModal',
+                animation: 'fade',
+                headerShown: false,
+              }}
             />
             {/* Reachable when authed but the backend says the email is
                 still unverified — register() stashes pendingVerificationEmail
