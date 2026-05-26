@@ -1,842 +1,508 @@
 /**
- * Collections Screen - Bento Grid Architecture
- * Editorial mood-board layout with 2x2 cover collages
+ * CollectionsScreen — Phase 4 / design 10 (Field Guide rewrite).
+ *
+ * Three tabs share the same masthead:
+ *   0  Collections   — list of mosaic cover cards
+ *   1  All spots     — saved-spot library (2-col grid)
+ *   2  Visited       — visited-spot history (2-col grid)
+ *
+ * Data flow:
+ *   - useQuery wraps `getUserCollections(user.id)`. If the per-user
+ *     endpoint returns an empty payload, fall back to
+ *     `getAllCollections({ userId: user.id })`.
+ *   - Saved / Visited lists are lazy-loaded the first time the user
+ *     visits each tab and cached on the component instance.
+ *   - Pull-to-refresh invalidates whatever the current tab needs.
+ *
+ * Constraints:
+ *   - Only fieldguide primitives for chrome / typography / cards.
+ *   - All errors funnelled through `logger.error`.
+ *   - Long-press / kebab → CollectionMenuSheet → CreateCollection in
+ *     edit mode, or destructive delete with a confirm.
  */
-import React, { useState, useEffect } from "react";
+
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
   ActivityIndicator,
-  RefreshControl,
-  Alert,
-  Modal,
-  TextInput,
-  ScrollView,
   FlatList,
-  Dimensions,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+
 import {
+  DisplayTitle,
+  EditorialButton,
+  EmptyState,
+  MonoMeta,
+  Segmented,
+  CollectionCard,
+  CollectionMenuSheet,
+  SpotPhoto,
+} from '../components/fieldguide';
+import fieldGuide from '../theme/fieldGuide';
+import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../components/ToastProvider';
+import { logger } from '../utils/logger';
+import {
+  getUserCollections,
   getAllCollections,
-  createCollection,
   deleteCollection,
-  likeCollection,
-} from "../services/collections.service";
-import { getAllSpots } from "../services/spots.service";
-import { useAuth } from "../hooks/useAuth";
-import { Button } from "../components/Button";
-import { useTheme } from "../context/ThemeContext";
-import { spacing, radius, shadows } from "../theme/tokens";
+} from '../services/collections.service';
+import { getSavedSpots } from '../services/savedSpots.service';
+import { getVisitedSpots } from '../services/visitedSpots.service';
+import {
+  indexForSpot,
+  prettyCategory,
+  vibeForCategory,
+  zeroPad,
+} from '../utils/spotHelpers';
 
-const { width } = Dimensions.get("window");
-const CARD_GAP = 12;
-const CARD_WIDTH = (width - spacing.md * 2 - CARD_GAP) / 2;
+/* ─────────────────────────────────────────────────────────────────── */
+/*  HELPERS                                                            */
+/* ─────────────────────────────────────────────────────────────────── */
 
-const getCoverImages = (item) => {
-  const cover = item.coverImage;
-  const spots = item.spots || [];
-  const fromSpots = spots
-    .slice(0, 4)
-    .map((s) => s?.spot?.images?.[0] || s?.spot?.thumbnail)
-    .filter(Boolean);
-  const urls = cover ? [cover, ...fromSpots] : fromSpots;
-  while (urls.length < 4) urls.push(null);
-  return urls.slice(0, 4);
-};
+const TABS = ['Collections', 'All spots', 'Visited'];
+
+function safeArray(maybe) {
+  if (Array.isArray(maybe)) return maybe;
+  if (Array.isArray(maybe?.items)) return maybe.items;
+  if (Array.isArray(maybe?.data)) return maybe.data;
+  return [];
+}
+
+function unwrapSavedRow(row) {
+  // savedSpots endpoint sometimes returns join rows shaped { spot: {...} }.
+  return row?.spot && row?.spot?.id ? row.spot : row;
+}
+
+function totalSpotCount(collections) {
+  return collections.reduce((n, c) => {
+    if (typeof c?.spotCount === 'number') return n + c.spotCount;
+    if (Array.isArray(c?.spots)) return n + c.spots.length;
+    return n;
+  }, 0);
+}
+
+async function fetchCollections(userId) {
+  // Try per-user first; fall back to /collections?userId= if empty/error.
+  const primary = await getUserCollections(userId);
+  const fromPrimary = safeArray(primary);
+  if (!primary?.error && fromPrimary.length) return fromPrimary;
+
+  const fallback = await getAllCollections({ userId, sortBy: 'recent', limit: 50 });
+  if (fallback?.error) {
+    // Surface the most specific error we have so the UI can react.
+    const err = new Error(primary?.error || fallback.error);
+    throw err;
+  }
+  return safeArray(fallback);
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+/*  COMPACT GRID CARD (used by All spots / Visited tabs)                */
+/* ─────────────────────────────────────────────────────────────────── */
+
+function SpotGridCard({ spot, fallbackIndex, onPress }) {
+  const idxLabel = `NO. ${zeroPad(indexForSpot(spot) ?? fallbackIndex, 3)}`;
+  const vibe = vibeForCategory(spot?.category);
+  const district = spot?.district || spot?.city;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={spot?.title || 'Spot'}
+      style={({ pressed }) => [
+        styles.gridCard,
+        { opacity: pressed ? 0.92 : 1 },
+      ]}
+    >
+      <SpotPhoto
+        vibe={vibe}
+        image={spot?.thumbnail ? { uri: spot.thumbnail } : undefined}
+        aspect="3/4"
+        index={idxLabel}
+      />
+      <Text style={styles.gridTitle} numberOfLines={2}>
+        {spot?.title || 'Untitled'}
+      </Text>
+      <MonoMeta size="spot" style={styles.gridMeta}>
+        {[prettyCategory(spot?.category), district].filter(Boolean).join('  ·  ')}
+      </MonoMeta>
+    </Pressable>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+/*  SCREEN                                                             */
+/* ─────────────────────────────────────────────────────────────────── */
 
 export const CollectionsScreen = ({ navigation }) => {
   const { user } = useAuth();
-  const { theme } = useTheme();
-  const [collections, setCollections] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const userId = user?.id;
+
+  const [tab, setTab] = useState(0);
+  const [menuFor, setMenuFor] = useState(null);
+
+  /* ── COLLECTIONS query ───────────────────────────────────────────── */
+  const collectionsQuery = useQuery({
+    queryKey: ['user-collections', userId],
+    queryFn: () => fetchCollections(userId),
+    enabled: !!userId,
+    staleTime: 30_000,
+  });
+
+  const collections = useMemo(
+    () => safeArray(collectionsQuery.data),
+    [collectionsQuery.data],
+  );
+
+  /* ── SAVED + VISITED (lazy) ──────────────────────────────────────── */
+  const [savedSpots, setSavedSpots] = useState(null);
+  const [visitedSpots, setVisitedSpots] = useState(null);
+  const [savedLoading, setSavedLoading] = useState(false);
+  const [visitedLoading, setVisitedLoading] = useState(false);
+
+  const loadSaved = useCallback(async () => {
+    setSavedLoading(true);
+    try {
+      const data = await getSavedSpots();
+      if (data?.error) {
+        logger.error('CollectionsScreen.getSavedSpots', data.error);
+        setSavedSpots([]);
+      } else {
+        setSavedSpots(safeArray(data).map(unwrapSavedRow).filter(Boolean));
+      }
+    } catch (err) {
+      logger.error('CollectionsScreen.getSavedSpots', err);
+      setSavedSpots([]);
+    } finally {
+      setSavedLoading(false);
+    }
+  }, []);
+
+  const loadVisited = useCallback(async () => {
+    setVisitedLoading(true);
+    try {
+      const data = await getVisitedSpots();
+      if (data?.error) {
+        logger.error('CollectionsScreen.getVisitedSpots', data.error);
+        setVisitedSpots([]);
+      } else {
+        setVisitedSpots(safeArray(data).map(unwrapSavedRow).filter(Boolean));
+      }
+    } catch (err) {
+      logger.error('CollectionsScreen.getVisitedSpots', err);
+      setVisitedSpots([]);
+    } finally {
+      setVisitedLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === 1 && savedSpots == null && !savedLoading) loadSaved();
+    if (tab === 2 && visitedSpots == null && !visitedLoading) loadVisited();
+  }, [tab, savedSpots, visitedSpots, savedLoading, visitedLoading, loadSaved, loadVisited]);
+
+  /* ── refresh when screen regains focus ───────────────────────────── */
+  useFocusEffect(
+    useCallback(() => {
+      // Refetch collections lightly so a new pocket created on a sibling
+      // screen shows up without a manual pull.
+      queryClient.invalidateQueries({ queryKey: ['user-collections', userId] });
+    }, [queryClient, userId]),
+  );
+
+  /* ── pull-to-refresh ─────────────────────────────────────────────── */
   const [refreshing, setRefreshing] = useState(false);
-  const [sortBy, setSortBy] = useState("popular");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filteredCollections, setFilteredCollections] = useState([]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [selectedSpots, setSelectedSpots] = useState([]);
-  const [availableSpots, setAvailableSpots] = useState([]);
-  const [showSpotPicker, setShowSpotPicker] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      if (tab === 0) {
+        await collectionsQuery.refetch();
+      } else if (tab === 1) {
+        await loadSaved();
+      } else if (tab === 2) {
+        await loadVisited();
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, [tab, collectionsQuery, loadSaved, loadVisited]);
 
-  useEffect(() => {
-    loadCollections();
-  }, [sortBy]);
+  /* ── header counts ───────────────────────────────────────────────── */
+  const totalSaved = useMemo(() => {
+    const c = totalSpotCount(collections);
+    if (c > 0) return c;
+    return Array.isArray(savedSpots) ? savedSpots.length : 0;
+  }, [collections, savedSpots]);
 
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredCollections(collections);
-    } else {
-      const q = searchQuery.toLowerCase();
-      setFilteredCollections(
-        collections.filter(
-          (c) =>
-            c.title?.toLowerCase().includes(q) ||
-            c.description?.toLowerCase().includes(q)
-        )
+  const headerSub = `${collections.length} COLLECTION${
+    collections.length === 1 ? '' : 'S'
+  } · ${totalSaved} SPOT${totalSaved === 1 ? '' : 'S'} IN YOUR POCKET`;
+
+  /* ── menu actions ────────────────────────────────────────────────── */
+  const openMenu = (collection) => setMenuFor(collection);
+  const closeMenu = () => setMenuFor(null);
+
+  const handleEdit = (id) => {
+    navigation.navigate('CreateCollection', { id, mode: 'edit' });
+  };
+
+  const handleShare = () => {
+    toast.show('Sharing collections is coming soon.', { variant: 'info' });
+  };
+
+  const handleDelete = async (id) => {
+    // Optimistic removal — pop from cache, roll back on error.
+    const snapshot = collections;
+    queryClient.setQueryData(
+      ['user-collections', userId],
+      snapshot.filter((c) => c?.id !== id),
+    );
+    try {
+      const result = await deleteCollection(id);
+      if (result?.error) throw new Error(result.error);
+      toast.show('Collection deleted.', { variant: 'success' });
+    } catch (err) {
+      logger.error('CollectionsScreen.deleteCollection', err);
+      queryClient.setQueryData(['user-collections', userId], snapshot);
+      toast.show('Could not delete the collection.', { variant: 'error' });
+    }
+  };
+
+  /* ── render helpers ──────────────────────────────────────────────── */
+  const renderCollections = () => {
+    if (collectionsQuery.isLoading && collections.length === 0) {
+      return (
+        <View style={styles.loadingPad}>
+          <ActivityIndicator color={fieldGuide.ember} />
+        </View>
       );
     }
-  }, [searchQuery, collections]);
-
-  const loadCollections = async () => {
-    try {
-      const data = await getAllCollections({
-        isPublic: true,
-        sortBy,
-        limit: 50,
-      });
-      if (!data.error) {
-        const arr = Array.isArray(data) ? data : [];
-        setCollections(arr);
-        setFilteredCollections(arr);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
+    if (!collections.length) {
+      return (
+        <View style={styles.emptyPad}>
+          <EmptyState
+            title="No pockets yet."
+            italic="yet."
+            body="A collection holds a few spots that belong together — rainy-day cafés, places you save for visitors, the quiet ones for working."
+            cta={{
+              label: 'Start one',
+              onPress: () => navigation.navigate('CreateCollection'),
+            }}
+          />
+        </View>
+      );
     }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadCollections();
-    setRefreshing(false);
-  };
-
-  const handleLike = async (collectionId, currentLiked) => {
-    try {
-      const result = await likeCollection(collectionId);
-      if (!result.error) {
-        const update = (prev) =>
-          prev.map((col) =>
-            col.id === collectionId
-              ? { ...col, isLiked: result.liked, likeCount: result.likeCount }
-              : col
-          );
-        setCollections(update);
-        setFilteredCollections(update);
-      }
-    } catch (e) {
-      Alert.alert("Error", "Failed to like collection");
-    }
-  };
-
-  const handleDelete = async (collectionId) => {
-    Alert.alert("Delete Collection", "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          const res = await deleteCollection(collectionId);
-          if (!res.error) loadCollections();
-          else Alert.alert("Error", res.error);
-        },
-      },
-    ]);
-  };
-
-  const handleCreate = async () => {
-    if (!title.trim()) {
-      Alert.alert("Error", "Please enter a title");
-      return;
-    }
-    setCreating(true);
-    try {
-      const result = await createCollection({
-        title: title.trim(),
-        description: description.trim() || null,
-        spotIds: selectedSpots.map((s) => s.id),
-        isPublic: true,
-      });
-      if (!result.error) {
-        setShowCreateModal(false);
-        setTitle("");
-        setDescription("");
-        setSelectedSpots([]);
-        loadCollections();
-        Alert.alert("Success", "Collection created!");
-      } else Alert.alert("Error", result.error);
-    } catch (e) {
-      Alert.alert("Error", "Failed to create collection");
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const loadAvailableSpots = async () => {
-    try {
-      const spots = await getAllSpots();
-      if (!spots.error) setAvailableSpots(Array.isArray(spots) ? spots : []);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const toggleSpotSelection = (spot) => {
-    setSelectedSpots((prev) =>
-      prev.some((s) => s.id === spot.id)
-        ? prev.filter((s) => s.id !== spot.id)
-        : [...prev, spot]
-    );
-  };
-
-  const renderCollectionCard = ({ item }) => {
-    const images = getCoverImages(item);
-    const isMine = user?.id === item.userId;
-
     return (
-      <TouchableOpacity
-        activeOpacity={0.9}
-        style={[styles.bentoCard, { backgroundColor: theme.surface }]}
-        onPress={() =>
-          navigation.navigate("CollectionDetail", { collectionId: item.id })
-        }
-      >
-        <View style={styles.collage}>
-          {images.map((uri, i) => (
-            <View key={i} style={styles.collageCell}>
-              {uri ? (
-                <Image source={{ uri }} style={styles.collageImage} />
-              ) : (
-                <View
-                  style={[
-                    styles.collagePlaceholder,
-                    { backgroundColor: theme.border },
-                  ]}
-                >
-                  <Ionicons
-                    name="image-outline"
-                    size={24}
-                    color={theme.textMuted}
-                  />
-                </View>
-              )}
-            </View>
-          ))}
-        </View>
-
-        <View style={[styles.cardContent, { borderTopColor: theme.border }]}>
-          <Text
-            style={[styles.cardTitle, { color: theme.text }]}
-            numberOfLines={2}
-          >
-            {item.title}
-          </Text>
-          <View style={styles.cardMeta}>
-            <View style={styles.cardMetaLeft}>
-              {item.user?.profileImage ? (
-                <Image
-                  source={{ uri: item.user.profileImage }}
-                  style={styles.avatar}
-                />
-              ) : (
-                <View
-                  style={[
-                    styles.avatarPlaceholder,
-                    { backgroundColor: theme.primarySoft },
-                  ]}
-                >
-                  <Ionicons
-                    name="person"
-                    size={12}
-                    color={theme.primary}
-                  />
-                </View>
-              )}
-              <Text
-                style={[styles.authorName, { color: theme.textMuted }]}
-                numberOfLines={1}
-              >
-                {item.user?.name || "Unknown"}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.likeBtn}
-              onPress={() => handleLike(item.id, item.isLiked)}
-            >
-              <Ionicons
-                name={item.isLiked ? "heart" : "heart-outline"}
-                size={16}
-                color={item.isLiked ? "#FF4D6D" : theme.textMuted}
-              />
-              <Text style={[styles.likeCount, { color: theme.textMuted }]}>
-                {item.likeCount || 0}
-              </Text>
-            </TouchableOpacity>
-          </View>
-          {isMine && (
-            <TouchableOpacity
-              style={[styles.deleteBtn, { backgroundColor: theme.error + "20" }]}
-              onPress={() => handleDelete(item.id)}
-            >
-              <Ionicons name="trash-outline" size={14} color={theme.error} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  if (loading) {
-    return (
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.background }]}
-      >
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={theme.primary} />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
-      edges={["top"]}
-    >
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>
-          Collections
-        </Text>
-        <Text style={[styles.headerSub, { color: theme.textMuted }]}>
-          Curated mood boards
-        </Text>
-      </View>
-
-      {/* Search */}
-      <View style={[styles.searchWrap, { backgroundColor: theme.surface }]}>
-        <Ionicons
-          name="search"
-          size={20}
-          color={theme.textMuted}
-          style={styles.searchIcon}
-        />
-        <TextInput
-          style={[styles.searchInput, { color: theme.text }]}
-          placeholder="Search collections..."
-          placeholderTextColor={theme.textMuted}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery("")}>
-            <Ionicons name="close-circle" size={20} color={theme.textMuted} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Sort Pills */}
-      <View style={styles.pillsRow}>
-        {["popular", "recent"].map((key) => (
-          <TouchableOpacity
-            key={key}
-            style={[
-              styles.pill,
-              sortBy === key && {
-                backgroundColor: theme.primary,
-              },
-              sortBy !== key && { backgroundColor: theme.surface },
-            ]}
-            onPress={() => setSortBy(key)}
-          >
-            <Text
-              style={[
-                styles.pillText,
-                { color: sortBy === key ? "#fff" : theme.text },
-              ]}
-            >
-              {key === "popular" ? "Popular" : "Recent"}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Bento Grid */}
       <FlatList
-        data={filteredCollections}
-        numColumns={2}
-        keyExtractor={(item) => item.id}
-        renderItem={renderCollectionCard}
-        columnWrapperStyle={styles.row}
+        data={collections}
+        keyExtractor={(item, i) => String(item?.id || i)}
+        renderItem={({ item }) => (
+          <CollectionCard
+            collection={item}
+            onPress={() =>
+              navigation.navigate('CollectionDetail', { id: item.id })
+            }
+            onLongPress={() => openMenu(item)}
+            onMenuPress={() => openMenu(item)}
+          />
+        )}
         contentContainerStyle={styles.listContent}
+        ItemSeparatorComponent={() => <View style={{ height: 18 }} />}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={theme.primary}
+            tintColor={fieldGuide.ember}
           />
-        }
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <View
-              style={[styles.emptyIconWrap, { backgroundColor: theme.surface }]}
-            >
-              <Ionicons
-                name="albums-outline"
-                size={48}
-                color={theme.textMuted}
-              />
-            </View>
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>
-              {searchQuery ? "No collections found" : "No collections yet"}
-            </Text>
-            <Text style={[styles.emptySub, { color: theme.textMuted }]}>
-              {searchQuery
-                ? "Try a different search"
-                : "Create one to get started"}
-            </Text>
-          </View>
         }
       />
+    );
+  };
 
-      {/* Create FAB */}
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: theme.primary }]}
-        onPress={() => {
-          loadAvailableSpots();
-          setShowCreateModal(true);
-        }}
-      >
-        <Ionicons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
-
-      {/* Create Modal */}
-      <Modal
-        visible={showCreateModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowCreateModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.modalSheet,
-              { backgroundColor: theme.background },
-            ]}
-          >
-            <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
-            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
-              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
-                <Ionicons name="close" size={24} color={theme.text} />
-              </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>
-                New Collection
-              </Text>
-              <View style={{ width: 24 }} />
-            </View>
-            <ScrollView
-              style={styles.modalScroll}
-              contentContainerStyle={styles.modalContent}
-            >
-              <Text style={[styles.label, { color: theme.text }]}>Title</Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border,
-                    color: theme.text,
-                  },
-                ]}
-                placeholder="e.g. Weekend Vibes"
-                placeholderTextColor={theme.textMuted}
-                value={title}
-                onChangeText={setTitle}
-              />
-              <Text style={[styles.label, { color: theme.text }]}>
-                Description
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.textArea,
-                  {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border,
-                    color: theme.text,
-                  },
-                ]}
-                placeholder="What's the vibe?"
-                placeholderTextColor={theme.textMuted}
-                value={description}
-                onChangeText={setDescription}
-                multiline
-              />
-              <Text style={[styles.label, { color: theme.text }]}>
-                Spots ({selectedSpots.length})
-              </Text>
-              <TouchableOpacity
-                style={[
-                  styles.spotPickerBtn,
-                  {
-                    borderColor: theme.primary,
-                    backgroundColor: theme.primarySoft,
-                  },
-                ]}
-                onPress={() => setShowSpotPicker(true)}
-              >
-                <Ionicons name="add-circle-outline" size={20} color={theme.primary} />
-                <Text style={[styles.spotPickerText, { color: theme.primary }]}>
-                  Add spots
-                </Text>
-              </TouchableOpacity>
-              {selectedSpots.length > 0 && (
-                <View style={styles.chips}>
-                  {selectedSpots.map((s) => (
-                    <View
-                      key={s.id}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: theme.primarySoft,
-                          borderColor: theme.primary,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[styles.chipText, { color: theme.primary }]}
-                        numberOfLines={1}
-                      >
-                        {s.title}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() => toggleSpotSelection(s)}
-                      >
-                        <Ionicons name="close" size={16} color={theme.primary} />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
-              <Button
-                title={creating ? "Creating..." : "Create"}
-                onPress={handleCreate}
-                loading={creating}
-                style={styles.createBtn}
-              />
-            </ScrollView>
-          </View>
+  const renderSpotGrid = (spots, loading, emptyTitle, emptyBody) => {
+    if (loading && (!spots || spots.length === 0)) {
+      return (
+        <View style={styles.loadingPad}>
+          <ActivityIndicator color={fieldGuide.ember} />
         </View>
-      </Modal>
-
-      {/* Spot Picker Modal */}
-      <Modal
-        visible={showSpotPicker}
-        animationType="slide"
-        onRequestClose={() => setShowSpotPicker(false)}
-      >
-        <SafeAreaView
-          style={[styles.pickerContainer, { backgroundColor: theme.background }]}
-        >
-          <View style={[styles.pickerHeader, { borderBottomColor: theme.border }]}>
-            <TouchableOpacity onPress={() => setShowSpotPicker(false)}>
-              <Ionicons name="arrow-back" size={24} color={theme.text} />
-            </TouchableOpacity>
-            <Text style={[styles.pickerTitle, { color: theme.text }]}>
-              Add spots
-            </Text>
-            <View style={{ width: 24 }} />
+      );
+    }
+    if (!spots || spots.length === 0) {
+      return (
+        <View style={styles.emptyPad}>
+          <EmptyState title={emptyTitle} italic="yet." body={emptyBody} />
+        </View>
+      );
+    }
+    return (
+      <FlatList
+        data={spots}
+        keyExtractor={(item, i) => String(item?.id || i)}
+        numColumns={2}
+        columnWrapperStyle={styles.gridRow}
+        renderItem={({ item, index }) => (
+          <View style={styles.gridCell}>
+            <SpotGridCard
+              spot={item}
+              fallbackIndex={index + 1}
+              onPress={() =>
+                navigation.navigate('SpotDetail', { spotId: item?.id })
+              }
+            />
           </View>
-          <FlatList
-            data={availableSpots}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.pickerList}
-            renderItem={({ item }) => {
-              const sel = selectedSpots.some((s) => s.id === item.id);
-              return (
-                <TouchableOpacity
-                  style={[
-                    styles.pickerItem,
-                    {
-                      backgroundColor: theme.surface,
-                      borderColor: sel ? theme.primary : theme.border,
-                    },
-                  ]}
-                  onPress={() => toggleSpotSelection(item)}
-                >
-                  <Image
-                    source={{ uri: item.thumbnail || item.images?.[0] }}
-                    style={styles.pickerThumb}
-                  />
-                  <View style={styles.pickerInfo}>
-                    <Text style={[styles.pickerItemTitle, { color: theme.text }]}>
-                      {item.title}
-                    </Text>
-                    <Text style={[styles.pickerItemCat, { color: theme.textMuted }]}>
-                      {item.category?.replace("_", " ")}
-                    </Text>
-                  </View>
-                  {sel && (
-                    <Ionicons name="checkmark-circle" size={24} color={theme.primary} />
-                  )}
-                </TouchableOpacity>
-              );
-            }}
+        )}
+        contentContainerStyle={styles.gridContent}
+        ItemSeparatorComponent={() => <View style={{ height: 18 }} />}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={fieldGuide.ember}
           />
-        </SafeAreaView>
-      </Modal>
+        }
+      />
+    );
+  };
+
+  /* ── render ─────────────────────────────────────────────────────── */
+  return (
+    <SafeAreaView edges={['top']} style={styles.safe}>
+      <View style={styles.head}>
+        <View style={styles.row1}>
+          <DisplayTitle size="lg" weight="500">
+            Saved spots
+          </DisplayTitle>
+          <EditorialButton
+            variant="cream"
+            size="sm"
+            leading={<Ionicons name="add" size={14} color={fieldGuide.ink} />}
+            onPress={() => navigation.navigate('CreateCollection')}
+          >
+            NEW
+          </EditorialButton>
+        </View>
+        <MonoMeta size="eyebrow" style={styles.headSub}>
+          {headerSub}
+        </MonoMeta>
+      </View>
+
+      <View style={styles.segRow}>
+        <Segmented items={TABS} value={tab} onChange={setTab} />
+      </View>
+
+      <View style={styles.body}>
+        {tab === 0 && renderCollections()}
+        {tab === 1 &&
+          renderSpotGrid(
+            savedSpots,
+            savedLoading,
+            'Nothing tucked away yet.',
+            'Tap the bookmark on any spot card to add it to your library — then build a pocket out of the ones that belong together.',
+          )}
+        {tab === 2 &&
+          renderSpotGrid(
+            visitedSpots,
+            visitedLoading,
+            'No visits logged yet.',
+            'Mark a spot as visited from its detail screen and we’ll keep a quiet record here.',
+          )}
+      </View>
+
+      <CollectionMenuSheet
+        visible={!!menuFor}
+        collection={menuFor}
+        onClose={closeMenu}
+        onEdit={handleEdit}
+        onShare={handleShare}
+        onDelete={handleDelete}
+      />
     </SafeAreaView>
   );
 };
 
+export default CollectionsScreen;
+
+const TAB_BAR_PAD = 100;
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  loadingWrap: {
+  safe: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: fieldGuide.ink,
   },
-  header: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
+  head: {
+    paddingHorizontal: 22,
+    paddingTop: 8,
+    paddingBottom: 18,
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "800",
+  row1: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  headerSub: {
-    fontSize: 14,
-    marginTop: 2,
+  headSub: {
+    marginTop: 6,
   },
-  searchWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: spacing.md,
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    ...shadows.subtle,
+  segRow: {
+    paddingHorizontal: 22,
+    marginBottom: 16,
   },
-  searchIcon: { marginRight: spacing.sm },
-  searchInput: { flex: 1, fontSize: 16 },
-  pillsRow: {
-    flexDirection: "row",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    gap: spacing.sm,
-  },
-  pill: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
-  },
-  pillText: { fontSize: 14, fontWeight: "600" },
-  row: {
-    paddingHorizontal: spacing.md,
-    marginBottom: CARD_GAP,
-    justifyContent: "space-between",
+  body: {
+    flex: 1,
   },
   listContent: {
-    paddingBottom: 100,
+    paddingHorizontal: 22,
+    paddingTop: 4,
+    paddingBottom: TAB_BAR_PAD,
   },
-  bentoCard: {
-    width: CARD_WIDTH,
-    borderRadius: radius.lg,
-    overflow: "hidden",
-    ...shadows.md,
+  gridContent: {
+    paddingHorizontal: 22,
+    paddingTop: 4,
+    paddingBottom: TAB_BAR_PAD,
   },
-  collage: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    height: CARD_WIDTH * 0.9,
+  gridRow: {
+    gap: 12,
   },
-  collageCell: {
-    width: "50%",
-    height: "50%",
-    padding: 1,
-  },
-  collageImage: {
-    width: "100%",
-    height: "100%",
-  },
-  collagePlaceholder: {
-    width: "100%",
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  cardContent: {
-    padding: spacing.sm,
-    borderTopWidth: 1,
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    marginBottom: spacing.xs,
-  },
-  cardMeta: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  cardMetaLeft: {
-    flexDirection: "row",
-    alignItems: "center",
+  gridCell: {
     flex: 1,
   },
-  avatar: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    marginRight: 6,
-  },
-  avatarPlaceholder: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    marginRight: 6,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  authorName: {
-    fontSize: 12,
+  loadingPad: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
   },
-  likeBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  likeCount: { fontSize: 12, fontWeight: "600" },
-  deleteBtn: {
-    position: "absolute",
-    top: spacing.xs,
-    right: spacing.xs,
-    padding: 4,
-    borderRadius: radius.xs,
-  },
-  empty: {
-    paddingVertical: spacing.xxl * 2,
-    alignItems: "center",
-  },
-  emptyIconWrap: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: spacing.lg,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  emptySub: {
-    fontSize: 14,
-    marginTop: spacing.xs,
-  },
-  fab: {
-    position: "absolute",
-    bottom: spacing.xl + 16,
-    right: spacing.lg,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: "center",
-    alignItems: "center",
-    ...shadows.lg,
-  },
-  modalOverlay: {
+  emptyPad: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
+    paddingHorizontal: 22,
+    paddingTop: 8,
+    paddingBottom: TAB_BAR_PAD,
   },
-  modalSheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    maxHeight: "85%",
+  gridCard: {
+    flexDirection: 'column',
   },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginTop: spacing.sm,
+  gridTitle: {
+    marginTop: 10,
+    fontFamily: fieldGuide.fonts.serifMedium,
+    fontSize: 15.5,
+    lineHeight: 18.5,
+    letterSpacing: -0.005 * 15.5,
+    color: fieldGuide.cream,
+    includeFontPadding: false,
   },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: spacing.lg,
-    borderBottomWidth: 1,
+  gridMeta: {
+    marginTop: 3,
   },
-  modalTitle: { fontSize: 20, fontWeight: "700" },
-  modalScroll: { maxHeight: 400 },
-  modalContent: { padding: spacing.lg },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: spacing.xs,
-    marginTop: spacing.md,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    fontSize: 16,
-  },
-  textArea: { minHeight: 80, textAlignVertical: "top" },
-  spotPickerBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
-  spotPickerText: { fontSize: 16, fontWeight: "600" },
-  chips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: spacing.sm,
-    gap: spacing.sm,
-  },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    gap: spacing.xs,
-  },
-  chipText: { flex: 1, fontSize: 13, maxWidth: 120 },
-  createBtn: { marginTop: spacing.xl },
-  pickerContainer: { flex: 1 },
-  pickerHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: spacing.lg,
-    borderBottomWidth: 1,
-  },
-  pickerTitle: { fontSize: 18, fontWeight: "700" },
-  pickerList: { padding: spacing.md },
-  pickerItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: spacing.md,
-    borderRadius: radius.md,
-    marginBottom: spacing.sm,
-    borderWidth: 2,
-  },
-  pickerThumb: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.sm,
-    marginRight: spacing.md,
-  },
-  pickerInfo: { flex: 1 },
-  pickerItemTitle: { fontSize: 16, fontWeight: "700" },
-  pickerItemCat: { fontSize: 13, marginTop: 2 },
 });

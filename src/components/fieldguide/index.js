@@ -59,6 +59,11 @@ export {
   filtersEqual,
 } from './sheets/FilterSheet';
 export { default as MapStylePopover } from './sheets/MapStylePopover';
+export { default as CollectionMenuSheet } from './sheets/CollectionMenuSheet';
+
+// collection
+export { default as MosaicCover } from './collection/MosaicCover';
+export { default as CollectionCard } from './collection/CollectionCard';
 
 import MonoMeta from './primitives/MonoMeta';
 import DisplayTitle from './primitives/DisplayTitle';
@@ -91,6 +96,9 @@ import ErrorScreen from './state/ErrorScreen';
 import SuccessSheet from './state/SuccessSheet';
 import FilterSheet from './sheets/FilterSheet';
 import MapStylePopover from './sheets/MapStylePopover';
+import CollectionMenuSheet from './sheets/CollectionMenuSheet';
+import MosaicCover from './collection/MosaicCover';
+import CollectionCard from './collection/CollectionCard';
 
 export const FG = Object.freeze({
   MonoMeta,
@@ -124,6 +132,9 @@ export const FG = Object.freeze({
   SuccessSheet,
   FilterSheet,
   MapStylePopover,
+  CollectionMenuSheet,
+  MosaicCover,
+  CollectionCard,
   IconSquare,
 });
 

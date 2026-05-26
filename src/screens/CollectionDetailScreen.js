@@ -1,639 +1,874 @@
 /**
- * Collection Detail Screen - Immersive Journey
- * Parallax hero, glass info bar, editorial spot cards
+ * CollectionDetailScreen — Phase 4 / design 11 (Field Guide rewrite).
+ *
+ * Layout (no SafeAreaView wrap — the hero is full-bleed):
+ *   - col-hero          full-width 320 mosaic + bottom-half ink gradient
+ *   - nav-top (abs)     glass back / share / kebab
+ *   - col-meta          eyebrow + title + description + info row
+ *   - col-actions       cream "Open as route" + ghost share + ghost edit
+ *   - list-head         hairline + "{n} spots in this pocket" + Reorder
+ *   - item-list         rows with drag handles (reorder mode), thumbs,
+ *                       titles, mono meta, optional per-spot notes, and
+ *                       a swipe-style remove control.
+ *
+ * Data:
+ *   - useQuery wraps getCollectionById(id).
+ *   - state `items` holds the orderable spot list. Reorder uses up/down
+ *     arrow buttons (the dragger lib is not installed; arrow controls
+ *     are an acceptable fallback per the brief).
+ *   - removeSpotFromCollection on tap-to-remove (with confirm).
+ *   - Done reordering → updateCollection(id, { spotOrder }). If the
+ *     backend rejects spotOrder, we Toast and persist the order in
+ *     AsyncStorage under `vibespot.collectionOrder.${id}`.
  */
-import React, { useState, useEffect, useRef } from "react";
+
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Image,
   ActivityIndicator,
-  RefreshControl,
   Alert,
-  Dimensions,
-  Animated,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+
 import {
-  getCollectionById,
-  likeCollection,
+  CollectionMenuSheet,
+  DisplayTitle,
+  DuotoneVibe,
+  EditorialButton,
+  EmptyState,
+  IconSquare,
+  IndexStamp,
+  MonoMeta,
+  MosaicCover,
+  Rule,
+} from '../components/fieldguide';
+import fieldGuide from '../theme/fieldGuide';
+import { useToast } from '../components/ToastProvider';
+import { logger } from '../utils/logger';
+import {
   deleteCollection,
-} from "../services/collections.service";
-import { useAuth } from "../hooks/useAuth";
-import { useTheme } from "../context/ThemeContext";
-import { useSpotVibes } from "../hooks/useSpotVibes";
-import { spacing, radius, shadows } from "../theme/tokens";
+  getCollectionById,
+  removeSpotFromCollection,
+  updateCollection,
+} from '../services/collections.service';
+import {
+  indexForSpot,
+  prettyCategory,
+  vibeForCategory,
+  zeroPad,
+} from '../utils/spotHelpers';
 
-const { width } = Dimensions.get("window");
-const HERO_HEIGHT = 280;
-const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
-const THUMB_SIZE = 56;
-const THUMB_GAP = 8;
+const HERO_HEIGHT = 320;
 
-const hexToRgba = (hex, alpha = 1) => {
-  if (!hex || typeof hex !== "string") return `rgba(0,0,0,${alpha})`;
-  const h = hex.replace("#", "");
-  if (h.length !== 6) return `rgba(0,0,0,${alpha})`;
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
-};
+/* ─────────────────────────────────────────────────────────────────── */
+/*  HELPERS                                                            */
+/* ─────────────────────────────────────────────────────────────────── */
 
-const SpotCardEditorial = ({ spot, onPress }) => {
-  const { theme } = useTheme();
-  const { data: spotVibes = [] } = useSpotVibes(spot?.id);
-  const topVibe =
-    spotVibes.length > 0
-      ? spotVibes.reduce((a, b) => (b.count > a.count ? b : a))
-      : null;
-  const accentColor = topVibe?.color || theme.primary;
+function unwrapItem(row, fallbackIndex) {
+  // The /collections/:id endpoint may return either `[ { spot: {...}, note } ]`
+  // (join shape) or `[ { id, title, category, ... } ]` (inline shape).
+  const spot = row?.spot && row?.spot?.id ? row.spot : row;
+  return {
+    ...spot,
+    _join: row?.spot ? row : null,
+    _note: row?.note || row?.spot?.note || null,
+    _orderHint: row?.order ?? row?.position ?? fallbackIndex,
+  };
+}
+
+function deriveItems(collection) {
+  const raw = Array.isArray(collection?.spots) ? collection.spots : [];
+  return raw.map((row, i) => unwrapItem(row, i));
+}
+
+function uniqueCities(items) {
+  const seen = new Set();
+  const out = [];
+  for (const s of items) {
+    const c = (s?.city || s?.district || '').trim();
+    if (!c) continue;
+    const k = c.toLowerCase();
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(c);
+    }
+  }
+  return out;
+}
+
+function privacyLabel(collection) {
+  if (collection?.isPublic) return 'PUBLIC';
+  const shared =
+    (Array.isArray(collection?.sharedWith) && collection.sharedWith.length) ||
+    Number(collection?.sharedCount) ||
+    0;
+  if (shared > 0) return `SHARED · ${shared}`;
+  return 'PRIVATE';
+}
+
+function splitTitleForItalic(title) {
+  if (!title || typeof title !== 'string') return { lead: title, tail: '' };
+  const idx = title.lastIndexOf(',');
+  if (idx === -1) return { lead: title, tail: '' };
+  return {
+    lead: title.slice(0, idx + 1),
+    tail: title.slice(idx + 1).trim(),
+  };
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+/*  ROW                                                                */
+/* ─────────────────────────────────────────────────────────────────── */
+
+function ItemRow({
+  item,
+  index,
+  total,
+  reorderMode,
+  onPress,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+}) {
+  const vibe = vibeForCategory(item?.category);
+  const district = item?.district || item?.city;
+  const noLabel = zeroPad(indexForSpot(item) ?? index + 1, 2);
+  const note = item?._note;
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      style={[styles.spotCard, { backgroundColor: theme.surface }]}
-      onPress={onPress}
-    >
-      <View style={styles.spotImageWrap}>
-        <Image
-          source={{ uri: spot?.images?.[0] || spot?.thumbnail }}
-          style={styles.spotImage}
-        />
-        <LinearGradient
-          colors={["transparent", hexToRgba(accentColor, 0.7)]}
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={[styles.spotCategoryPill, { backgroundColor: hexToRgba(accentColor, 0.9) }]}>
-          <Text style={styles.spotCategoryText}>
-            {spot?.category?.replace("_", " ").toUpperCase()}
-          </Text>
-        </View>
-      </View>
-      <View style={[styles.spotInfo, { borderTopColor: theme.border }]}>
-        <Text style={[styles.spotTitle, { color: theme.text }]} numberOfLines={1}>
-          {spot?.title}
-        </Text>
-        {spot?.address && (
-          <View style={styles.spotAddressRow}>
-            <Ionicons name="location-outline" size={14} color={theme.textMuted} />
-            <Text style={[styles.spotAddress, { color: theme.textMuted }]} numberOfLines={1}>
-              {spot.address}
-            </Text>
+    <View style={styles.row}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={item?.title || 'Spot'}
+        disabled={reorderMode}
+        style={({ pressed }) => [
+          styles.rowMain,
+          { opacity: pressed && !reorderMode ? 0.92 : 1 },
+        ]}
+      >
+        {reorderMode ? (
+          <View style={styles.dragCol}>
+            <Pressable
+              onPress={onMoveUp}
+              disabled={index === 0}
+              hitSlop={6}
+              style={({ pressed }) => [
+                styles.dragArrow,
+                {
+                  opacity: index === 0 ? 0.35 : pressed ? 0.6 : 1,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Move up"
+            >
+              <Ionicons name="chevron-up" size={14} color={fieldGuide.cream} />
+            </Pressable>
+            <Pressable
+              onPress={onMoveDown}
+              disabled={index === total - 1}
+              hitSlop={6}
+              style={({ pressed }) => [
+                styles.dragArrow,
+                {
+                  opacity: index === total - 1 ? 0.35 : pressed ? 0.6 : 1,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Move down"
+            >
+              <Ionicons name="chevron-down" size={14} color={fieldGuide.cream} />
+            </Pressable>
           </View>
-        )}
-        <View style={styles.spotFooter}>
-          {spot?.priceRange && (
-            <Text style={[styles.spotPrice, { color: theme.textMuted }]}>
-              {spot.priceRange}
-            </Text>
-          )}
-          {spot?.ratingAvg > 0 && (
-            <View style={styles.spotRating}>
-              <Ionicons name="star" size={12} color="#FFD700" />
-              <Text style={styles.spotRatingText}>{spot.ratingAvg.toFixed(1)}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-};
+        ) : null}
 
-export const CollectionDetailScreen = ({ route, navigation }) => {
-  const { collectionId } = route.params;
-  const { user } = useAuth();
-  const { theme } = useTheme();
-  const [collection, setCollection] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const scrollY = useRef(new Animated.Value(0)).current;
+        <View style={styles.thumb}>
+          <DuotoneVibe
+            vibe={vibe}
+            image={item?.thumbnail ? { uri: item.thumbnail } : undefined}
+          />
+          <IndexStamp position="tl" style={styles.thumbStamp}>
+            {noLabel}
+          </IndexStamp>
+        </View>
+
+        <View style={styles.rowInfo}>
+          <Text style={styles.rowTitle} numberOfLines={1}>
+            {item?.title || 'Untitled'}
+          </Text>
+          <MonoMeta size="spot" style={styles.rowMeta}>
+            {[prettyCategory(item?.category), district].filter(Boolean).join('  ·  ')}
+          </MonoMeta>
+          {note ? (
+            <Text style={styles.rowNote} numberOfLines={2}>
+              {note.startsWith('"') ? note : `"${note}"`}
+            </Text>
+          ) : null}
+        </View>
+
+        {reorderMode ? (
+          <Pressable
+            onPress={onRemove}
+            accessibilityRole="button"
+            accessibilityLabel="Remove from collection"
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.removeBtn,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Text style={styles.removeLabel}>REMOVE</Text>
+          </Pressable>
+        ) : (
+          <Ionicons
+            name="chevron-forward"
+            size={16}
+            color={fieldGuide.creamFaint}
+            style={styles.chev}
+          />
+        )}
+      </Pressable>
+      <View style={styles.rowDivider} />
+    </View>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+/*  SCREEN                                                             */
+/* ─────────────────────────────────────────────────────────────────── */
+
+export const CollectionDetailScreen = ({ navigation, route }) => {
+  const id = route?.params?.id ?? route?.params?.collectionId;
+  const insets = useSafeAreaInsets();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ['collection', id],
+    queryFn: () => getCollectionById(id),
+    enabled: !!id,
+  });
+
+  const collection = query.data && !query.data.error ? query.data : null;
+
+  /* Local mutable list (so reorder + remove don't fight the server). */
+  const [items, setItems] = useState([]);
+  const baselineOrderRef = useRef([]);
+  const [reorderMode, setReorderMode] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    loadCollection();
-  }, [collectionId]);
+    let cancelled = false;
+    (async () => {
+      if (!collection) return;
+      let next = deriveItems(collection);
+      // Apply any locally-saved order overlay.
+      try {
+        const stored = await AsyncStorage.getItem(`vibespot.collectionOrder.${id}`);
+        if (stored && !cancelled) {
+          const order = JSON.parse(stored);
+          if (Array.isArray(order)) {
+            const byId = new Map(next.map((s) => [s?.id, s]));
+            const reordered = order.map((sid) => byId.get(sid)).filter(Boolean);
+            const tail = next.filter((s) => !order.includes(s?.id));
+            next = [...reordered, ...tail];
+          }
+        }
+      } catch (err) {
+        logger.error('CollectionDetail.readLocalOrder', err);
+      }
+      if (!cancelled) {
+        setItems(next);
+        baselineOrderRef.current = next.map((s) => s?.id);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [collection, id]);
 
-  const loadCollection = async () => {
-    try {
-      setLoading(true);
-      const data = await getCollectionById(collectionId);
-      if (!data?.error) setCollection(data);
-      else throw new Error(data.error);
-    } catch (e) {
-      Alert.alert("Error", "Unable to load collection");
-      navigation.goBack();
-    } finally {
-      setLoading(false);
+  /* ── derived header values ───────────────────────────────────────── */
+  const spotCount = items.length;
+  const cities = useMemo(() => uniqueCities(items), [items]);
+  const heroVibes = useMemo(
+    () => items.slice(0, 5).map((s) => vibeForCategory(s?.category)),
+    [items],
+  );
+  const extra = Math.max(0, spotCount - 4);
+  const priv = privacyLabel(collection);
+  const { lead, tail } = splitTitleForItalic(collection?.title);
+
+  /* ── reorder actions ─────────────────────────────────────────────── */
+  const move = (from, to) => {
+    if (to < 0 || to >= items.length || from === to) return;
+    const next = items.slice();
+    const [pulled] = next.splice(from, 1);
+    next.splice(to, 0, pulled);
+    setItems(next);
+  };
+
+  const orderChanged = useMemo(() => {
+    const current = items.map((s) => s?.id);
+    const baseline = baselineOrderRef.current;
+    if (current.length !== baseline.length) return true;
+    for (let i = 0; i < current.length; i++) {
+      if (current[i] !== baseline[i]) return true;
     }
-  };
+    return false;
+  }, [items]);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadCollection();
-    setRefreshing(false);
-  };
-
-  const handleLike = async () => {
-    const res = await likeCollection(collectionId);
-    if (!res?.error) {
-      setCollection((prev) => ({
-        ...prev,
-        isLiked: res.liked,
-        likeCount: res.likeCount,
-      }));
+  const finishReorder = async () => {
+    if (!orderChanged) {
+      setReorderMode(false);
+      return;
     }
+    const spotOrder = items.map((s) => s?.id).filter(Boolean);
+    const result = await updateCollection(id, { spotOrder });
+    if (result?.error) {
+      // Backend may not understand spotOrder yet — persist locally.
+      try {
+        await AsyncStorage.setItem(
+          `vibespot.collectionOrder.${id}`,
+          JSON.stringify(spotOrder),
+        );
+        toast.show('Order saved locally.', { variant: 'info' });
+      } catch (err) {
+        logger.error('CollectionDetail.persistLocalOrder', err);
+        toast.show('Could not save the new order.', { variant: 'error' });
+      }
+    } else {
+      toast.show('Order saved.', { variant: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['collection', id] });
+    }
+    baselineOrderRef.current = spotOrder;
+    setReorderMode(false);
   };
 
-  const handleDelete = () => {
-    Alert.alert("Delete Collection", "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          const res = await deleteCollection(collectionId);
-          if (!res?.error) navigation.goBack();
-          else Alert.alert("Error", res.error);
+  /* ── remove a spot ───────────────────────────────────────────────── */
+  const handleRemove = (spot) => {
+    if (!spot?.id) return;
+    Alert.alert(
+      'Remove from collection?',
+      `"${spot.title || 'This spot'}" will stay in your library — just not in this pocket.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            const snapshot = items;
+            setItems(items.filter((s) => s.id !== spot.id));
+            const result = await removeSpotFromCollection(id, spot.id);
+            if (result?.error) {
+              logger.error('CollectionDetail.remove', result.error);
+              setItems(snapshot);
+              toast.show('Could not remove that spot.', { variant: 'error' });
+            } else {
+              queryClient.invalidateQueries({ queryKey: ['collection', id] });
+              queryClient.invalidateQueries({ queryKey: ['user-collections'] });
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
-  if (loading) {
+  /* ── header actions ──────────────────────────────────────────────── */
+  const openRoute = async () => {
+    const stops = items
+      .map((s) => {
+        const lat = s?.latitude ?? s?.lat ?? s?.location?.latitude ?? s?.location?.lat;
+        const lng = s?.longitude ?? s?.lng ?? s?.location?.longitude ?? s?.location?.lng;
+        return lat != null && lng != null ? `${lat},${lng}` : null;
+      })
+      .filter(Boolean);
+    if (stops.length < 2) {
+      toast.show('Need at least two spots with coordinates.', { variant: 'info' });
+      return;
+    }
+    const origin = stops[0];
+    const destination = stops[stops.length - 1];
+    const waypoints = stops.slice(1, -1).join('|');
+    const params = new URLSearchParams({
+      api: '1',
+      origin,
+      destination,
+      ...(waypoints ? { waypoints } : {}),
+      travelmode: 'walking',
+    });
+    const url =
+      Platform.OS === 'ios'
+        ? `https://maps.apple.com/?saddr=${origin}&daddr=${destination}`
+        : `https://www.google.com/maps/dir/?${params.toString()}`;
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        toast.show('No maps app available.', { variant: 'error' });
+      }
+    } catch (err) {
+      logger.error('CollectionDetail.openRoute', err);
+      toast.show('Could not open maps.', { variant: 'error' });
+    }
+  };
+
+  const handleShare = () => {
+    toast.show('Sharing is coming soon.', { variant: 'info' });
+  };
+
+  const handleEdit = () => {
+    navigation.navigate('CreateCollection', { id, mode: 'edit' });
+  };
+
+  const handleDelete = async () => {
+    const result = await deleteCollection(id);
+    if (result?.error) {
+      toast.show('Could not delete the collection.', { variant: 'error' });
+      logger.error('CollectionDetail.delete', result.error);
+      return;
+    }
+    toast.show('Collection deleted.', { variant: 'success' });
+    queryClient.invalidateQueries({ queryKey: ['user-collections'] });
+    navigation.goBack();
+  };
+
+  /* ── loading + error ─────────────────────────────────────────────── */
+  if (!id) {
     return (
-      <SafeAreaView
-        style={[styles.loadingWrap, { backgroundColor: theme.background }]}
-      >
-        <ActivityIndicator size="large" color={theme.primary} />
-      </SafeAreaView>
+      <View style={styles.fillCenter}>
+        <EmptyState title="No collection selected." body="Open one from the Saved tab." />
+      </View>
     );
   }
 
-  if (!collection) return null;
+  if (query.isLoading && !collection) {
+    return (
+      <View style={styles.fillCenter}>
+        <ActivityIndicator color={fieldGuide.ember} />
+      </View>
+    );
+  }
 
-  const spots = collection.spots || [];
-  const coverImage =
-    collection.coverImage ||
-    spots[0]?.spot?.images?.[0] ||
-    spots[0]?.spot?.thumbnail;
-  const isOwner = user?.id === collection.userId;
-
-  const heroOpacity = scrollY.interpolate({
-    inputRange: [0, HERO_HEIGHT * 0.5],
-    outputRange: [1, 0],
-    extrapolate: "clamp",
-  });
-
-  const stickyOpacity = scrollY.interpolate({
-    inputRange: [HERO_HEIGHT - 80, HERO_HEIGHT],
-    outputRange: [0, 1],
-    extrapolate: "clamp",
-  });
+  if (query.isError || !collection) {
+    return (
+      <View style={[styles.fillCenter, { backgroundColor: fieldGuide.ink }]}>
+        <EmptyState
+          title="Couldn’t load this collection."
+          italic="this collection."
+          body="Pull-to-refresh, or come back later."
+          cta={{ label: 'Back', onPress: () => navigation.goBack() }}
+        />
+      </View>
+    );
+  }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <AnimatedFlatList
-        data={spots}
-        keyExtractor={(item) => item.spot.id}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
-        )}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={theme.primary}
-          />
-        }
-        contentContainerStyle={styles.listContent}
-        ListHeaderComponent={
-          <>
-            {/* Hero */}
-            <View style={styles.hero}>
-              {coverImage ? (
-                <Animated.Image
-                  source={{ uri: coverImage }}
-                  style={[styles.heroImage, { opacity: heroOpacity }]}
-                />
-              ) : (
-                <View
-                  style={[
-                    styles.heroPlaceholder,
-                    { backgroundColor: theme.surface },
-                  ]}
-                >
-                  <Ionicons
-                    name="images-outline"
-                    size={64}
-                    color={theme.textMuted}
-                  />
-                </View>
-              )}
-              <LinearGradient
-                colors={["transparent", "rgba(0,0,0,0.6)"]}
-                style={styles.heroGradient}
-              />
-
-              {/* Hero actions */}
-              <SafeAreaView style={styles.heroActions} edges={["top"]}>
-                <TouchableOpacity
-                  style={styles.iconBtn}
-                  onPress={() => navigation.goBack()}
-                >
-                  <Ionicons name="arrow-back" size={22} color="#fff" />
-                </TouchableOpacity>
-                {isOwner && (
-                  <TouchableOpacity
-                    style={[styles.iconBtn, styles.iconBtnDanger]}
-                    onPress={handleDelete}
-                  >
-                    <Ionicons name="trash-outline" size={20} color="#fff" />
-                  </TouchableOpacity>
-                )}
-              </SafeAreaView>
-            </View>
-
-            {/* Glass info bar */}
-            <View style={[styles.glassBar, { backgroundColor: theme.surface }]}>
-              <Text style={[styles.title, { color: theme.text }]}>
-                {collection.title}
-              </Text>
-              {collection.description ? (
-                <Text
-                  style={[styles.description, { color: theme.textMuted }]}
-                  numberOfLines={2}
-                >
-                  {collection.description}
-                </Text>
-              ) : null}
-              <View style={styles.metaRow}>
-                <View style={styles.authorRow}>
-                  {collection.user?.profileImage ? (
-                    <Image
-                      source={{ uri: collection.user.profileImage }}
-                      style={styles.avatar}
-                    />
-                  ) : (
-                    <View
-                      style={[
-                        styles.avatarFallback,
-                        { backgroundColor: theme.primarySoft },
-                      ]}
-                    >
-                      <Ionicons name="person" size={14} color={theme.primary} />
-                    </View>
-                  )}
-                  <Text style={[styles.authorName, { color: theme.textMuted }]}>
-                    {collection.user?.name || "Unknown"}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={[
-                    styles.likePill,
-                    {
-                      backgroundColor: collection.isLiked
-                        ? theme.error + "15"
-                        : theme.surfaceAlt,
-                    },
-                  ]}
-                  onPress={handleLike}
-                >
-                  <Ionicons
-                    name={collection.isLiked ? "heart" : "heart-outline"}
-                    size={18}
-                    color={collection.isLiked ? "#FF4D6D" : theme.textMuted}
-                  />
-                  <Text
-                    style={[
-                      styles.likeText,
-                      {
-                        color: collection.isLiked ? "#FF4D6D" : theme.text,
-                      },
-                    ]}
-                  >
-                    {collection.likeCount || 0}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Thumbnail strip */}
-            {spots.length > 0 && (
-              <View style={styles.thumbStrip}>
-                <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>
-                  SPOTS ({spots.length})
-                </Text>
-                <FlatList
-                  data={spots}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.thumbList}
-                  keyExtractor={(item) => item.spot.id}
-                  ItemSeparatorComponent={() => <View style={{ width: THUMB_GAP }} />}
-                  renderItem={({ item }) => (
-                    <Image
-                      source={{
-                        uri:
-                          item.spot?.images?.[0] || item.spot?.thumbnail,
-                      }}
-                      style={[
-                        styles.thumb,
-                        { borderColor: theme.border },
-                      ]}
-                    />
-                  )}
-                />
-              </View>
-            )}
-
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>
-              The journey
-            </Text>
-          </>
-        }
-        renderItem={({ item }) => (
-          <SpotCardEditorial
-            spot={item.spot}
-            onPress={() =>
-              navigation.navigate("SpotDetail", { spotId: item.spot.id })
-            }
-          />
-        )}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons
-              name="images-outline"
-              size={56}
-              color={theme.textMuted}
-            />
-            <Text style={[styles.emptyText, { color: theme.text }]}>
-              No spots in this collection yet
-            </Text>
-          </View>
-        }
-      />
-
-      {/* Sticky header on scroll */}
-      <Animated.View
-        style={[
-          styles.stickyHeader,
-          {
-            backgroundColor: theme.surface,
-            borderBottomColor: theme.border,
-            opacity: stickyOpacity,
-          },
-        ]}
-        pointerEvents="none"
+    <View style={styles.screen}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces
       >
-        <SafeAreaView edges={["top"]}>
-          <Text
-            style={[styles.stickyTitle, { color: theme.text }]}
-            numberOfLines={1}
-          >
-            {collection.title}
-          </Text>
-        </SafeAreaView>
-      </Animated.View>
+        {/* HERO */}
+        <View style={styles.hero}>
+          <MosaicCover
+            vibes={heroVibes}
+            extraCount={extra}
+            aspectRatio={undefined}
+            style={styles.heroMosaic}
+          />
+          <LinearGradient
+            colors={['transparent', fieldGuide.ink]}
+            locations={[0.4, 1]}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+        </View>
 
-      {/* Back button overlay when sticky visible */}
-      <Animated.View
-        style={[styles.stickyBackWrap, { opacity: stickyOpacity }]}
+        {/* META */}
+        <View style={[styles.meta, { marginTop: -40 }]}>
+          <MonoMeta size="eyebrow" style={styles.eyebrow}>
+            {`${spotCount} SPOTS · COLLECTION`}
+          </MonoMeta>
+          <DisplayTitle size="xl" weight="500" italic={tail || undefined}>
+            {tail ? `${lead} ${tail}` : collection.title || 'Untitled'}
+          </DisplayTitle>
+          {collection.description ? (
+            <Text style={styles.desc}>{collection.description}</Text>
+          ) : null}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoStrong}>{`${spotCount} SPOTS`}</Text>
+            <Text style={styles.infoDim}>·</Text>
+            <Text style={styles.infoDim}>{`${cities.length} CITIES`}</Text>
+            <Text style={styles.infoDim}>·</Text>
+            <Pressable
+              onPress={() => toast.show('Privacy editor coming soon.', { variant: 'info' })}
+              hitSlop={6}
+            >
+              <Text style={styles.infoEmber}>{priv}</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* ACTIONS */}
+        <View style={styles.actions}>
+          <EditorialButton
+            variant="cream"
+            size="sm"
+            leading={<Ionicons name="navigate-outline" size={14} color={fieldGuide.ink} />}
+            onPress={openRoute}
+            style={styles.actionFlex}
+          >
+            Open as route
+          </EditorialButton>
+          <EditorialButton
+            variant="ghost"
+            size="sm"
+            leading={<Ionicons name="share-outline" size={14} color={fieldGuide.cream} />}
+            onPress={handleShare}
+          >
+            Share
+          </EditorialButton>
+          <Pressable
+            onPress={handleEdit}
+            accessibilityRole="button"
+            accessibilityLabel="Edit collection"
+            style={({ pressed }) => [
+              styles.ghostIconBtn,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Ionicons name="create-outline" size={16} color={fieldGuide.cream} />
+          </Pressable>
+        </View>
+
+        {/* LIST HEAD */}
+        <View style={styles.listHead}>
+          <Rule style={styles.listHeadRule} />
+          <View style={styles.listHeadRow}>
+            <Text style={styles.listHeadTitle}>
+              {`${spotCount} ${spotCount === 1 ? 'spot' : 'spots'} in this pocket`}
+            </Text>
+            <Pressable
+              onPress={reorderMode ? finishReorder : () => setReorderMode(true)}
+              hitSlop={8}
+              disabled={!spotCount}
+            >
+              <Text
+                style={[
+                  styles.reorderLink,
+                  !spotCount && { opacity: 0.35 },
+                ]}
+              >
+                {reorderMode ? 'Done ↗' : 'Reorder ↗'}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* ITEMS */}
+        {items.length === 0 ? (
+          <View style={styles.emptyList}>
+            <EmptyState
+              title="This pocket is empty."
+              italic="empty."
+              body="Save a spot, then tap the bookmark dropdown to drop it into this collection."
+            />
+          </View>
+        ) : (
+          <View style={styles.list}>
+            {items.map((item, i) => (
+              <ItemRow
+                key={item?.id ?? i}
+                item={item}
+                index={i}
+                total={items.length}
+                reorderMode={reorderMode}
+                onPress={() =>
+                  navigation.push('SpotDetail', { spotId: item?.id })
+                }
+                onRemove={() => handleRemove(item)}
+                onMoveUp={() => move(i, i - 1)}
+                onMoveDown={() => move(i, i + 1)}
+              />
+            ))}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* FLOATING NAV-TOP */}
+      <View
+        style={[
+          styles.navTop,
+          { top: insets.top + 6 },
+        ]}
         pointerEvents="box-none"
       >
-        <SafeAreaView edges={["top"]} style={styles.stickyBackSafe}>
-          <TouchableOpacity
-            style={[styles.iconBtn, { backgroundColor: theme.surface }]}
-            onPress={() => navigation.goBack()}
+        <IconSquare
+          onPress={() => navigation.goBack()}
+          accessibilityLabel="Back"
+          size={38}
+        >
+          <Ionicons name="chevron-back" size={18} color={fieldGuide.cream} />
+        </IconSquare>
+        <View style={styles.navTopRight}>
+          <IconSquare onPress={handleShare} accessibilityLabel="Share" size={38}>
+            <Ionicons name="share-outline" size={16} color={fieldGuide.cream} />
+          </IconSquare>
+          <View style={{ width: 8 }} />
+          <IconSquare
+            onPress={() => setMenuOpen(true)}
+            accessibilityLabel="More"
+            size={38}
           >
-            <Ionicons name="arrow-back" size={22} color={theme.text} />
-          </TouchableOpacity>
-        </SafeAreaView>
-      </Animated.View>
+            <Ionicons
+              name="ellipsis-horizontal"
+              size={16}
+              color={fieldGuide.cream}
+            />
+          </IconSquare>
+        </View>
+      </View>
+
+      <CollectionMenuSheet
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        collection={collection}
+        onEdit={handleEdit}
+        onShare={handleShare}
+        onDelete={() => handleDelete()}
+      />
     </View>
   );
 };
 
+export default CollectionDetailScreen;
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  loadingWrap: {
+  screen: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: fieldGuide.ink,
   },
-  listContent: { paddingBottom: spacing.xxl * 2 },
-
+  fillCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 22,
+    backgroundColor: fieldGuide.ink,
+  },
+  scrollContent: {
+    paddingBottom: 120,
+  },
   hero: {
+    width: '100%',
     height: HERO_HEIGHT,
-    backgroundColor: "#111",
+    overflow: 'hidden',
+    position: 'relative',
   },
-  heroImage: {
-    width: "100%",
-    height: "100%",
-  },
-  heroPlaceholder: {
-    width: "100%",
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  heroGradient: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  heroActions: {
-    position: "absolute",
-    top: 0,
-    left: spacing.md,
-    right: spacing.md,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  iconBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  iconBtnDanger: {
-    backgroundColor: "rgba(255,77,79,0.6)",
-  },
-
-  glassBar: {
-    marginTop: -48,
-    marginHorizontal: spacing.md,
-    padding: spacing.lg,
-    borderRadius: radius.lg,
-    ...shadows.lg,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "800",
-  },
-  description: {
-    fontSize: 15,
-    marginTop: spacing.xs,
-    lineHeight: 22,
-  },
-  metaRow: {
-    marginTop: spacing.md,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  authorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    marginRight: spacing.sm,
-  },
-  avatarFallback: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    marginRight: spacing.sm,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  authorName: { fontSize: 14, fontWeight: "600" },
-  likePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
-    gap: 6,
-  },
-  likeText: { fontSize: 15, fontWeight: "700" },
-
-  thumbStrip: {
-    marginTop: spacing.lg,
-  },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  thumbList: {
-    paddingHorizontal: spacing.md,
-  },
-  thumb: {
-    width: THUMB_SIZE,
-    height: THUMB_SIZE,
-    borderRadius: radius.sm,
-    borderWidth: 2,
-  },
-  sectionTitle: {
-    marginHorizontal: spacing.md,
-    marginTop: spacing.xl,
-    marginBottom: spacing.md,
-    fontSize: 20,
-    fontWeight: "800",
-  },
-
-  spotCard: {
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
-    borderRadius: radius.lg,
-    overflow: "hidden",
-    ...shadows.md,
-  },
-  spotImageWrap: {
-    height: 180,
-  },
-  spotImage: {
-    width: "100%",
-    height: "100%",
-  },
-  spotCategoryPill: {
-    position: "absolute",
-    top: spacing.sm,
-    left: spacing.sm,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-  },
-  spotCategoryText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  spotInfo: {
-    padding: spacing.md,
-    borderTopWidth: 1,
-  },
-  spotTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-  },
-  spotAddressRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-    gap: 4,
-  },
-  spotAddress: { fontSize: 13, flex: 1 },
-  spotFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: spacing.sm,
-  },
-  spotPrice: { fontSize: 13, fontWeight: "600" },
-  spotRating: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  spotRatingText: {
-    color: "#FFD700",
-    fontWeight: "700",
-    fontSize: 13,
-  },
-
-  empty: {
-    paddingVertical: spacing.xxl * 2,
-    alignItems: "center",
-  },
-  emptyText: {
-    marginTop: spacing.md,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-
-  stickyHeader: {
-    position: "absolute",
+  heroMosaic: {
+    position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
+    bottom: 0,
+    aspectRatio: undefined,
+    width: '100%',
+    height: '100%',
   },
-  stickyTitle: {
+  navTop: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    zIndex: 10,
+  },
+  navTopRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  meta: {
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 8,
+    position: 'relative',
+    zIndex: 2,
+  },
+  eyebrow: {
+    marginBottom: 8,
+  },
+  desc: {
+    marginTop: 12,
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 14,
+    lineHeight: 22,
+    color: fieldGuide.creamSoft,
+    maxWidth: 460,
+  },
+  infoRow: {
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  infoStrong: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9.5,
+    letterSpacing: fieldGuide.tracking.widest(9.5),
+    color: fieldGuide.cream,
+    textTransform: 'uppercase',
+    marginRight: 14,
+  },
+  infoDim: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9.5,
+    letterSpacing: fieldGuide.tracking.widest(9.5),
+    color: fieldGuide.creamMute,
+    textTransform: 'uppercase',
+    marginRight: 14,
+  },
+  infoEmber: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9.5,
+    letterSpacing: fieldGuide.tracking.widest(9.5),
+    color: fieldGuide.ember,
+    textTransform: 'uppercase',
+  },
+  actions: {
+    marginTop: 18,
+    paddingHorizontal: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionFlex: {
+    flex: 1,
+  },
+  ghostIconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: fieldGuide.radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listHead: {
+    marginTop: 22,
+  },
+  listHeadRule: {
+    marginHorizontal: 0,
+  },
+  listHeadRow: {
+    paddingHorizontal: 22,
+    paddingTop: 24,
+    paddingBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  listHeadTitle: {
+    fontFamily: fieldGuide.fonts.serifMedium,
     fontSize: 18,
-    fontWeight: "800",
+    color: fieldGuide.cream,
+    includeFontPadding: false,
+    letterSpacing: -0.005 * 18,
   },
-  stickyBackWrap: {
-    position: "absolute",
-    top: 0,
-    left: 0,
+  reorderLink: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 10,
+    letterSpacing: fieldGuide.tracking.widest(10),
+    color: fieldGuide.ember,
+    textTransform: 'uppercase',
   },
-  stickyBackSafe: {
-    padding: spacing.md,
+  list: {
+    paddingHorizontal: 22,
+    paddingTop: 4,
+  },
+  emptyList: {
+    paddingHorizontal: 22,
+    paddingTop: 16,
+  },
+  row: {},
+  rowMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    gap: 14,
+  },
+  rowDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: fieldGuide.inkLine,
+  },
+  dragCol: {
+    width: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dragArrow: {
+    padding: 4,
+  },
+  thumb: {
+    width: 64,
+    height: 64,
+    borderRadius: fieldGuide.radius.md,
+    overflow: 'hidden',
+    backgroundColor: fieldGuide.inkElev,
+  },
+  thumbStamp: {
+    top: 4,
+    left: 6,
+    fontSize: 7.5,
+  },
+  rowInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  rowTitle: {
+    fontFamily: fieldGuide.fonts.serifMedium,
+    fontSize: 15.5,
+    lineHeight: 19,
+    color: fieldGuide.cream,
+    letterSpacing: -0.005 * 15.5,
+    includeFontPadding: false,
+  },
+  rowMeta: {
+    marginTop: 3,
+  },
+  rowNote: {
+    marginTop: 6,
+    fontFamily: fieldGuide.fonts.serifItalic,
+    fontSize: 12,
+    lineHeight: 17,
+    color: fieldGuide.creamMute,
+  },
+  chev: {
+    marginLeft: 2,
+  },
+  removeBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: fieldGuide.radius.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.rose,
+  },
+  removeLabel: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9,
+    letterSpacing: fieldGuide.tracking.widest(9),
+    color: fieldGuide.rose,
+    textTransform: 'uppercase',
   },
 });
