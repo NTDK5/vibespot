@@ -38,6 +38,7 @@ export { default as RatingDots } from './spot/RatingDots';
 export { default as SpotPhoto } from './spot/SpotPhoto';
 export { default as SpotCard } from './spot/SpotCard';
 export { default as ChampionCard } from './spot/ChampionCard';
+export { default as ReviewRow } from './spot/ReviewRow';
 
 // signature
 export { default as PostmarkStamp } from './signature/PostmarkStamp';
@@ -60,6 +61,7 @@ export {
 } from './sheets/FilterSheet';
 export { default as MapStylePopover } from './sheets/MapStylePopover';
 export { default as CollectionMenuSheet } from './sheets/CollectionMenuSheet';
+export { default as CollectionPickerSheet } from './sheets/CollectionPickerSheet';
 
 // collection
 export { default as MosaicCover } from './collection/MosaicCover';
@@ -85,6 +87,7 @@ import RatingDots from './spot/RatingDots';
 import SpotPhoto from './spot/SpotPhoto';
 import SpotCard from './spot/SpotCard';
 import ChampionCard from './spot/ChampionCard';
+import ReviewRow from './spot/ReviewRow';
 import PostmarkStamp from './signature/PostmarkStamp';
 import CompassDial from './signature/CompassDial';
 import HourBarChart from './signature/HourBarChart';
@@ -97,6 +100,7 @@ import SuccessSheet from './state/SuccessSheet';
 import FilterSheet from './sheets/FilterSheet';
 import MapStylePopover from './sheets/MapStylePopover';
 import CollectionMenuSheet from './sheets/CollectionMenuSheet';
+import CollectionPickerSheet from './sheets/CollectionPickerSheet';
 import MosaicCover from './collection/MosaicCover';
 import CollectionCard from './collection/CollectionCard';
 
@@ -121,6 +125,7 @@ export const FG = Object.freeze({
   SpotPhoto,
   SpotCard,
   ChampionCard,
+  ReviewRow,
   PostmarkStamp,
   CompassDial,
   HourBarChart,
@@ -133,6 +138,7 @@ export const FG = Object.freeze({
   FilterSheet,
   MapStylePopover,
   CollectionMenuSheet,
+  CollectionPickerSheet,
   MosaicCover,
   CollectionCard,
   IconSquare,
