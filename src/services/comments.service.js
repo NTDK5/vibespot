@@ -30,6 +30,25 @@ export const createComment = async (spotId, text, userId) => {
 };
 
 // ----------------------------
+// Create Comment (Rich payload)
+//
+// Phase 4 extension: lets WriteReviewScreen ship an editorial review
+// with a rating, photo URIs, vibe tags, and an anonymous flag.
+// Backend may ignore any extra field — that is acceptable for now.
+// ----------------------------
+export const createCommentWithMeta = async (spotId, payload = {}) => {
+  try {
+    const response = await api.post(`/spot/${spotId}/comments`, payload);
+    return response.data;
+  } catch (err) {
+    return {
+      error: err.response?.data?.message || "Failed to create review",
+      status: err.response?.status,
+    };
+  }
+};
+
+// ----------------------------
 // Delete Comment
 // ----------------------------
 export const deleteComment = async (spotId, commentId) => {

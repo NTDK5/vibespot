@@ -39,6 +39,7 @@ export { default as SpotPhoto } from './spot/SpotPhoto';
 export { default as SpotCard } from './spot/SpotCard';
 export { default as ChampionCard } from './spot/ChampionCard';
 export { default as ReviewRow } from './spot/ReviewRow';
+export { default as FullReviewCard } from './spot/FullReviewCard';
 
 // signature
 export { default as PostmarkStamp } from './signature/PostmarkStamp';
@@ -88,6 +89,7 @@ import SpotPhoto from './spot/SpotPhoto';
 import SpotCard from './spot/SpotCard';
 import ChampionCard from './spot/ChampionCard';
 import ReviewRow from './spot/ReviewRow';
+import FullReviewCard from './spot/FullReviewCard';
 import PostmarkStamp from './signature/PostmarkStamp';
 import CompassDial from './signature/CompassDial';
 import HourBarChart from './signature/HourBarChart';
@@ -126,6 +128,7 @@ export const FG = Object.freeze({
   SpotCard,
   ChampionCard,
   ReviewRow,
+  FullReviewCard,
   PostmarkStamp,
   CompassDial,
   HourBarChart,

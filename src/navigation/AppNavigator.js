@@ -26,6 +26,8 @@ import { EditSpotScreen } from '../screens/EditSpotScreen';
 import { CollectionsScreen } from '../screens/CollectionsScreen';
 import { CollectionDetailScreen } from '../screens/CollectionDetailScreen';
 import { CreateCollectionScreen } from '../screens/CreateCollectionScreen';
+import { ReviewsScreen } from '../screens/ReviewsScreen';
+import { WriteReviewScreen } from '../screens/WriteReviewScreen';
 
 import fieldGuide from '../theme/fieldGuide';
 import FieldGuideTabBar from './FieldGuideTabBar';
@@ -141,6 +143,12 @@ export const AppNavigator = () => {
             <Stack.Screen
               name="CreateCollection"
               component={CreateCollectionScreen}
+              options={{ presentation: 'modal' }}
+            />
+            <Stack.Screen name="Reviews" component={ReviewsScreen} />
+            <Stack.Screen
+              name="WriteReview"
+              component={WriteReviewScreen}
               options={{ presentation: 'modal' }}
             />
             {/* Reachable when authed but the backend says the email is
