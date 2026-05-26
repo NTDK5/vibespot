@@ -179,30 +179,18 @@ export const PhotoViewerScreen = ({ navigation, route }) => {
   }, [chromeVisible, chromeOpacity]);
 
   /* ── save + share ────────────────────────────────────────────────── */
-  const saveToCameraRoll = useCallback(async () => {
-    const uri = photos[activeIndex];
-    if (!uri) return;
-    try {
-      // expo-media-library is in package.json (Phase 0). We require
-      // lazily so a missing native module surfaces as a toast rather
-      // than a hard crash.
-      // eslint-disable-next-line global-require
-      const MediaLibrary = require('expo-media-library');
-      const perm = await MediaLibrary.requestPermissionsAsync();
-      if (!perm.granted) {
-        toast.show('Photo access not granted.', { variant: 'error' });
-        return;
-      }
-      await MediaLibrary.saveToLibraryAsync(uri);
-      toast.show('Saved to your camera roll.', { variant: 'success' });
-    } catch (err) {
-      logger.error('PhotoViewer.save', err);
-      // TODO(media): expo-media-library cannot save remote URLs on
-      // some platforms — wrap with a download step in a future pass.
-      toast.show('Save coming soon for this kind of photo.', {
-        variant: 'info',
-      });
-    }
+  // TODO(media): wire expo-media-library.saveToLibraryAsync once the
+  // dev-client has been rebuilt with the native side. We deliberately
+  // do NOT require('expo-media-library') here — invoking it on a dev
+  // client that wasn't rebuilt after adding the dependency crashes
+  // with "Cannot read property 'eventEmitter' of undefined" at
+  // autolink time. Surface a friendly toast instead until Phase 5
+  // ships a built dev client.
+  const saveToCameraRoll = useCallback(() => {
+    if (!photos[activeIndex]) return;
+    toast.show('Save to camera roll is coming in the next build.', {
+      variant: 'info',
+    });
   }, [photos, activeIndex, toast]);
 
   const sharePhoto = useCallback(async () => {
