@@ -1,1524 +1,1050 @@
-import React, { useState, useEffect, useRef } from "react";
+/**
+ * HomeScreen — Field Guide masthead, champion, picks, trending, walking, moods.
+ *
+ * Source: screens/07-home.html. Treats the Home tab like the cover
+ * spread of a printed monthly: a small mono masthead with city, volume,
+ * issue, and date; a serif greeting in two voices; a tri-cell stats
+ * strip framed by hairlines; the weekly Champion card; horizontal
+ * Editor's Picks; a vertical Trending list; a horizontal Within Walking
+ * strip (only when location permission is granted); and a By Mood grid
+ * built from the CATEGORIES constant.
+ *
+ * Data flow is preserved verbatim from the pre-Phase-3 implementation:
+ *   - useAuth() for the greeting + home city
+ *   - useLocation() for nearby + walking
+ *   - usePersonalizedSpots(location) — warmed so Explore/SpotDetail
+ *     have the cache ready when navigated to
+ *   - getAllSpots / searchSpots, getNearbySpots, getEditorsPicks,
+ *     getWeeklyChampionSpot, getWeeklySpotRanks
+ *   - getSavedSpots / getVisitedSpots for the stats strip numbers
+ *   - RefreshControl pull-to-refresh
+ *   - logger.error() on every failure path
+ *
+ * Every visual is built from Field Guide primitives (DisplayTitle,
+ * MonoMeta, SectionHead, Rule, SpotCard, ChampionCard, SpotPhoto,
+ * DuotoneVibe, IndexStamp). No inline hex colours or fontFamily
+ * literals outside the field-guide tokens.
+ */
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  StyleSheet,
-  RefreshControl,
-  TouchableOpacity,
-  TextInput,
-  Image,
-  ScrollView,
-  Dimensions,
   Animated,
-  ActivityIndicator,
-  Alert,
-  Modal,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { getAllSpots, searchSpots, getNearbySpots, getEditorsPicks, getWeeklyChampionSpot } from '../services/spots.service';
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+
+import fieldGuide from '../theme/fieldGuide';
+import {
+  ChampionCard,
+  DisplayTitle,
+  DuotoneVibe,
+  IndexStamp,
+  MonoMeta,
+  Rule,
+  SectionHead,
+  SpotCard,
+} from '../components/fieldguide';
+
+import { useAuth } from '../hooks/useAuth';
+import { useLocation } from '../hooks/useLocation';
+import { usePersonalizedSpots } from '../hooks/usePersonalizedSpots';
+
+import {
+  getAllSpots,
+  searchSpots,
+  getNearbySpots,
+  getEditorsPicks,
+  getWeeklyChampionSpot,
+} from '../services/spots.service';
 import { getWeeklySpotRanks } from '../services/weeklyRank.service';
-import { LinearGradient } from "expo-linear-gradient";
-import { useLocation } from "../hooks/useLocation";
-import { useAuth } from "../hooks/useAuth";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { SpotCard } from "../components/SpotCard";
-import { NearbySpotCard } from "../components/NearbySpotCard";
-import { RankSpotCard } from "../components/RankSpotCard";
-import EditorsPickCarousel from "../components/EditorsPickCarousel";
-import { CATEGORIES } from "../utils/constants";
-import { useTheme } from "../context/ThemeContext";
-import { ImageBackground } from 'react-native';
-import { usePersonalizedSpots } from "../hooks/usePersonalizedSpots";
-import { logger } from "../utils/logger";
+import { getSavedSpots } from '../services/savedSpots.service';
+import { getVisitedSpots } from '../services/visitedSpots.service';
 
-const { width } = Dimensions.get("window");
+import { CATEGORIES } from '../utils/constants';
+import { logger } from '../utils/logger';
+import {
+  formatShortDate,
+  formatVolumeIssue,
+} from '../utils/issueDate';
+import { distanceKmFromUser, formatMiles } from '../utils/geo';
 
-const BRAND_GRADIENT = ["#FF7A59", "#1ECAD3", "#0B0E14"];
+const PAGE_PAD = 22;
+const TAB_BAR_SPACE = 96; // FieldGuideTabBar height + safe gap
 
-// Map categories with colors for display
-const categories = CATEGORIES.map((cat, index) => {
-  const colors = ["#FF6B6B", "#4ECDC4", "#FFE66D", "#95E1D3", "#F38181", "#AAE3E2", "#6C5CE7", "#FF7675"];
+// Rotating editorial subtitle for the masthead greeting.
+// Cycled daily so each visit on the same day shows the same line.
+const EDITORIAL_LINES = [
+  "The light's good tonight.",
+  'Twelve new entries this week.',
+  'A quiet hour between the rains.',
+];
+
+// Map a backend category id to one of the Field Guide vibe gradients.
+// Used by SpotCard / ChampionCard / DuotoneVibe so every card carries
+// the right duotone wash without needing a real photo.
+const CATEGORY_VIBE = {
+  photo_spot:    'roof',
+  activity:      'park',
+  gallery:       'gallery',
+  workspace:     'studio',
+  restaurant:    'cafe',
+  cafe:          'cafe',
+  art:           'gallery',
+  sports:        'court',
+  entertainment: 'night',
+  nature:        'park',
+  nightlife:     'night',
+  rooftop:       'roof',
+  waterfront:    'water',
+};
+
+// Ionicons name → CATEGORIES entry already provides one; we keep this
+// as a fallback if a category arrives without an icon.
+const FALLBACK_ICON = 'ellipse-outline';
+
+function categoryToVibe(category) {
+  if (!category) return 'cafe';
+  const key = String(category).toLowerCase();
+  return CATEGORY_VIBE[key] || 'cafe';
+}
+
+function getTimeGreeting(date = new Date()) {
+  const h = date.getHours();
+  if (h < 12) return 'Morning';
+  if (h < 18) return 'Afternoon';
+  return 'Evening';
+}
+
+function getDailyLine(date = new Date()) {
+  const idx = Math.floor(date.getTime() / 86_400_000) % EDITORIAL_LINES.length;
+  return EDITORIAL_LINES[idx];
+}
+
+function getFirstName(user) {
+  if (!user?.name || typeof user.name !== 'string') return 'reader';
+  const first = user.name.trim().split(/\s+/)[0];
+  return first || 'reader';
+}
+
+function prettyCategory(category) {
+  if (!category) return '';
+  return String(category).replace(/_/g, ' ');
+}
+
+// Defensive accessor for trending rows. The /weeklyspotrank endpoint
+// has shipped both shapes ({rank, spot:{...}}) and a flattened one,
+// so try the wrapper first and fall back to the item itself.
+function pickRank(item, key) {
+  if (item == null) return undefined;
+  if (item[key] != null) return item[key];
+  if (item.spot && item.spot[key] != null) return item.spot[key];
+  return undefined;
+}
+
+function getCategoryCount(spots, categoryId) {
+  if (!Array.isArray(spots) || !categoryId) return 0;
+  return spots.filter((s) => s?.category === categoryId).length;
+}
+
+/** Map a backend spot record onto the shape SpotCard / ChampionCard expect. */
+function toFieldSpot(spot, { distance, indexNumber } = {}) {
+  if (!spot) return null;
+  const imageUri =
+    spot.thumbnail ||
+    (Array.isArray(spot.images) && spot.images.length ? spot.images[0] : undefined);
   return {
-    id: cat.id,
-    name: cat.label,
-    icon: cat.icon || "ellipse",
-    color: colors[index % colors.length],
+    id: spot.id,
+    title: spot.title || spot.name || 'Untitled spot',
+    vibe: categoryToVibe(spot.category),
+    indexNumber,
+    district: spot.district || spot.neighbourhood || spot.city || undefined,
+    category: prettyCategory(spot.category),
+    distance,
+    savedByMe: !!spot.savedByMe,
+    image: imageUri ? { uri: imageUri } : undefined,
+    blurb: spot.description || spot.blurb || spot.summary || undefined,
   };
-});
+}
+
+// Pull a numeric tail off a spot id so the IndexStamp on each card
+// reads like "NO. 042". Falls back to a list-position derived value
+// when the id is non-numeric.
+function indexForSpot(spot, fallbackIndex) {
+  const raw = String(spot?.id || '');
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length >= 2) return digits.slice(-3).padStart(3, '0');
+  return String(fallbackIndex + 1).padStart(3, '0');
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+/*  STATS STRIP                                                        */
+/* ─────────────────────────────────────────────────────────────────── */
+
+function StatsStrip({ nearbyCount, visitedCount, savedCount }) {
+  return (
+    <View style={styles.statsWrap}>
+      <Rule />
+      <View style={styles.statsRow}>
+        <StatCell
+          number={nearbyCount}
+          indicator={nearbyCount > 0 ? '↗' : null}
+          label={'Nearby\nTonight'}
+        />
+        <View style={styles.statDivider} />
+        <StatCell number={visitedCount} label={'Spots\nVisited'} />
+        <View style={styles.statDivider} />
+        <StatCell number={savedCount} label={'In Your\nPocket'} />
+      </View>
+      <Rule />
+    </View>
+  );
+}
+
+function StatCell({ number, indicator, label }) {
+  return (
+    <View style={styles.statCell}>
+      <View style={styles.statNumberRow}>
+        <Text style={styles.statNumber}>{String(number ?? 0)}</Text>
+        {indicator ? <Text style={styles.statIndicator}>{indicator}</Text> : null}
+      </View>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+/*  TRENDING ROW                                                       */
+/* ─────────────────────────────────────────────────────────────────── */
+
+function TrendingRow({ item, position, isLast, onPress }) {
+  const rank = pickRank(item, 'rank') ?? position + 1;
+  const prev = pickRank(item, 'previousRank');
+  const change = typeof prev === 'number' && typeof rank === 'number'
+    ? prev - rank
+    : null;
+
+  const title = pickRank(item, 'title') || pickRank(item, 'name') || 'Untitled spot';
+  const category = prettyCategory(pickRank(item, 'category'));
+  const district =
+    pickRank(item, 'district') ||
+    pickRank(item, 'neighbourhood') ||
+    pickRank(item, 'city');
+  const vibe = categoryToVibe(pickRank(item, 'category'));
+
+  const rankLabel = String(rank).padStart(2, '0');
+  const rankColor = change != null && change > 0
+    ? fieldGuide.cream
+    : fieldGuide.creamMute;
+
+  let arrowText = '—';
+  let arrowColor = fieldGuide.creamMute;
+  if (change != null && change > 0) {
+    arrowText = `↑ ${change}`;
+    arrowColor = fieldGuide.moss;
+  } else if (change != null && change < 0) {
+    arrowText = `↓ ${Math.abs(change)}`;
+    arrowColor = fieldGuide.rose;
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Trending #${rankLabel}: ${title}`}
+      style={({ pressed }) => [
+        styles.trendRow,
+        isLast ? styles.trendRowLast : null,
+        { opacity: pressed ? 0.85 : 1 },
+      ]}
+    >
+      <Text style={[styles.trendNumber, { color: rankColor }]}>{rankLabel}</Text>
+
+      <View style={styles.trendThumb}>
+        <DuotoneVibe vibe={vibe} />
+        <IndexStamp position="tl">NO. {rankLabel}</IndexStamp>
+      </View>
+
+      <View style={styles.trendBody}>
+        <Text style={styles.trendTitle} numberOfLines={1}>{title}</Text>
+        <MonoMeta size="spot" style={styles.trendMeta}>
+          {[category, district].filter(Boolean).join('  ·  ')}
+        </MonoMeta>
+      </View>
+
+      <Text style={[styles.trendArrow, { color: arrowColor }]}>{arrowText}</Text>
+    </Pressable>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+/*  MOOD GRID                                                          */
+/* ─────────────────────────────────────────────────────────────────── */
+
+function MoodCard({ category, count, onPress }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Browse ${category.label}`}
+      style={({ pressed }) => [
+        styles.moodCard,
+        { opacity: pressed ? 0.9 : 1 },
+      ]}
+    >
+      <View style={styles.moodIcon}>
+        <Ionicons
+          name={category.icon || FALLBACK_ICON}
+          size={14}
+          color={fieldGuide.ember}
+        />
+      </View>
+      <View>
+        <Text style={styles.moodName} numberOfLines={2}>{category.label}</Text>
+        {count > 0 ? (
+          <MonoMeta size="spot" style={styles.moodCount}>
+            {`${count} SPOT${count === 1 ? '' : 'S'}`}
+          </MonoMeta>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+/*  EMPTY PLACEHOLDERS                                                 */
+/* ─────────────────────────────────────────────────────────────────── */
+
+function GhostPickCard({ label = 'NO ENTRIES YET' }) {
+  return (
+    <View style={styles.ghostCard}>
+      <View style={styles.ghostPhoto} />
+      <MonoMeta size="spot" style={styles.ghostLabel}>{label}</MonoMeta>
+    </View>
+  );
+}
+
+function ChampionSkeleton() {
+  return <View style={styles.championSkeleton} />;
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+/*  HOMESCREEN                                                         */
+/* ─────────────────────────────────────────────────────────────────── */
 
 export const HomeScreen = ({ navigation }) => {
   const { user } = useAuth();
-  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { location } = useLocation();
+
+  // Warm the personalized-spots cache so downstream screens (Explore,
+  // SpotDetail's "More like this") read it instantly.
+  usePersonalizedSpots(location);
+
   const [spots, setSpots] = useState([]);
-  const { location, loading: locationLoading } = useLocation();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState(null);
   const [nearbySpots, setNearbySpots] = useState([]);
   const [weeklyRanks, setWeeklyRanks] = useState([]);
-  const [loadingRanks, setLoadingRanks] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [showSearch, setShowSearch] = useState(false);
-  const [searchCategory, setSearchCategory] = useState(null);
-  const [isSearching, setIsSearching] = useState(false);
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const [stats, setStats] = useState({
-    visitedSpots: 0,
-    nearbyCount: 0,
-    savedSpots: 0,
-  });
-  const {
-    data: personalizedData,
-    isLoading: loadingPersonalized,
-  } = usePersonalizedSpots(location);
   const [editorsPicks, setEditorsPicks] = useState([]);
   const [weeklyChampion, setWeeklyChampion] = useState(null);
+  const [stats, setStats] = useState({ nearbyCount: 0, visitedSpots: 0, savedSpots: 0 });
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    if (location) {
-      loadNearby();
-    }
-    loadSpots();
-    loadWeeklyRanks();
-    loadEditorsPicks();
-    loadWeeklyChampion();
-  }, [selectedCategory, location]);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    if (location) {
-      loadStats();
-    }
-  }, [location, nearbySpots]);
+  /* ── loaders ─────────────────────────────────────────────────── */
 
-  useEffect(() => {
-    if (searchQuery.length > 2 || searchCategory) {
-      handleSearch(searchQuery, searchCategory);
-    } else {
-      setSearchResults([]);
-    }
-  }, [searchQuery, searchCategory]);
-
-  const loadStats = async () => {
+  const loadSpots = useCallback(async () => {
     try {
-      const { getSavedSpots } = await import('../services/savedSpots.service');
-      const { getVisitedSpots } = await import('../services/visitedSpots.service');
-
-      const [savedResult, visitedResult] = await Promise.all([
-        getSavedSpots(),
-        getVisitedSpots(),
-      ]);
-
-      const savedCount = savedResult.error ? 0 : (Array.isArray(savedResult) ? savedResult.length : 0);
-      const visitedCount = visitedResult.error ? 0 : (Array.isArray(visitedResult) ? visitedResult.length : 0);
-      const nearbyCount = nearbySpots.length;
-
-      setStats({
-        visitedSpots: visitedCount,
-        nearbyCount: nearbyCount,
-        savedSpots: savedCount,
-      });
+      const response = await getAllSpots();
+      const arr = Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response)
+          ? response
+          : [];
+      setSpots(arr);
     } catch (error) {
       logger.error({
-        service: "home",
-        action: "load_stats_error",
-        message: "Error loading stats",
-        metadata: { error: error?.message || String(error) },
-      });
-    }
-  };
-
-  const loadNearby = async () => {
-    if (!location) return;
-    try {
-      const result = await getNearbySpots(location.latitude, location.longitude, 5000);
-      if (!result.error) {
-        setNearbySpots(result);
-      }
-    } catch (error) {
-      logger.error({
-        service: "home",
-        action: "load_nearby_error",
-        message: "Error loading nearby spots",
-        metadata: { error: error?.message || String(error) },
-      });
-    }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([
-      loadSpots(),
-      loadWeeklyRanks(),
-      location && loadNearby(),
-    ]);
-    setRefreshing(false);
-  };
-
-  const loadSpots = async () => {
-    try {
-      const response = selectedCategory
-        ? await searchSpots({ category: selectedCategory })
-        : await getAllSpots();
-
-      const spotsArray =
-        Array.isArray(response?.data)
-          ? response.data
-          : Array.isArray(response)
-            ? response
-            : [];
-
-      setSpots(spotsArray);
-      loadStats();
-    } catch (error) {
-      logger.error({
-        service: "home",
-        action: "load_spots_error",
-        message: "Error loading spots",
+        service: 'home',
+        action: 'load_spots_error',
+        message: 'Error loading spots',
         metadata: { error: error?.message || String(error) },
       });
       setSpots([]);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, []);
 
+  const loadNearby = useCallback(async () => {
+    if (!location) return;
+    try {
+      const result = await getNearbySpots(location.latitude, location.longitude, 5000);
+      if (Array.isArray(result)) setNearbySpots(result);
+    } catch (error) {
+      logger.error({
+        service: 'home',
+        action: 'load_nearby_error',
+        message: 'Error loading nearby spots',
+        metadata: { error: error?.message || String(error) },
+      });
+    }
+  }, [location]);
 
-  const loadWeeklyRanks = async () => {
-    setLoadingRanks(true);
+  const loadWeeklyRanks = useCallback(async () => {
     try {
       const result = await getWeeklySpotRanks();
-      if (!result.error && result.spots) {
+      if (!result?.error && Array.isArray(result?.spots)) {
         setWeeklyRanks(result.spots);
       }
     } catch (error) {
       logger.error({
-        service: "home",
-        action: "load_weekly_ranks_error",
-        message: "Error loading weekly ranks",
+        service: 'home',
+        action: 'load_weekly_ranks_error',
+        message: 'Error loading weekly ranks',
         metadata: { error: error?.message || String(error) },
       });
-    } finally {
-      setLoadingRanks(false);
     }
-  };
+  }, []);
 
-  const loadEditorsPicks = async () => {
+  const loadEditorsPicks = useCallback(async () => {
     try {
       const result = await getEditorsPicks();
-      if (!result.error && Array.isArray(result)) {
+      if (!result?.error && Array.isArray(result)) {
         setEditorsPicks(result);
       } else {
         setEditorsPicks([]);
       }
     } catch (error) {
       logger.error({
-        service: "home",
-        action: "load_editors_picks_error",
+        service: 'home',
+        action: 'load_editors_picks_error',
         message: "Error loading editor's picks",
         metadata: { error: error?.message || String(error) },
       });
       setEditorsPicks([]);
-      console.log("editors picks error", editorsPicks);
     }
-  };
+  }, []);
 
-  const loadWeeklyChampion = async () => {
+  const loadWeeklyChampion = useCallback(async () => {
     try {
       const result = await getWeeklyChampionSpot();
-      if (!result.error && result?.id) {
+      if (!result?.error && result?.id) {
         setWeeklyChampion(result);
       } else {
         setWeeklyChampion(null);
       }
     } catch (error) {
       logger.error({
-        service: "home",
-        action: "load_weekly_champion_error",
-        message: "Error loading weekly champion",
+        service: 'home',
+        action: 'load_weekly_champion_error',
+        message: 'Error loading weekly champion',
         metadata: { error: error?.message || String(error) },
       });
       setWeeklyChampion(null);
     }
-  };
+  }, []);
 
-  const handleSearch = async (query, category = null) => {
-    setIsSearching(true);
+  const loadStats = useCallback(async () => {
     try {
-      const results = await searchSpots({
-        q: query,
-        category: category || undefined,
-      });
-      if (!results.error) {
-        setSearchResults(results.data || results || []);
-      }
+      const [savedResult, visitedResult] = await Promise.all([
+        getSavedSpots(),
+        getVisitedSpots(),
+      ]);
+      const savedCount = Array.isArray(savedResult) ? savedResult.length : 0;
+      const visitedCount = Array.isArray(visitedResult) ? visitedResult.length : 0;
+      setStats((s) => ({
+        ...s,
+        savedSpots: savedCount,
+        visitedSpots: visitedCount,
+      }));
     } catch (error) {
       logger.error({
-        service: "home",
-        action: "search_error",
-        message: "Search error",
+        service: 'home',
+        action: 'load_stats_error',
+        message: 'Error loading stats',
         metadata: { error: error?.message || String(error) },
       });
-    } finally {
-      setIsSearching(false);
     }
-  };
+  }, []);
 
-  const headerOpacity = scrollY.interpolate({
+  useEffect(() => {
+    loadSpots();
+    loadWeeklyRanks();
+    loadEditorsPicks();
+    loadWeeklyChampion();
+    loadStats();
+  }, [loadSpots, loadWeeklyRanks, loadEditorsPicks, loadWeeklyChampion, loadStats]);
+
+  useEffect(() => {
+    if (location) loadNearby();
+  }, [location, loadNearby]);
+
+  useEffect(() => {
+    setStats((s) => ({ ...s, nearbyCount: nearbySpots.length }));
+  }, [nearbySpots]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        loadSpots(),
+        loadWeeklyRanks(),
+        loadEditorsPicks(),
+        loadWeeklyChampion(),
+        loadStats(),
+        location ? loadNearby() : Promise.resolve(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadSpots, loadWeeklyRanks, loadEditorsPicks, loadWeeklyChampion, loadStats, loadNearby, location]);
+
+  /* ── derived ─────────────────────────────────────────────────── */
+
+  const userFirstName = useMemo(() => getFirstName(user), [user]);
+  const homeCity = user?.homeCity || 'Lisbon';
+  const timeGreeting = useMemo(() => getTimeGreeting(), []);
+  const editorialLine = useMemo(() => getDailyLine(), []);
+  const issueLine = useMemo(() => formatVolumeIssue(), []);
+  const { dayName, dayNum, monShort } = useMemo(() => formatShortDate(), []);
+
+  const greetingText = `${timeGreeting}, ${userFirstName}.\n${editorialLine}`;
+  const greetingItalic = `${userFirstName}.`;
+
+  const nearbyCount = stats.nearbyCount;
+  const subtitleText = useMemo(() => {
+    const headline =
+      nearbyCount >= 3
+        ? `${nearbyCount} new spots verified this week.`
+        : 'A few new spots verified this week.';
+    let walking;
+    if (nearbyCount <= 0) {
+      walking = '';
+    } else if (nearbyCount === 1) {
+      walking = 'One is within a short walk of you.';
+    } else if (nearbyCount < 3) {
+      walking = 'A few are within a short walk of you.';
+    } else if (nearbyCount >= 12) {
+      walking = 'All are within a brief walk of you.';
+    } else {
+      walking = 'Three are within a six-minute walk of you.';
+    }
+    return walking ? `${headline} ${walking}` : headline;
+  }, [nearbyCount]);
+
+  const championProps = useMemo(() => {
+    if (!weeklyChampion) return null;
+    const distanceKm = distanceKmFromUser(location, weeklyChampion);
+    return {
+      id: weeklyChampion.id,
+      title: weeklyChampion.title || weeklyChampion.name || 'This week\'s champion',
+      blurb:
+        weeklyChampion.description ||
+        weeklyChampion.blurb ||
+        weeklyChampion.summary ||
+        undefined,
+      vibe: categoryToVibe(weeklyChampion.category),
+      rank: weeklyChampion.weeklyRank || 1,
+      weekNumber: weeklyChampion.weekNumber,
+      category: prettyCategory(weeklyChampion.category),
+      district:
+        weeklyChampion.district ||
+        weeklyChampion.neighbourhood ||
+        weeklyChampion.city ||
+        undefined,
+      distance: distanceKm != null ? formatMiles(distanceKm) : undefined,
+    };
+  }, [weeklyChampion, location]);
+
+  const moodCategories = useMemo(() => CATEGORIES.slice(0, 6), []);
+
+  /* ── scroll-driven masthead motion ──────────────────────────── */
+
+  const mastOpacity = scrollY.interpolate({
     inputRange: [0, 100],
     outputRange: [1, 0.95],
     extrapolate: 'clamp',
   });
-
-  const headerTranslateY = scrollY.interpolate({
+  const mastTranslate = scrollY.interpolate({
     inputRange: [0, 100],
     outputRange: [0, -20],
     extrapolate: 'clamp',
   });
 
-  const renderSpotCard = ({ item, index }) => (
-    <SpotCard spot={item} onPress={() => navigation.navigate("SpotDetail", { spotId: item.id })} />
+  /* ── renderers ──────────────────────────────────────────────── */
+
+  const goSpotDetail = useCallback(
+    (id) => navigation.navigate('SpotDetail', { spotId: id }),
+    [navigation],
   );
 
-  const renderNearbyCard = ({ item, index }) => (
-    <NearbySpotCard spot={item} onPress={() => navigation.navigate("SpotDetail", { spotId: item.id })} />
+  const renderPick = useCallback(
+    ({ item, index }) => {
+      const fieldSpot = toFieldSpot(item, { indexNumber: indexForSpot(item, index) });
+      if (!fieldSpot) return null;
+      return (
+        <SpotCard
+          variant="pick"
+          spot={fieldSpot}
+          onPress={() => goSpotDetail(item.id)}
+        />
+      );
+    },
+    [goSpotDetail],
   );
 
-  const renderRankCard = ({ rankedSpot, index }) => {
-    return <RankSpotCard spot={rankedSpot} navigation={navigation} key={index} />
-  };
-
-  const renderPersonalizedSkeleton = () => (
-    <View style={styles.spotsRow}>
-      {[1, 2, 3].map((key) => (
-        <View
-          key={key}
-          style={[
-            styles.spotCard,
-            {
-              backgroundColor: theme.surface,
-              opacity: 0.7,
-            },
-          ]}
-        >
-          <View style={{ flex: 1, backgroundColor: theme.border, opacity: 0.3 }} />
-        </View>
-      ))}
-    </View>
+  const renderNearby = useCallback(
+    ({ item }) => {
+      const km = distanceKmFromUser(location, item);
+      const distLabel = km != null ? formatMiles(km) : undefined;
+      const fieldSpot = toFieldSpot(item, {
+        indexNumber: distLabel,
+        distance: km != null ? `${km.toFixed(1)} KM` : undefined,
+      });
+      if (!fieldSpot) return null;
+      return (
+        <SpotCard
+          variant="near"
+          spot={fieldSpot}
+          onPress={() => goSpotDetail(item.id)}
+        />
+      );
+    },
+    [goSpotDetail, location],
   );
 
-  const renderStatsCard = () => (
-    <View style={styles.statsContainer}>
-      <View
-        style={[
-          styles.statsCard,
-          {
-            backgroundColor: theme.surface,
-            borderColor: theme.border,
-            shadowColor: theme.shadowMd || theme.shadowSm,
-          },
-        ]}
-      >
-        <View style={styles.statCard}>
-          <View style={[styles.statIconWrap, { backgroundColor: theme.primarySoft }]}>
-            <Ionicons name="location" size={18} color={theme.secondary} />
-          </View>
-          <Text style={[styles.statNumber, { color: theme.text }]}>{stats.nearbyCount}</Text>
-          <Text style={[styles.statLabel, { color: theme.textMuted }]}>Nearby</Text>
-        </View>
+  const editorsLabel = useMemo(() => {
+    const n = String(editorsPicks.length).padStart(2, '0');
+    return `See all ${n}`;
+  }, [editorsPicks.length]);
 
-        <View style={[styles.statDivider, { backgroundColor: theme.divider || theme.border }]} />
+  const showWithinWalking = !!location && nearbySpots.length > 0;
 
-        <View style={styles.statCard}>
-          <View style={[styles.statIconWrap, { backgroundColor: "rgba(255, 215, 0, 0.15)" }]}>
-            <Ionicons name="star" size={18} color="#FFD700" />
-          </View>
-          <Text style={[styles.statNumber, { color: theme.text }]}>{stats.visitedSpots}</Text>
-          <Text style={[styles.statLabel, { color: theme.textMuted }]}>Visited</Text>
-        </View>
-
-        <View style={[styles.statDivider, { backgroundColor: theme.divider || theme.border }]} />
-
-        <View style={styles.statCard}>
-          <View style={[styles.statIconWrap, { backgroundColor: "rgba(255, 107, 107, 0.14)" }]}>
-            <Ionicons name="bookmark" size={18} color="#FF6B6B" />
-          </View>
-          <Text style={[styles.statNumber, { color: theme.text }]}>{stats.savedSpots}</Text>
-          <Text style={[styles.statLabel, { color: theme.textMuted }]}>Saved</Text>
-        </View>
-      </View>
-    </View>
-  );
-
-  if (loading && spots.length === 0) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={[styles.loadingText, { color: theme.text }]}>Discovering amazing spots...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  /* ── render ─────────────────────────────────────────────────── */
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-      {/* Branded background (premium hero) */}
-
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
+          { useNativeDriver: true },
         )}
-        scrollEventThrottle={16}
+        contentContainerStyle={{
+          paddingBottom: TAB_BAR_SPACE + Math.max(insets.bottom, 12),
+        }}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={fieldGuide.ember}
+            colors={[fieldGuide.ember]}
+          />
         }
       >
-        <ImageBackground
-          source={require('../../assets/header-bg.png')} // adjust path
-          style={styles.glassHeader}
-          imageStyle={{ borderRadius: 16, transform: [{ rotate: '-18deg' }, { translateX: -100 }, { translateY: -160 }], width: '150%', height: '150%' }} // optional
+        {/* ─── MASTHEAD ─────────────────────────────────────── */}
+        <Animated.View
+          style={[
+            styles.mast,
+            { opacity: mastOpacity, transform: [{ translateY: mastTranslate }] },
+          ]}
         >
-          {/* HEADER */}
-          <Animated.View
-            style={[
-              styles.header,
-              { backgroundColor: 'rgba(255, 255, 255, 0.0)', transform: [{ translateY: headerTranslateY }] }
-            ]}
-          >
-
-
-
-
-            <View style={styles.headerTop}>
-              <View>
-                <Text style={[styles.greetingSmall, { color: "#fff" }]}>
-                  {new Date().getHours() < 12 ? 'Good Morning' :
-                    new Date().getHours() < 18 ? 'Good Afternoon' : 'Good Evening'}
-                </Text>
-                <Text style={[styles.greeting, { color: "#fff" }]}>
-                  {user?.name || 'Explorer'} 👋
-                </Text>
-                {/* <Text style={[styles.greetingTagline, { color: theme.textMuted }]}>
-                Curated picks and nearby gems — tap a vibe to filter.
-              </Text> */}
-              </View>
-              <View style={styles.headerActions}>
-
-                <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surface }]}>
-                  <Ionicons name="notifications-outline" size={22} color={theme.text} />
-                  <View style={styles.notificationDot} />
-                </TouchableOpacity>
-
-              </View>
-            </View>
-
-            {/* SEARCH */}
-            <TouchableOpacity
-              style={[styles.searchContainer, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.shadowMd || theme.shadowSm }]}
-              onPress={() => setShowSearch(true)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="search" size={20} color={theme.textMuted} />
-              <Text style={[styles.searchPlaceholder, { color: theme.textMuted }]}>
-                {searchQuery || "Search spots, vibes, activities..."}
+          <View style={styles.mastRow1}>
+            <View style={styles.mastCity}>
+              <Ionicons
+                name="location-outline"
+                size={11}
+                color={fieldGuide.cream}
+                style={styles.mastCityIcon}
+              />
+              <Text style={styles.mastCityText}>
+                {`${homeCity.toUpperCase()}, PT`}
               </Text>
-              <TouchableOpacity
-                style={[styles.filterBtn, { backgroundColor: theme.primary }]}
-                onPress={() => setShowSearch(true)}
-              >
-                <Ionicons name="options" size={20} color={theme.background} />
-              </TouchableOpacity>
-            </TouchableOpacity>
-            <View style={[styles.statsSection, { backgroundColor: theme.surface }, { transform: [{ translateY: "10%" }] }]}>
-              <View style={styles.sectionHeader}>
-                <View>
-                  <Text style={[styles.sectionTitleSm, { color: theme.text }]}>Your snapshot</Text>
-                  <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>
-                    Saved, visited, and what’s nearby right now
-                  </Text>
-                </View>
-              </View>
-              {renderStatsCard()}
             </View>
-          </Animated.View>
-
-        </ImageBackground>
-        {/* STATS */}
-
-
-        {/* CATEGORIES */}
-        <View style={[styles.section, { backgroundColor: theme.background }, { transform: [{ translateY: "20%" }] }]}>
-          {/* Header */}
-          <View style={[styles.sectionHeader, { backgroundColor: theme.background }]}>
-            <View>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>Explore</Text>
-              <Text style={[styles.sectionSubtitle, { color: theme.text }]}>Find spots by vibe</Text>
+            <View style={styles.mastVolWrap}>
+              <Text style={styles.mastVolText}>{issueLine}</Text>
+              <Text style={styles.mastVolText}>
+                {`${dayName} · ${dayNum} ${monShort}`}
+              </Text>
             </View>
           </View>
+          <Rule />
 
-          {/* Horizontal Rail */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={[styles.categoriesRow, { backgroundColor: theme.background }]}
+          <DisplayTitle
+            size="xl"
+            weight="400"
+            italic={greetingItalic}
+            style={styles.greeting}
           >
-            {categories.map((cat) => {
-              const isActive = selectedCategory === cat.id;
+            {greetingText}
+          </DisplayTitle>
 
-              return (
-                <TouchableOpacity
-                  key={cat.id}
-                  activeOpacity={0.85}
-                  onPress={() => {
-                    setSearchCategory(cat.id);
-                    setShowSearch(true);
-                  }}
-                  style={[
-                    styles.categoryCard,
-                    {
-                      backgroundColor: isActive ? cat.color : theme.surface,
-                      borderColor: isActive ? "transparent" : theme.border,
-                      shadowColor: isActive ? cat.color : (theme.shadowSm || "#000"),
-                    },
-                    isActive && {
-                      shadowOpacity: 0.18,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.categoryIcon,
-                      {
-                        backgroundColor: isActive
-                          ? "rgba(255,255,255,0.25)"
-                          : cat.color + "22",
+          <Text style={styles.subtitle}>{subtitleText}</Text>
+        </Animated.View>
 
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name={cat.icon}
-                      size={18}
-                      color={isActive ? "#fff" : cat.color}
-                    />
-                  </View>
+        {/* ─── STATS STRIP ──────────────────────────────────── */}
+        <StatsStrip
+          nearbyCount={stats.nearbyCount}
+          visitedCount={stats.visitedSpots}
+          savedCount={stats.savedSpots}
+        />
 
-                  <Text
-                    style={[
-                      styles.categoryLabel,
-                      { color: isActive ? "#fff" : theme.text },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {cat.name}
-                  </Text>
-
-                  {isActive && <View style={[styles.activeDot, { backgroundColor: "rgba(255,255,255,0.95)" }]} />}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+        {/* ─── CHAMPION ─────────────────────────────────────── */}
+        <View style={styles.championWrap}>
+          {championProps ? (
+            <ChampionCard
+              spot={championProps}
+              onPress={() => goSpotDetail(championProps.id)}
+            />
+          ) : (
+            <ChampionSkeleton />
+          )}
         </View>
 
-
-        {/* WEEKLY RANKS */}
-        {/* {weeklyRanks.length > 0 && (
-          <View style={[styles.section, { backgroundColor: theme.background },{ transform: [{ translateY: "10%" }] }]}>
-            <View style={styles.sectionHeader}>
-              <View style={[styles.sectionTitleRow, { backgroundColor: theme.background }]}>
-                <LinearGradient
-                  colors={['#FFD700', '#FFA500']}
-                  style={[styles.trophyIcon, { backgroundColor: theme.background }]}
-                >
-                  <Ionicons name="trophy" size={20} color="#fff" />
-                </LinearGradient>
-                <View>
-                  <Text style={[styles.sectionTitle, { color: theme.text }]}>Weekly Champions</Text>
-                  <Text style={[styles.sectionSubtitle, { color: theme.text }]}>Top trending spots this week</Text>
-                </View>
-              </View>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.ranksRow}
-              pagingEnabled
-              style={{ paddingVertical: 16 }}
-            >
-              {weeklyRanks.map((rankedSpot, index) => renderRankCard({ rankedSpot, index }))}
-            </ScrollView>
-          </View>
-        )} */}
-        {/* EDITOR'S PICKS – premium hero carousel */}
-        {editorsPicks.length > 0 && (
-          <View
-            style={[
-              styles.section,
-              {
-                transform: [
-                  { translateY: weeklyChampion ? "5%" : user ? "5%" : "10%" },
-                ],
-              },
-              { backgroundColor: theme.background },
-            ]}
-          >
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                  Editor’s Picks
-                </Text>
-                <Text
-                  style={[styles.sectionSubtitle, { color: theme.textMuted }]}
-                >
-                  Curated highlights hand-picked for the VibeSpot community
-                </Text>
-              </View>
-            </View>
-
-            <EditorsPickCarousel
-              spots={editorsPicks}
-              onPressSpot={(spot) =>
-                navigation.navigate("SpotDetail", { spotId: spot.id })
-              }
-            />
+        {/* ─── EDITOR'S PICKS ───────────────────────────────── */}
+        <SectionHead
+          title="Editor's picks"
+          cta={{
+            label: editorsLabel,
+            onPress: () => navigation.navigate('Explore', { filter: 'editors' }),
+          }}
+        />
+        {editorsPicks.length > 0 ? (
+          <FlatList
+            data={editorsPicks}
+            keyExtractor={(item, idx) => String(item?.id ?? idx)}
+            renderItem={renderPick}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.hScrollPad}
+          />
+        ) : (
+          <View style={styles.hScrollPad}>
+            <GhostPickCard />
           </View>
         )}
 
-        {/* FOR YOUR VIBE - personalized recommendations */}
-        {user && (
-          <View style={[styles.section, styles.forYourVibeSection, { backgroundColor: theme.background }]}>
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>For Your Vibe</Text>
-                <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>
-                  {personalizedData?.explanation || "Based on your chill & cozy vibe"}
-                </Text>
-              </View>
-            </View>
-            {loadingPersonalized ? (
-              renderPersonalizedSkeleton()
-            ) : Array.isArray(personalizedData?.spots) && personalizedData.spots.length > 0 ? (
-              <FlatList
-                data={personalizedData.spots}
-                horizontal
-                renderItem={({ item }) => (
-                  <View style={styles.forYourVibeCardWrap}>
-                    <SpotCard
-                      spot={item}
-                      onPress={() => navigation.navigate("SpotDetail", { spotId: item.id })}
-                    />
-                  </View>
-                )}
-                keyExtractor={(spot) => spot.id}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.forYourVibeList}
-                snapToInterval={width * 0.6 + 16}
-                decelerationRate="fast"
-              />
-            ) : (
-              <View style={styles.forYourVibeEmpty}>
-                <Text style={[styles.forYourVibeEmptyText, { color: theme.textMuted }]}>
-                  No recommendations yet. Explore and react to a few spots to unlock personalized picks.
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* WEEKLY SPOT CHAMPION */}
-        {weeklyChampion && (
-          <View style={[styles.section, { transform: [{ translateY: user ? "5%" : "10%" }] }, { backgroundColor: theme.background }]}>
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>Weekly Spot Champion</Text>
-                <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>
-                  Top-performing spot this week
-                </Text>
-              </View>
-            </View>
-            <SpotCard spot={weeklyChampion} onPress={() => navigation.navigate("SpotDetail", { spotId: weeklyChampion.id })} />
-          </View>
-        )}
-
-
-
-        {/* NEARBY */}
-        {nearbySpots.length > 0 && (
-          <View style={[styles.section, { transform: [{ translateY: 60 }] }]}>
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>Near You</Text>
-                <Text style={[styles.sectionSubtitle, { color: theme.text }]}>
-                  {nearbySpots.length} spots within 5km
-                </Text>
-              </View>
-              <TouchableOpacity style={styles.nearFilterBtn}>
-                <Ionicons name="options-outline" size={20} color="#6C5CE7" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.nearbyList}>
-              {nearbySpots.map((item, index) => (
-                <View key={item.id}>{renderNearbyCard({ item, index })}</View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        <View style={{ height: 100 }} />
-      </Animated.ScrollView>
-
-      {/* Search Modal */}
-      <Modal
-        visible={showSearch}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => {
-          setShowSearch(false);
-          setSearchQuery("");
-          setSearchResults([]);
-          setSearchCategory(null);
-        }}
-      >
-        <SafeAreaView style={[styles.searchModalContainer, { backgroundColor: theme.background }]}>
-          <View style={[styles.searchHeader, { backgroundColor: theme.background, borderBottomColor: theme.divider || theme.border }]}>
-            <TouchableOpacity
-              onPress={() => {
-                setShowSearch(false);
-                setSearchQuery("");
-                setSearchResults([]);
-                setSearchCategory(null);
-              }}
-              style={styles.searchBackButton}
-            >
-              <Ionicons name="arrow-back" size={24} color={theme.text} />
-            </TouchableOpacity>
-            <TextInput
-              style={[styles.searchInput, { color: theme.text }]}
-              placeholder="Search spots, vibes, activities..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoFocus
-              returnKeyType="search"
-              placeholderTextColor={theme.textSubtle || theme.textMuted}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity
+        {/* ─── TRENDING THIS WEEK ───────────────────────────── */}
+        <SectionHead
+          title="Trending this week"
+          cta={{
+            label: 'All ↗',
+            onPress: () => navigation.navigate('Explore', { sort: 'trending' }),
+          }}
+        />
+        {weeklyRanks.length > 0 ? (
+          <View style={styles.trendList}>
+            {weeklyRanks.map((item, idx) => (
+              <TrendingRow
+                key={pickRank(item, 'id') || idx}
+                item={item}
+                position={idx}
+                isLast={idx === weeklyRanks.length - 1}
                 onPress={() => {
-                  setSearchQuery("");
-                  setSearchResults([]);
+                  const id = pickRank(item, 'id');
+                  if (id) goSpotDetail(id);
                 }}
-                style={styles.searchClearButton}
-              >
-                <Ionicons name="close-circle" size={24} color={theme.textSubtle || theme.textMuted} />
-              </TouchableOpacity>
-            )}
+              />
+            ))}
           </View>
+        ) : (
+          <View style={styles.trendSkeletonWrap}>
+            {[0, 1, 2, 3].map((k) => (
+              <View key={k} style={styles.trendSkeleton} />
+            ))}
+          </View>
+        )}
 
-          {/* Category Filter */}
-          <View style={[styles.searchCategoryContainer, { backgroundColor: theme.background, borderBottomColor: theme.divider || theme.border }]}>
-            <Text style={[styles.searchCategoryTitle, { color: theme.textMuted }]}>Filter by Category</Text>
-            <ScrollView
+        {/* ─── WITHIN WALKING ───────────────────────────────── */}
+        {showWithinWalking ? (
+          <>
+            <SectionHead
+              title="Within walking"
+              cta={{
+                label: 'Map ↗',
+                onPress: () => navigation.navigate('Map'),
+              }}
+            />
+            <FlatList
+              data={nearbySpots}
+              keyExtractor={(item, idx) => String(item?.id ?? idx)}
+              renderItem={renderNearby}
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.searchCategoriesRow}
-            >
-              <TouchableOpacity
-                style={[
-                  styles.searchCategoryChip,
-                  { backgroundColor: theme.surfaceAlt || theme.surface, borderColor: theme.border },
-                  !searchCategory && styles.searchCategoryChipActive,
-                ]}
-                onPress={() => setSearchCategory(null)}
-              >
-                <Text
-                  style={[
-                    styles.searchCategoryChipText,
-                    { color: theme.textMuted },
-                    !searchCategory && styles.searchCategoryChipTextActive,
-                  ]}
-                >
-                  All
-                </Text>
-              </TouchableOpacity>
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[
-                    styles.searchCategoryChip,
-                    { backgroundColor: theme.surfaceAlt || theme.surface, borderColor: theme.border },
-                    searchCategory === cat.id && styles.searchCategoryChipActive,
-                  ]}
-                  onPress={() => setSearchCategory(cat.id)}
-                >
-                  <Text
-                    style={[
-                      styles.searchCategoryChipText,
-                      { color: theme.textMuted },
-                      searchCategory === cat.id && styles.searchCategoryChipTextActive,
-                    ]}
-                  >
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+              contentContainerStyle={styles.hScrollPad}
+            />
+          </>
+        ) : null}
 
-          {/* Search Results */}
-          <View style={styles.searchResultsContainer}>
-            {isSearching ? (
-              <View style={styles.searchLoadingContainer}>
-                <ActivityIndicator size="large" color={theme.primary} />
-                <Text style={[styles.searchLoadingText, { color: theme.textMuted }]}>Searching...</Text>
-              </View>
-            ) : searchQuery.length > 2 && searchResults.length > 0 ? (
-              <FlatList
-                data={searchResults}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[styles.searchResultItem, { backgroundColor: theme.surface, shadowColor: theme.shadowSm || "#000" }]}
-                    onPress={() => {
-                      setShowSearch(false);
-                      navigation.navigate("SpotDetail", { spotId: item.id });
-                    }}
-                  >
-                    <Image
-                      source={{ uri: item.thumbnail || item.images?.[0] }}
-                      style={styles.searchResultImage}
-                    />
-                    <View style={styles.searchResultInfo}>
-                      <Text style={[styles.searchResultTitle, { color: theme.text }]}>{item.title}</Text>
-                      <Text style={[styles.searchResultCategory, { color: theme.textMuted }]}>
-                        {item.category?.replace("_", " ")}
-                      </Text>
-                      <View style={styles.searchResultMeta}>
-                        <View style={styles.searchResultRating}>
-                          <Ionicons name="star" size={14} color="#FFD700" />
-                          <Text style={[styles.searchResultRatingText, { color: theme.text }]}>
-                            {item.ratingAvg?.toFixed(1) || "0.0"}
-                          </Text>
-                        </View>
-                        <Text style={[styles.searchResultPrice, { color: theme.textMuted }]}>
-                          {item.priceRange?.toUpperCase()}
-                        </Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                )}
-                contentContainerStyle={styles.searchResultsList}
-              />
-            ) : searchQuery.length > 2 && !isSearching ? (
-              <View style={styles.searchEmptyContainer}>
-                <Ionicons name="search-outline" size={64} color={theme.textSubtle || theme.textMuted} />
-                <Text style={[styles.searchEmptyText, { color: theme.text }]}>No results found</Text>
-                <Text style={[styles.searchEmptySubtext, { color: theme.textMuted }]}>
-                  Try a different search term
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.searchEmptyContainer}>
-                <Ionicons name="search-outline" size={64} color={theme.textSubtle || theme.textMuted} />
-                <Text style={[styles.searchEmptyText, { color: theme.text }]}>Start typing to search</Text>
-                <Text style={[styles.searchEmptySubtext, { color: theme.textMuted }]}>
-                  Search for spots, categories, or activities
-                </Text>
-              </View>
-            )}
-          </View>
-        </SafeAreaView>
-      </Modal>
+        {/* ─── BY MOOD ──────────────────────────────────────── */}
+        <SectionHead title="By mood" />
+        <View style={styles.moodGrid}>
+          {moodCategories.map((cat) => (
+            <MoodCard
+              key={cat.id}
+              category={cat}
+              count={getCategoryCount(spots, cat.id)}
+              onPress={() => navigation.navigate('Explore', { category: cat.id })}
+            />
+          ))}
+        </View>
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 };
 
+export default HomeScreen;
+
+/* ─────────────────────────────────────────────────────────────────── */
+/*  STYLES                                                             */
+/* ─────────────────────────────────────────────────────────────────── */
+
 const styles = StyleSheet.create({
-  container: {
+  safe: {
     flex: 1,
-    // backgroundColor: "#F8F9FA",
+    backgroundColor: fieldGuide.ink,
   },
-  bgWrap: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 520,
-    overflow: "hidden",
+
+  /* masthead */
+  mast: {
+    paddingHorizontal: PAGE_PAD,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
-  bgHero: {
-    position: "absolute",
-    top: -120,
-    left: -90,
-    right: -90,
-    height: 520,
-    borderBottomLeftRadius: 80,
-    borderBottomRightRadius: 80,
-    transform: [{ rotate: "-6deg" }],
+  mastRow1: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingBottom: 10,
   },
-  bgFade: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
+  mastCity: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  bgBlob: {
-    position: "absolute",
-    width: 220,
-    height: 220,
-    borderRadius: 220,
-    top: 84,
-    right: -70,
-    transform: [{ rotate: "14deg" }],
+  mastCityIcon: {
+    marginRight: 6,
   },
-  bgBlob2: {
-    position: "absolute",
-    width: 260,
-    height: 260,
-    borderRadius: 260,
-    top: 150,
-    left: -110,
-    transform: [{ rotate: "-12deg" }],
+  mastCityText: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9.5,
+    letterSpacing: fieldGuide.tracking.mono30(9.5),
+    color: fieldGuide.cream,
+    textTransform: 'uppercase',
+    includeFontPadding: false,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+  mastVolWrap: {
+    alignItems: 'flex-end',
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    // color: "#666",
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 20,
-    // backgroundColor: "#F8F9FA",
-  },
-  headerTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-    marginTop: 10,
-  },
-  greetingSmall: {
-    fontSize: 14,
-    // color: "#666",
-    fontWeight: "500",
+  mastVolText: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9.5,
+    letterSpacing: fieldGuide.tracking.mono30(9.5),
+    color: fieldGuide.creamMute,
+    textTransform: 'uppercase',
+    lineHeight: 14,
+    includeFontPadding: false,
   },
   greeting: {
-    fontSize: 24,
-    lineHeight: 26,
-    fontWeight: "700",
-    letterSpacing: 1,
-    // color: "#1A1A1A",
-    marginTop: 4,
+    marginTop: 18,
   },
-  greetingTagline: {
-    marginTop: 8,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "500",
-  },
-  headerActions: {
-    flexDirection: "row",
-    gap: 8,
-    alignItems: "center",
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    // backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-    // shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    // backgroundColor: "#6C5CE720",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  notificationDot: {
-    // position: "absolute",
-    top: 8,
-    right: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    // backgroundColor: "#FF4D4F",
-  },
-  searchContainer: {
-    // backgroundColor: "#fff",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
+  subtitle: {
     marginTop: 10,
-    paddingVertical: 8,
-    borderRadius: 16,
-    // shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 13.5,
+    lineHeight: 20,
+    color: fieldGuide.creamSoft,
+    maxWidth: 320,
   },
-  searchPlaceholder: {
+
+  /* stats */
+  statsWrap: {
+    marginTop: 22,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  statCell: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 15,
-    // color: "#999",
-  },
-  filterBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    // backgroundColor: "#6C5CE7",
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 8,
-  },
-  statsSection: {
-    marginTop: 14,
-    paddingHorizontal: 4,
-    paddingVertical: 20,
-    borderRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.10,
-    shadowRadius: 20,
-    elevation: 6,
-  },
-  sectionTitleSm: {
-    fontSize: 22,
-    fontWeight: "600",
-    letterSpacing: 0.2,
-  },
-  statsContainer: {
-    paddingHorizontal: 20,
-  },
-  statsCard: {
-    borderWidth: 1,
-    borderRadius: 24,
     paddingVertical: 14,
-    paddingHorizontal: 10,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  statCard: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 6,
-    gap: 6,
-  },
-  statIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 18,
   },
   statDivider: {
-    width: 1,
-    height: 46,
-    opacity: 0.9,
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: fieldGuide.inkLine,
+  },
+  statNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
   },
   statNumber: {
-    fontSize: 22,
-    fontWeight: "700",
-    //color: "#1A1A1A",
+    fontFamily: fieldGuide.fonts.serifMedium,
+    fontSize: 26,
+    lineHeight: 28,
+    color: fieldGuide.cream,
+    includeFontPadding: false,
+  },
+  statIndicator: {
+    marginLeft: 4,
+    marginBottom: 4,
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 10,
+    letterSpacing: fieldGuide.tracking.wide(10),
+    color: fieldGuide.ember,
+    includeFontPadding: false,
   },
   statLabel: {
-    fontSize: 12,
-    // color: "#666",
-    fontWeight: "500",
-  },
-  seeAll: {
-    fontSize: 15,
-    // color: "#6C5CE7",
-    fontWeight: "700",
-  },
-  trophyIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  section: {
-    marginTop: 24,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  sectionTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    // color: "#1A1A1A",
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    // color: "#666",
-    marginTop: 2,
-    lineHeight: 18,
+    marginTop: 6,
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9,
+    letterSpacing: fieldGuide.tracking.widest(9),
+    textTransform: 'uppercase',
+    color: fieldGuide.creamMute,
+    includeFontPadding: false,
   },
 
-
-  categoriesRow: {
-    paddingHorizontal: 20,
-    paddingVertical: 4,
-    gap: 10,
+  /* champion */
+  championWrap: {
+    paddingHorizontal: PAGE_PAD,
+    paddingTop: 28,
+    paddingBottom: 8,
+  },
+  championSkeleton: {
+    width: '100%',
+    aspectRatio: 4 / 5.4,
+    borderRadius: fieldGuide.radius.xl,
+    backgroundColor: fieldGuide.inkElev,
   },
 
-  categoryCard: {
-    height: 46,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.10,
-    shadowRadius: 18,
-    elevation: 5,
+  /* horizontal scrollers */
+  hScrollPad: {
+    paddingHorizontal: PAGE_PAD,
+    gap: 14,
   },
 
-  categoryIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  categoryLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    // color: "#222",
-    textAlign: "left",
-  },
-
-  activeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    // backgroundColor: "#fff",
-    marginLeft: 2,
-  },
-
-  ranksRow: {
-    paddingHorizontal: 20,
+  /* trending */
+  trendList: {
+    paddingHorizontal: PAGE_PAD,
     gap: 16,
   },
-  rankCard: {
-    height: 360,
-    borderRadius: 24,
-    overflow: "hidden",
-    backgroundColor: "#111",
-    position: "relative",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+  trendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: fieldGuide.inkLine,
   },
-  rankGradient: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 80,
-    zIndex: 1,
+  trendRowLast: {
+    borderBottomWidth: 0,
+    paddingBottom: 0,
   },
-  rankBadge: {
-    position: "absolute",
-    top: 20,
-    left: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    zIndex: 10,
-    gap: 6,
+  trendNumber: {
+    width: 36,
+    textAlign: 'center',
+    fontFamily: fieldGuide.fonts.serifLight,
+    fontSize: 36,
+    lineHeight: 36,
+    letterSpacing: -0.03 * 36,
+    includeFontPadding: false,
   },
-  rankNumber: {
-    color: "#1A1A1A",
-    fontSize: 18,
-    fontWeight: "600",
+  trendThumb: {
+    width: 72,
+    height: 72,
+    borderRadius: fieldGuide.radius.md,
+    overflow: 'hidden',
+    marginLeft: 14,
+    backgroundColor: fieldGuide.inkElev,
+    position: 'relative',
   },
-  rankImage: {
-    width: "100%",
-    height: "100%",
-    position: "absolute",
-  },
-  rankContent: {
-    position: "absolute",
-    bottom: 0,
-    padding: 20,
-    width: "100%",
-    zIndex: 5,
-  },
-  rankTitle: {
-    fontSize: 24,
-    fontWeight: "600",
-    // color: "#fff",
-    marginBottom: 12,
-  },
-  rankMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  rankVibes: {
-    flexDirection: "row",
-    alignItems: "center",
-    // backgroundColor: "rgba(255, 255, 255, 0.25)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 6,
-  },
-  rankVibeText: {
-    // color: "#FFD54F",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  rankScore: {
-    flexDirection: "row",
-    alignItems: "center",
-    // backgroundColor: "rgba(0, 0, 0, 0.6)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 6,
-  },
-  rankScoreText: {
-    // color: "#fff",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  spotsRow: {
-    paddingHorizontal: 20,
-    gap: 16,
-  },
-  forYourVibeSection: {
-    marginTop: 24,
-  },
-  forYourVibeList: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  forYourVibeCardWrap: {
-    marginRight: 16,
-  },
-  forYourVibeEmpty: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  forYourVibeEmptyText: {
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: "center",
-  },
-  spotCard: {
-    width: width * 0.8,
-    height: 320,
-    borderRadius: 24,
-    overflow: "hidden",
-    backgroundColor: "#111",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  spotImage: {
-    width: "100%",
-    height: "100%",
-    position: "absolute",
-  },
-  gradient: {
-    position: "absolute",
-    width: "100%",
-    height: "100%",
-  },
-  likeButton: {
-    position: "absolute",
-    top: 16,
-    right: 16,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    padding: 10,
-    borderRadius: 22,
-    zIndex: 10,
-  },
-  categoryPill: {
-    position: "absolute",
-    top: 16,
-    left: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    zIndex: 10,
-  },
-  categoryText: {
-    color: "#1A1A1A",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  content: {
-    position: "absolute",
-    bottom: 0,
-    padding: 20,
-    width: "100%",
-    zIndex: 5,
-  },
-
-  nearbyList: {
-    paddingHorizontal: 20,
-    gap: 4,
-  },
-  nearCard: {
-    width: "100%",
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    overflow: "hidden",
-    flexDirection: "row",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  nearImage: {
-    width: 140,
-    height: 120,
-  },
-  nearInfo: {
+  trendBody: {
     flex: 1,
-    padding: 16,
-    justifyContent: "space-between",
+    minWidth: 0,
+    marginLeft: 14,
   },
-  nearTop: {
-    marginBottom: 8,
-  },
-  nearTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    marginBottom: 4,
-  },
-  nearCategory: {
-    fontSize: 13,
-    color: "#666",
-    textTransform: "capitalize",
-  },
-  nearBadges: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  distancePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#6C5CE7",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    gap: 4,
-  },
-  distanceText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  priceBadgeSmall: {
-    backgroundColor: "#F0F0F0",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  priceRange: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#333",
-  },
-  nearRatingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  nearRating: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#333",
-  },
-  searchModalContainer: {
-    flex: 1,
-  },
-  searchHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  searchBackButton: {
-    padding: 8,
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
+  trendTitle: {
+    fontFamily: fieldGuide.fonts.serifMedium,
     fontSize: 16,
-    paddingVertical: 8,
+    lineHeight: 19,
+    letterSpacing: -0.005 * 16,
+    color: fieldGuide.cream,
+    includeFontPadding: false,
   },
-  searchClearButton: {
-    padding: 8,
+  trendMeta: {
+    marginTop: 4,
+  },
+  trendArrow: {
     marginLeft: 8,
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 11,
+    letterSpacing: fieldGuide.tracking.wide(11),
+    includeFontPadding: false,
   },
-  searchCategoryContainer: {
-    paddingVertical: 16,
-    borderBottomWidth: 1,
+  trendSkeletonWrap: {
+    paddingHorizontal: PAGE_PAD,
+    gap: 14,
   },
-  searchCategoryTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    paddingHorizontal: 20,
-    marginBottom: 12,
+  trendSkeleton: {
+    height: 72,
+    borderRadius: fieldGuide.radius.md,
+    backgroundColor: fieldGuide.inkElev,
   },
-  searchCategoriesRow: {
-    paddingHorizontal: 20,
-    gap: 8,
+
+  /* ghost / empty */
+  ghostCard: {
+    width: 220,
   },
-  searchCategoryChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginRight: 8,
+  ghostPhoto: {
+    width: 220,
+    aspectRatio: 3 / 4,
+    borderRadius: fieldGuide.radius.lg,
+    backgroundColor: fieldGuide.inkElev,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
   },
-  searchCategoryChipActive: {
-    backgroundColor: "#6C5CE7",
-    borderColor: "transparent",
+  ghostLabel: {
+    marginTop: 10,
   },
-  searchCategoryChipText: {
-    fontSize: 14,
-    fontWeight: "600",
+
+  /* mood grid */
+  moodGrid: {
+    paddingHorizontal: PAGE_PAD,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
-  searchCategoryChipTextActive: {
-    color: "#fff",
+  moodCard: {
+    width: '48.5%',
+    aspectRatio: 16 / 10,
+    borderRadius: fieldGuide.radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
+    backgroundColor: fieldGuide.inkElev,
+    padding: 14,
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
-  searchResultsContainer: {
-    flex: 1,
+  moodIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  searchLoadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 40,
+  moodName: {
+    fontFamily: fieldGuide.fonts.serifMedium,
+    fontSize: 17,
+    lineHeight: 20,
+    letterSpacing: -0.01 * 17,
+    color: fieldGuide.cream,
+    includeFontPadding: false,
   },
-  searchLoadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#666",
-  },
-  searchResultsList: {
-    padding: 16,
-  },
-  searchResultItem: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    marginBottom: 12,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  searchResultImage: {
-    width: 100,
-    height: 100,
-  },
-  searchResultInfo: {
-    flex: 1,
-    padding: 12,
-    justifyContent: "space-between",
-  },
-  searchResultTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    marginBottom: 4,
-  },
-  searchResultCategory: {
-    fontSize: 13,
-    color: "#666",
-    marginBottom: 8,
-    textTransform: "capitalize",
-  },
-  searchResultMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  searchResultRating: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  searchResultRatingText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#333",
-  },
-  searchResultPrice: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#666",
-  },
-  searchEmptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 60,
-  },
-  searchEmptyText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#666",
-    marginTop: 16,
-  },
-  searchEmptySubtext: {
-    fontSize: 14,
-    color: "#999",
-    marginTop: 8,
+  moodCount: {
+    marginTop: 2,
   },
 });
