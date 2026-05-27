@@ -1,46 +1,66 @@
-import React, { useState, useEffect } from 'react';
-import * as WebBrowser from 'expo-web-browser';
+/**
+ * LoginScreen (route name: SignIn) — Field Guide auth.
+ *
+ * Source: screens/03-signin.html. Restyle of the legacy login screen.
+ * Preserves the Google OAuth wiring (expo-auth-session/Google) and
+ * the existing useAuth().login flow — only chrome/visual layout was
+ * rebuilt with fieldguide components.
+ */
+
+import React, { useEffect, useState } from 'react';
 import * as Google from 'expo-auth-session/providers/google';
 import { makeRedirectUri } from 'expo-auth-session';
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
-  Alert,
-  Image,
-  TouchableOpacity
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
-import { Button } from '../components/Button';
-// import { signInWithEmail, signInWithGoogle } from '../services/auth';
-import { isValidEmail } from '../utils/helpers';
-import { useAuth } from "../hooks/useAuth"
-import { useTheme } from "../context/ThemeContext";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from "expo-linear-gradient";
+import Svg, { Path } from 'react-native-svg';
 
+import fieldGuide from '../theme/fieldGuide';
+import {
+  DisplayTitle,
+  EditorialButton,
+  FloatingLabelInput,
+  MonoMeta,
+  TopBar,
+} from '../components/fieldguide';
 
-/**
- * Login Screen
- */
-export const LoginScreen = ({ navigation }) => {
+import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../components/ToastProvider';
+import { isValidEmail } from '../utils/helpers';
+
+function GoogleG() {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24">
+      <Path
+        fill={fieldGuide.cream}
+        d="M21.35 11.1H12v3.9h5.42c-.24 1.3-1.7 3.8-5.42 3.8-3.27 0-5.93-2.7-5.93-6s2.66-6 5.93-6c1.86 0 3.1.79 3.81 1.47l2.6-2.5C16.86 4.13 14.65 3 12 3 6.92 3 2.8 7.12 2.8 12.2S6.92 21.4 12 21.4c6.94 0 11.5-4.86 11.5-11.7 0-.8-.08-1.4-.15-2z"
+      />
+    </Svg>
+  );
+}
+
+function LoginScreen({ navigation }) {
+  const { login, loginWithGoogle } = useAuth();
+  const toast = useToast();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { login, loginWithGoogle } = useAuth();
-  const { theme } = useTheme();
   const [showPassword, setShowPassword] = useState(false);
+  const [busyEmail, setBusyEmail] = useState(false);
+  const [busyGoogle, setBusyGoogle] = useState(false);
 
-  // Google Auth Request
+  // Google Auth Request — preserved from the legacy LoginScreen.
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || "YOUR_WEB_CLIENT_ID", // fallback for dev
-    redirectUri: makeRedirectUri({
-      scheme: 'vibespot'
-    }),
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || 'YOUR_WEB_CLIENT_ID',
+    redirectUri: makeRedirectUri({ scheme: 'vibespot' }),
   });
 
   useEffect(() => {
@@ -48,241 +68,276 @@ export const LoginScreen = ({ navigation }) => {
       const { id_token } = response.params;
       handleGoogleSignIn(id_token);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [response]);
 
-  const handleGoogleSignIn = async (idToken) => {
-    setLoading(true);
-    const { user, error } = await loginWithGoogle(idToken);
-    setLoading(false);
+  const showError = (msg) => {
+    if (toast?.show) {
+      toast.show(msg, { variant: 'error' });
+    }
+  };
 
+  const handleGoogleSignIn = async (idToken) => {
+    setBusyGoogle(true);
+    const { error } = await loginWithGoogle(idToken);
+    setBusyGoogle(false);
     if (error) {
-      Alert.alert("Google Login Failed", error);
-    } else {
-      // Success - navigation is handled by AuthContext state change or AppNavigator
+      showError(error);
     }
   };
 
   const handleEmailLogin = async () => {
     if (!email || !password) {
-      Alert.alert("Error", "Please fill in all fields");
+      showError('Please fill in all fields.');
       return;
     }
-
     if (!isValidEmail(email)) {
-      Alert.alert("Error", "Please enter a valid email address");
+      showError('Please enter a valid email address.');
       return;
     }
-
-    setLoading(true);
-    const { user, error } = await login(email, password);
-    setLoading(false);
-
-    if (error) {
-      Alert.alert("Login Failed", error);
-      return;
-    }
-
-    Alert.alert("Success", "Logged in successfully");
-
-    // navigation.respot("MainTabs");
+    setBusyEmail(true);
+    const { error } = await login(email.trim().toLowerCase(), password);
+    setBusyEmail(false);
+    if (error) showError(error);
   };
 
+  const canGoBack = !!navigation.canGoBack && navigation.canGoBack();
 
   return (
-    <LinearGradient
-      colors={["#007A8C", "#0FA4B8"]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.container}
-    >
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {canGoBack ? (
+            <TopBar
+              transparent
+              left="back"
+              onLeftPress={() => navigation.goBack()}
+              style={styles.topbar}
+            />
+          ) : (
+            <View style={styles.topbarSpacer} />
+          )}
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.content}>
-            <View style={[styles.card, { backgroundColor: theme.surface }]}>
-              <Image
-                source={require("../../assets/logo.png")}
-                style={styles.logo}
+          <View style={styles.body}>
+            <View style={styles.head}>
+              <MonoMeta size="eyebrow" style={styles.eyebrow}>
+                Returning Reader
+              </MonoMeta>
+              <DisplayTitle size="xl" italic="back.">
+                Welcome back.
+              </DisplayTitle>
+              <Text style={styles.lede}>
+                Pick up where you left off — your saved spots are waiting.
+              </Text>
+            </View>
+
+            <View style={styles.form}>
+              <FloatingLabelInput
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@somewhere.co"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                autoCorrect={false}
+                returnKeyType="next"
               />
-              <Text style={[styles.title, { color: theme.text }]}>Welcome to VibeSpot</Text>
-              <Text style={[styles.subtitle, { color: theme.text }]}>Discover amazing spots around you</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <Ionicons name="mail-outline" size={20} color={theme.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: theme.text }]}
-                  placeholder="Email"
-                  placeholderTextColor={theme.textMuted}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  autoCorrect={false}
-                />
-              </View>
 
-              <View style={[styles.inputContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                <Ionicons name="lock-closed-outline" size={20} color={theme.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: theme.text }]}
-                  placeholder="Password"
-                  placeholderTextColor={theme.textMuted}
+              <View>
+                <FloatingLabelInput
+                  label="Password"
                   value={password}
                   onChangeText={setPassword}
+                  placeholder="••••••••••"
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
-                  autoComplete="password-new"
+                  autoComplete="password"
+                  returnKeyType="go"
+                  onSubmitEditing={handleEmailLogin}
+                  inputStyle={styles.passwordInput}
                 />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeIcon}
+                <Pressable
+                  onPress={() => setShowPassword((s) => !s)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                  style={styles.eyeBtn}
                 >
                   <Ionicons
                     name={showPassword ? 'eye-outline' : 'eye-off-outline'}
                     size={20}
-                    color={theme.textMuted}
+                    color={fieldGuide.creamMute}
                   />
-                </TouchableOpacity>
+                </Pressable>
               </View>
 
-              <Button
-                title="Sign In"
-                onPress={handleEmailLogin}
-                loading={loading}
-                style={[styles.button, { backgroundColor: theme.primary }]}
-              />
-
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={[styles.dividerText, { color: theme.text }]}>OR</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              <Button
-                title="Sign in with Google"
-                onPress={() => promptAsync()}
-                disabled={!request}
-                variant="secondary"
-                loading={loading}
-                style={[styles.button, { backgroundColor: theme.primary }]}
-              />
-
-              <View style={styles.footer}>
-                <Text style={[styles.footerText, { color: theme.text }]}>Don't have an account? < Text style={[styles.footerLink, { color: theme.text }]} onPress={() => navigation.navigate('Register')}>Sign Up</Text></Text>
-              </View>
+              <Pressable
+                onPress={() => navigation.navigate('ForgotPassword')}
+                accessibilityRole="link"
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.forgot,
+                  { opacity: pressed ? 0.6 : 1 },
+                ]}
+              >
+                <Text style={styles.forgotText}>FORGOT PASSWORD ↗</Text>
+              </Pressable>
             </View>
+
+            <View style={styles.actions}>
+              <EditorialButton
+                variant="primary"
+                block
+                loading={busyEmail}
+                onPress={handleEmailLogin}
+              >
+                Sign in
+              </EditorialButton>
+            </View>
+
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <MonoMeta size="tab" style={styles.dividerLabel}>OR</MonoMeta>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <EditorialButton
+              variant="ghost"
+              block
+              loading={busyGoogle}
+              disabled={!request}
+              onPress={() => promptAsync()}
+              leading={<GoogleG />}
+              style={styles.googleBtn}
+            >
+              Continue with Google
+            </EditorialButton>
+
+            <Pressable
+              onPress={() => navigation.navigate('Register')}
+              accessibilityRole="link"
+              hitSlop={8}
+              style={styles.footerLinkWrap}
+            >
+              <Text style={styles.footerText}>
+                New to VibeSpot?  <Text style={styles.footerEmber}>Start your guide</Text>
+              </Text>
+            </Pressable>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </LinearGradient>
+    </SafeAreaView>
   );
-};
+}
+
+export default LoginScreen;
 
 const styles = StyleSheet.create({
-  container: {
+  safe: {
     flex: 1,
-    // backgroundColor: '#fff',
+    backgroundColor: fieldGuide.ink,
   },
-  scrollContent: {
+  flex: { flex: 1 },
+  scroll: {
     flexGrow: 1,
     justifyContent: 'center',
+    paddingTop: 48,
+    paddingBottom: 32,
   },
-  content: {
-    padding: 24,
-  },
-  logo: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
-    marginBottom: 20,
-    resizeMode: 'contain',
-  },
-  card: {
-    width: "100%",
-    borderRadius: 20,
-    padding: 20,
-    marginTop: 40,
-
-    // iOS shadow
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-
-    // Android elevation
-    elevation: 8,
-  },
-
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    // color: '#333',
+  topbar: {
     marginBottom: 8,
-    textAlign: 'center',
   },
-  eyeIcon: {
-    padding: 16,
+  topbarSpacer: {
+    height: 8,
   },
-  subtitle: {
-    fontSize: 16,
-    // color: '#666',
-    marginBottom: 32,
-    textAlign: 'center',
+  body: {
+    paddingHorizontal: 22,
+    paddingBottom: 8,
+  },
+  head: {
+    marginBottom: 36,
+  },
+  eyebrow: {
+    marginBottom: 14,
+  },
+  lede: {
+    marginTop: 12,
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 14,
+    lineHeight: 22,
+    color: fieldGuide.creamSoft,
+    maxWidth: 320,
   },
   form: {
-    width: '100%',
+    flexDirection: 'column',
+    gap: 24,
   },
-  inputContainer: {
+  passwordInput: {
+    paddingRight: 32,
+  },
+  eyeBtn: {
+    position: 'absolute',
+    right: 0,
+    bottom: 14,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  forgot: {
+    alignSelf: 'flex-end',
+    marginTop: -8,
+  },
+  forgotText: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 10,
+    letterSpacing: fieldGuide.tracking.widest(10),
+    color: fieldGuide.ember,
+    includeFontPadding: false,
+  },
+  actions: {
+    marginTop: 28,
+  },
+  dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    // backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    // borderColor: '#E0E0E0',
-  },
-  inputIcon: {
-    marginLeft: 16,
-  },
-  input: {
-    flex: 1,
-    padding: 16,
-    fontSize: 16,
-  },
-  button: {
-    marginBottom: 16,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
+    marginTop: 22,
+    marginBottom: 18,
   },
   dividerLine: {
     flex: 1,
-    height: 1,
-    // backgroundColor: '#e0e0e0',
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: fieldGuide.inkLine,
   },
-  dividerText: {
-    marginHorizontal: 16,
-    // color: '#999',
-    fontSize: 14,
+  dividerLabel: {
+    marginHorizontal: 14,
   },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 24,
+  googleBtn: {
+    marginBottom: 8,
+  },
+  footerLinkWrap: {
+    marginTop: 'auto',
+    paddingTop: 22,
+    paddingBottom: 8,
+    alignItems: 'center',
   },
   footerText: {
-    fontSize: 14,
-    // color: '#666',
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 13,
+    color: fieldGuide.creamSoft,
+    includeFontPadding: false,
   },
-  footerLink: {
-    fontSize: 14,
-    // color: '#007AFF',
-    fontWeight: '600',
+  footerEmber: {
+    color: fieldGuide.ember,
+    fontFamily: fieldGuide.fonts.sansMedium,
   },
 });

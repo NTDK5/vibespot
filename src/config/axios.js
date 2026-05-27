@@ -5,6 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { logger } from "../utils/logger";
 import { showToast } from "../utils/toastBus";
 import { networkEvents } from "../utils/networkEvents";
+import { authEvents } from "../utils/authEvents";
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -30,6 +31,17 @@ const normalizeApiError = (error) => {
   };
 };
 
+function tokensFromRefreshBody(body) {
+  if (!body || typeof body !== "object") return {};
+  const nested = body.data && typeof body.data === "object" ? body.data : body;
+  return {
+    accessToken:
+      nested.accessToken ?? nested.token ?? nested.access_token ?? null,
+    refreshToken:
+      nested.refreshToken ?? nested.refresh_token ?? null,
+  };
+}
+
 // Request interceptor - add token to all requests
 api.interceptors.request.use(
   async (config) => {
@@ -37,7 +49,6 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    // propagate request id if present (optional)
     return config;
   },
   (error) => {
@@ -64,25 +75,35 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
+      const refreshToken = await AsyncStorage.getItem("refreshToken");
+      if (!refreshToken) {
+        authEvents.emitSessionExpired();
+        return Promise.reject(error);
+      }
+
       try {
-        const refreshToken = await AsyncStorage.getItem("refreshToken");
-        if (refreshToken) {
-          // Try to refresh the token
-          const response = await axios.post(`${BASE_URL}/auth/refresh`, {
-            refreshToken,
-          });
+        const response = await axios.post(`${BASE_URL}/auth/refresh`, {
+          refreshToken,
+        });
 
-          const { accessToken } = response.data;
-          await AsyncStorage.setItem("token", accessToken);
-
-          // Retry original request with new token
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-          return api(originalRequest);
+        const { accessToken, refreshToken: newRefresh } = tokensFromRefreshBody(
+          response.data
+        );
+        if (!accessToken) {
+          return Promise.reject(error);
         }
+
+        await AsyncStorage.setItem("token", accessToken);
+        if (newRefresh) {
+          await AsyncStorage.setItem("refreshToken", newRefresh);
+        }
+
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        return api(originalRequest);
       } catch (refreshError) {
-        // Refresh failed, clear auth and redirect to login
-        await AsyncStorage.multiRemove(["token", "refreshToken", "user"]);
-        // The auth context will handle the redirect
+        if (refreshError.response?.status === 401) {
+          authEvents.emitSessionExpired();
+        }
         return Promise.reject(refreshError);
       }
     }
@@ -94,7 +115,6 @@ api.interceptors.response.use(
 
     const normalized = normalizeApiError(error);
 
-    // Log structured frontend error (no stack trace)
     logger.error({
       service: "api",
       action: "request_error",
@@ -108,12 +128,10 @@ api.interceptors.response.use(
       },
     });
 
-    // Toast user-triggered errors (4xx excluding 401 which is handled above).
     if (normalized.status && normalized.status >= 400 && normalized.status < 500 && normalized.status !== 401) {
       showToast(normalized.message, { variant: "error" });
     }
 
-    // Server errors — curator voice.
     if (normalized.status && normalized.status >= 500) {
       showToast("Return to sender · try again", { variant: "error" });
     }

@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect } from "react";
+import { createContext, useState, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   loginUser,
@@ -10,48 +10,134 @@ import {
 } from "../services/auth.service";
 import api from "../config/axios";
 import { normalizeAuthError } from "../utils/authErrors";
+import { authEvents } from "../utils/authEvents";
 
 export const AuthContext = createContext();
+
+function normalizeAuthPayload(raw) {
+  const data =
+    raw?.data && typeof raw.data === "object" && !raw.accessToken && !raw.token
+      ? raw.data
+      : raw;
+  if (!data || typeof data !== "object") return {};
+
+  const accessToken =
+    data.accessToken ?? data.token ?? data.access_token ?? null;
+  const refreshToken =
+    data.refreshToken ?? data.refresh_token ?? null;
+  let user = data.user ?? null;
+
+  if (!user && data.id && (data.email || data.name || data.role)) {
+    const {
+      accessToken: _a,
+      token: _t,
+      refreshToken: _r,
+      refresh_token: _r2,
+      ...rest
+    } = data;
+    if (rest.id) user = rest;
+  }
+
+  return { accessToken, refreshToken, user };
+}
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true); // Start with true to check auth state
-
-  // When the backend says emailVerified=false after register/login, we
-  // stash the email here so VerifyEmailScreen can pick it up without
-  // passing it through navigation params.
+  const [loading, setLoading] = useState(true);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState(null);
 
-  // Check for existing session on mount
-  useEffect(() => {
-    checkAuthState();
+  const clearAuth = useCallback(async () => {
+    await AsyncStorage.multiRemove(["token", "refreshToken", "user"]);
+    setUser(null);
   }, []);
 
-  const checkAuthState = async () => {
+  const persistAuthSession = useCallback(
+    async ({ accessToken, refreshToken, user: nextUser }) => {
+      if (accessToken) await AsyncStorage.setItem("token", accessToken);
+      if (refreshToken) await AsyncStorage.setItem("refreshToken", refreshToken);
+      if (nextUser) {
+        await AsyncStorage.setItem("user", JSON.stringify(nextUser));
+        setUser(nextUser);
+      }
+    },
+    []
+  );
+
+  const completeLoginFromResponse = useCallback(
+    async (raw) => {
+      const { accessToken, refreshToken, user: payloadUser } =
+        normalizeAuthPayload(raw);
+      if (!accessToken) {
+        throw new Error("Invalid login response");
+      }
+
+      let resolvedUser = payloadUser;
+      if (!resolvedUser) {
+        const response = await api.get("/user/me");
+        resolvedUser = response.data;
+      }
+
+      await persistAuthSession({
+        accessToken,
+        refreshToken,
+        user: resolvedUser,
+      });
+      return resolvedUser;
+    },
+    [persistAuthSession]
+  );
+
+  const checkAuthState = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem("token");
-      const storedUser = await AsyncStorage.getItem("user");
-
-      if (token && storedUser) {
-        // Restore user from storage
-        const userData = JSON.parse(storedUser);
-        setUser(userData);
-
-        // Verify token is still valid by fetching current user
-        try {
-          const response = await api.get("/user/me");
-          if (response.data) {
-            const updatedUser = response.data;
-            setUser(updatedUser);
-            await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
-          }
-        } catch (error) {
-          // Token invalid, clear storage
-          console.log("Token validation failed, clearing auth:", error);
-          await clearAuth();
-        }
-      } else {
-        // No stored auth, ensure clean state
+      if (!token) {
         await clearAuth();
+        return;
+      }
+
+      let storedUser = null;
+      const storedUserRaw = await AsyncStorage.getItem("user");
+      const hasUser = !!storedUserRaw;
+
+      if (storedUserRaw) {
+        try {
+          storedUser = JSON.parse(storedUserRaw);
+          setUser(storedUser);
+        } catch {
+          /* corrupt cache — ignore */
+        }
+      }
+
+      let meStatus = "skipped";
+      try {
+        const response = await api.get("/user/me");
+        meStatus = "ok";
+        if (response.data) {
+          setUser(response.data);
+          await AsyncStorage.setItem("user", JSON.stringify(response.data));
+        }
+      } catch (error) {
+        const status = error.response?.status;
+        if (status === 401) {
+          meStatus = "401";
+          await clearAuth();
+        } else if (storedUser) {
+          meStatus = status ? String(status) : "network";
+          setUser(storedUser);
+          if (__DEV__) {
+            console.log("auth: offline restore");
+          }
+        } else {
+          meStatus = status ? String(status) : "network";
+        }
+      }
+
+      if (__DEV__) {
+        console.log("[auth restore]", {
+          hasToken: !!token,
+          hasUser,
+          meStatus,
+        });
       }
     } catch (error) {
       console.error("Error checking auth state:", error);
@@ -59,39 +145,28 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [clearAuth]);
 
-  const clearAuth = async () => {
-    await AsyncStorage.multiRemove(["token", "refreshToken", "user"]);
-    setUser(null);
-  };
+  useEffect(() => {
+    checkAuthState();
+  }, [checkAuthState]);
+
+  useEffect(() => {
+    return authEvents.subscribe(() => {
+      clearAuth();
+    });
+  }, [clearAuth]);
 
   const login = async (email, password) => {
     setLoading(true);
     try {
       const data = await loginUser({ email, password });
+      const resolvedUser = await completeLoginFromResponse(data);
 
-      if (data.accessToken && data.user) {
-        // Store token and user
-        await AsyncStorage.setItem("token", data.accessToken);
-        await AsyncStorage.setItem("user", JSON.stringify(data.user));
-
-        if (data.refreshToken) {
-          await AsyncStorage.setItem("refreshToken", data.refreshToken);
-        }
-
-        setUser(data.user);
-        // If the backend ever returns emailVerified=false on login,
-        // keep the user logged in but flag the email so the navigator
-        // can route through VerifyEmail.
-        if (data.user.emailVerified === false) {
-          setPendingVerificationEmail(email);
-        }
-        console.log("Login success: ", data);
-        return { user: data.user, error: null };
-      } else {
-        throw new Error("Invalid login response");
+      if (resolvedUser?.emailVerified === false) {
+        setPendingVerificationEmail(email);
       }
+      return { user: resolvedUser, error: null };
     } catch (err) {
       await clearAuth();
       return {
@@ -107,24 +182,9 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     try {
       const data = await googleLoginUser(idToken);
-
-      if (data.accessToken && data.user) {
-        // Store token and user
-        await AsyncStorage.setItem("token", data.accessToken);
-        await AsyncStorage.setItem("user", JSON.stringify(data.user));
-
-        if (data.refreshToken) {
-          await AsyncStorage.setItem("refreshToken", data.refreshToken);
-        }
-
-        setUser(data.user);
-        return { user: data.user, error: null };
-      } else {
-        throw new Error("Invalid login response");
-      }
+      const resolvedUser = await completeLoginFromResponse(data);
+      return { user: resolvedUser, error: null };
     } catch (err) {
-      // Don't clear auth here automatically, as it might just be a failed attempt
-      // but if we were logged in before, we probably aren't now if we're trying to log in
       return {
         user: null,
         error: err.message || "Google login failed",
@@ -134,31 +194,16 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  /**
-   * Email + password registration. Mirrors the persistence path of
-   * `login` so the user is auto-signed-in on success. If the backend
-   * returns `user.emailVerified === false` we stash the email in
-   * `pendingVerificationEmail` so VerifyEmailScreen can pick it up.
-   */
   const register = async ({ name, email, password, homeCity }) => {
     setLoading(true);
     try {
       const data = await registerUser({ name, email, password, homeCity });
+      const resolvedUser = await completeLoginFromResponse(data);
 
-      if (data.accessToken && data.user) {
-        await AsyncStorage.setItem("token", data.accessToken);
-        await AsyncStorage.setItem("user", JSON.stringify(data.user));
-        if (data.refreshToken) {
-          await AsyncStorage.setItem("refreshToken", data.refreshToken);
-        }
-        setUser(data.user);
-
-        if (data.user.emailVerified === false) {
-          setPendingVerificationEmail(email);
-        }
-        return { user: data.user, error: null };
+      if (resolvedUser?.emailVerified === false) {
+        setPendingVerificationEmail(email);
       }
-      throw new Error("Invalid register response");
+      return { user: resolvedUser, error: null };
     } catch (err) {
       return {
         user: null,
@@ -172,11 +217,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  /**
-   * Ask the backend to email a password-reset link. Returns
-   * `{ ok, error }` so screens can surface failures via Toast without
-   * crashing — the helpers may target endpoints that don't exist yet.
-   */
   const requestReset = async (email) => {
     try {
       await requestPasswordReset(email);
@@ -200,8 +240,6 @@ export const AuthProvider = ({ children }) => {
         setUser(data.user);
         await AsyncStorage.setItem("user", JSON.stringify(data.user));
       } else if (user) {
-        // Best-effort local flag flip if the backend doesn't echo the
-        // full user object back.
         const next = { ...user, emailVerified: true };
         setUser(next);
         await AsyncStorage.setItem("user", JSON.stringify(next));
@@ -233,21 +271,15 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     setLoading(true);
     try {
-      // Call backend logout endpoint
       try {
         await api.post("/auth/logout");
       } catch (err) {
-        // Continue even if backend call fails
         console.log("Backend logout call failed:", err);
       }
-
-      // Clear local storage
       await clearAuth();
       setPendingVerificationEmail(null);
-
       return { success: true, error: null };
     } catch (error) {
-      // Even if logout fails, clear local auth
       await clearAuth();
       return {
         success: false,
@@ -270,7 +302,6 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider
       value={{
-        // existing keys — DO NOT rename, screens depend on them
         user,
         login,
         logout,
@@ -278,7 +309,6 @@ export const AuthProvider = ({ children }) => {
         loading,
         isSuperAdmin,
         updateLocalUser,
-        // new in Phase 2
         register,
         requestReset,
         verifyEmail,
