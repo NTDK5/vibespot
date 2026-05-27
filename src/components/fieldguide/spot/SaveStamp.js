@@ -16,7 +16,7 @@
  */
 
 import React, { useEffect } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
@@ -86,6 +86,19 @@ export default function SaveStamp({
             ]}
           >
             <Ionicons name="bookmark" size={14} color="#FFF8F1" />
+          </View>
+        ) : Platform.OS === 'android' ? (
+          <View
+            style={[
+              styles.fill,
+              dim,
+              {
+                backgroundColor: 'rgba(20,22,29,0.55)',
+                borderColor: 'rgba(244,239,230,0.18)',
+              },
+            ]}
+          >
+            <Ionicons name="bookmark-outline" size={14} color={fieldGuide.cream} />
           </View>
         ) : (
           <BlurView

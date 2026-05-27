@@ -24,8 +24,10 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   FlatList,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -52,7 +54,7 @@ import EmptyState from '../components/fieldguide/state/EmptyState';
 import { useAuth } from '../hooks/useAuth';
 import { useLocation } from '../hooks/useLocation';
 
-import { getAllSpots, searchSpots } from '../services/spots.service';
+import { searchSpots } from '../services/spots.service';
 import {
   saveSpot,
   unsaveSpot,
@@ -69,6 +71,7 @@ import { distanceKmFromUser, formatMiles, kmToMiles } from '../utils/geo';
 const PAGE_PAD = 22;
 const TAB_BAR_SPACE = 96;
 const FAB_BOTTOM_OFFSET = 70 + 16; // brief: safeBottom + 70 + 16
+const PAGE_LIMIT = 24;
 
 const PRICE_TIER_TO_API = ['free', 'low', 'medium', 'high', 'premium'];
 
@@ -386,6 +389,9 @@ export const ExploreScreen = ({ navigation, route }) => {
   const [sortMode, setSortMode] = useState(initialSort);
   const [spots, setSpots] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [viewMode, setViewMode] = useState(0); // 0=grid, 1=list
 
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -409,23 +415,14 @@ export const ExploreScreen = ({ navigation, route }) => {
 
   /* ── fetch (debounced on search) ────────────────────────────── */
 
-  const fetchSpots = useCallback(async () => {
-    setLoading(true);
+  const fetchSpots = useCallback(async (pageNum = 1, append = false) => {
+    if (pageNum === 1) {
+      setLoading(true);
+      setHasMore(true);
+    } else {
+      setLoadingMore(true);
+    }
     try {
-      const hasQuery = !!searchQuery.trim();
-      const hasFilter = !!selectedCategory || filters.minRating > 0 || filters.priceTier != null;
-
-      if (!hasQuery && !hasFilter) {
-        const data = await getAllSpots();
-        const list = Array.isArray(data?.data)
-          ? data.data
-          : Array.isArray(data)
-            ? data
-            : [];
-        setSpots(list);
-        return;
-      }
-
       const apiPrice =
         typeof filters.priceTier === 'number'
           ? PRICE_TIER_TO_API[filters.priceTier]
@@ -436,13 +433,27 @@ export const ExploreScreen = ({ navigation, route }) => {
         category: selectedCategory || undefined,
         minRating: filters.minRating > 0 ? filters.minRating : undefined,
         priceRange: apiPrice,
+        page: pageNum,
+        limit: PAGE_LIMIT,
       });
       const list = Array.isArray(result?.data)
         ? result.data
-        : Array.isArray(result)
-          ? result
-          : [];
-      setSpots(list);
+        : Array.isArray(result?.spots)
+          ? result.spots
+          : Array.isArray(result)
+            ? result
+            : [];
+      setHasMore(list.length >= PAGE_LIMIT);
+      setPage(pageNum);
+      if (append) {
+        setSpots((prev) => {
+          const seen = new Set(prev.map((s) => String(s?.id)));
+          const next = list.filter((s) => s?.id != null && !seen.has(String(s.id)));
+          return [...prev, ...next];
+        });
+      } else {
+        setSpots(list);
+      }
     } catch (error) {
       logger.error({
         service: 'explore',
@@ -450,11 +461,17 @@ export const ExploreScreen = ({ navigation, route }) => {
         message: 'Error fetching spots',
         metadata: { error: error?.message || String(error) },
       });
-      setSpots([]);
+      if (!append) setSpots([]);
     } finally {
-      setLoading(false);
+      if (pageNum === 1) setLoading(false);
+      else setLoadingMore(false);
     }
   }, [searchQuery, selectedCategory, filters.minRating, filters.priceTier]);
+
+  const loadMoreSpots = useCallback(() => {
+    if (loading || loadingMore || !hasMore) return;
+    fetchSpots(page + 1, true);
+  }, [loading, loadingMore, hasMore, page, fetchSpots]);
 
   // Debounced re-fetch on text-search change. Intentionally scoped
   // to searchQuery so typing doesn't double-fire alongside the
@@ -677,6 +694,20 @@ export const ExploreScreen = ({ navigation, route }) => {
         numColumns={viewMode === 0 ? 2 : 1}
         columnWrapperStyle={viewMode === 0 ? styles.gridRow : undefined}
         renderItem={viewMode === 0 ? renderGrid : renderList}
+        removeClippedSubviews={Platform.OS !== 'android'}
+        initialNumToRender={10}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        updateCellsBatchingPeriod={50}
+        onEndReached={loadMoreSpots}
+        onEndReachedThreshold={0.35}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.footerSpinner}>
+              <ActivityIndicator color={fieldGuide.ember} />
+            </View>
+          ) : null
+        }
         contentContainerStyle={[
           viewMode === 0 ? styles.gridContent : styles.listContent,
           {
@@ -805,6 +836,10 @@ const styles = StyleSheet.create({
   },
 
   /* grid */
+  footerSpinner: {
+    paddingVertical: 24,
+    alignItems: 'center',
+  },
   gridContent: {
     paddingHorizontal: PAGE_PAD,
     paddingTop: 4,
