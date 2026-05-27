@@ -205,10 +205,14 @@ export const AuthProvider = ({ children }) => {
       }
       return { user: resolvedUser, error: null };
     } catch (err) {
+      const data = err?.response?.data;
+      const details = Array.isArray(data?.details) ? data.details.join(" ") : null;
       return {
         user: null,
         error:
-          err?.response?.data?.message ||
+          details ||
+          data?.message ||
+          err?.normalized?.message ||
           err?.message ||
           "Registration failed",
       };
