@@ -28,6 +28,7 @@ import React, {
   useState,
 } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Dimensions,
   Easing,
@@ -58,6 +59,7 @@ import Reanimated, {
 
 import { LeafletMap } from '../components/LeafletMap';
 import {
+  CompassDial,
   EditorialButton,
   IconSquare,
   MapStylePopover,
@@ -282,6 +284,7 @@ export const MapScreen = ({ navigation }) => {
   /* ── selection / sheet ──────────────────────────────────────────── */
   const [selectedSpot, setSelectedSpot] = useState(null);
   const [savedMap, setSavedMap] = useState({}); // spotId -> true|false
+  const [pinsLoading, setPinsLoading] = useState(false);
 
   /* ── surprise-me machinery (preserved) ──────────────────────────── */
   const [surpriseSpot, setSurpriseSpot] = useState(null);
@@ -316,6 +319,7 @@ export const MapScreen = ({ navigation }) => {
   /* ─────────────────────────────────────────────────────────────── */
 
   const loadNearby = useCallback(async (lat, lng) => {
+    setPinsLoading(true);
     try {
       const data = await getNearbySpots(lat, lng, 5000);
       if (data && !data.error) {
@@ -327,6 +331,8 @@ export const MapScreen = ({ navigation }) => {
       }
     } catch (err) {
       logger.error('MapScreen.loadNearby threw', err);
+    } finally {
+      setPinsLoading(false);
     }
   }, []);
 
@@ -444,7 +450,7 @@ export const MapScreen = ({ navigation }) => {
     const pickLng = (s) =>
       s?.lng ?? s?.longitude ?? s?.location?.lng ?? s?.location?.longitude;
 
-    return visibleSpots
+    const all = visibleSpots
       .map((s) => ({
         id: s.id,
         lat: Number(pickLat(s)),
@@ -452,6 +458,10 @@ export const MapScreen = ({ navigation }) => {
         spot: s,
       }))
       .filter((m) => Number.isFinite(m.lat) && Number.isFinite(m.lng));
+    if (__DEV__ && all.length > 80) {
+      console.log('[MapScreen] capping markers', all.length, '→ 80');
+    }
+    return all.length > 80 ? all.slice(0, 80) : all;
   }, [visibleSpots]);
 
   const pinTemplate = useCallback((marker) => {
@@ -667,6 +677,23 @@ export const MapScreen = ({ navigation }) => {
           height={Dimensions.get('window').height}
           style={s.map}
         />
+
+        {pinsLoading ? (
+          <View pointerEvents="none" style={s.pinsLoadingOverlay}>
+            <View style={s.pinsLoadingBackdrop} />
+            <View style={s.pinsLoadingPill}>
+              <CompassDial size={28} spinning />
+              <MonoMeta size="tab" style={s.pinsLoadingLabel}>
+                Plotting the field…
+              </MonoMeta>
+              <ActivityIndicator
+                size="small"
+                color={fieldGuide.ember}
+                style={s.pinsLoadingSpinner}
+              />
+            </View>
+          </View>
+        ) : null}
 
         {/* Layer 1 — top controls */}
         <View
@@ -961,6 +988,33 @@ const s = StyleSheet.create({
   map: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: fieldGuide.ink,
+  },
+  pinsLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 4,
+  },
+  pinsLoadingBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(11,12,17,0.35)',
+  },
+  pinsLoadingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: fieldGuide.radius.full,
+    backgroundColor: 'rgba(20,22,29,0.88)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
+  },
+  pinsLoadingLabel: {
+    color: fieldGuide.creamSoft,
+  },
+  pinsLoadingSpinner: {
+    marginLeft: 2,
   },
 
   /* top controls */
