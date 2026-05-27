@@ -8,24 +8,20 @@
  *           this collection" link at the bottom of the form.
  *
  * Field summary (top → bottom):
- *   - Cover preview        16:10 mosaic, follows the chosen vibes.
- *   - Cover swatches       up to 4 vibes chosen from 8 swatches.
- *   - Glyph                ✦ ☼ ☾ ◇ ⌘ ✚ — Selected one rides ember.
  *   - Title (required)
+ *   - Pick spots (required, min 1) via SpotPickerSheet
+ *   - Cover preview        16:10 mosaic from selected spot thumbnails
+ *   - Glyph                ✦ ☼ ☾ ◇ ⌘ ✚
  *   - Description
  *   - Privacy radios       private / shared (3) / public
  *   - Champion alerts      switch, default ON.
- *
- * The image library picker is wired through expo-image-picker (already
- * installed); successful selections push a `coverImage` field on the
- * payload alongside the chosen vibes. If the library hits an
- * unrecoverable error we surface a toast and keep vibe-only covers.
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -36,20 +32,22 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
 
 import {
   DisplayTitle,
+  DuotoneVibe,
   EditorialButton,
   FloatingLabelInput,
   MonoMeta,
-  MosaicCover,
   Rule,
 } from '../components/fieldguide';
+import SpotPickerSheet from '../components/fieldguide/sheets/SpotPickerSheet';
 import fieldGuide from '../theme/fieldGuide';
 import { useToast } from '../components/ToastProvider';
 import { logger } from '../utils/logger';
+import { vibeForCategory } from '../utils/spotHelpers';
 import {
+  addSpotToCollection,
   createCollection,
   deleteCollection,
   getCollectionById,
@@ -59,17 +57,6 @@ import {
 /* ─────────────────────────────────────────────────────────────────── */
 /*  CONSTANTS                                                          */
 /* ─────────────────────────────────────────────────────────────────── */
-
-const VIBE_SWATCHES = [
-  { id: 'cafe',    label: 'Café' },
-  { id: 'roof',    label: 'Roof' },
-  { id: 'park',    label: 'Park' },
-  { id: 'water',   label: 'Water' },
-  { id: 'night',   label: 'Night' },
-  { id: 'gallery', label: 'Gallery' },
-  { id: 'alley',   label: 'Alley' },
-  { id: 'studio',  label: 'Studio' },
-];
 
 const GLYPHS = ['✦', '☼', '☾', '◇', '⌘', '✚'];
 
@@ -94,36 +81,74 @@ const PRIVACY_OPTIONS = [
   },
 ];
 
-const MAX_COVER_VIBES = 4;
-
 /* ─────────────────────────────────────────────────────────────────── */
 /*  HELPERS                                                            */
 /* ─────────────────────────────────────────────────────────────────── */
 
-function deriveInitialVibes(collection) {
-  if (!collection) return ['cafe'];
-  if (Array.isArray(collection.coverVibes) && collection.coverVibes.length) {
-    return collection.coverVibes.slice(0, MAX_COVER_VIBES);
-  }
-  const fromSpots = (collection.spots || [])
-    .slice(0, MAX_COVER_VIBES)
-    .map((s) => (s?.spot?.category || s?.category || '').toLowerCase())
-    .filter(Boolean);
-  const known = fromSpots
-    .map((c) => {
-      if (c.includes('cafe') || c.includes('coffee')) return 'cafe';
-      if (c.includes('roof')) return 'roof';
-      if (c.includes('park') || c.includes('nature')) return 'park';
-      if (c.includes('water') || c.includes('beach')) return 'water';
-      if (c.includes('night') || c.includes('bar')) return 'night';
-      if (c.includes('gallery') || c.includes('museum')) return 'gallery';
-      if (c.includes('alley') || c.includes('street')) return 'alley';
-      if (c.includes('studio') || c.includes('work')) return 'studio';
-      return null;
-    })
-    .filter(Boolean);
-  return known.length ? known.slice(0, MAX_COVER_VIBES) : ['cafe'];
+function spotThumbUri(spot) {
+  return spot?.thumbnail || spot?.images?.[0] || null;
 }
+
+function normalizeCollectionSpot(entry) {
+  const s = entry?.spot || entry;
+  if (!s?.id) return null;
+  return {
+    id: s.id,
+    title: s.title || s.name || 'Untitled',
+    thumbnail: spotThumbUri(s),
+    images: s.images,
+    category: s.category,
+  };
+}
+
+function spotsFromCollection(collection) {
+  return (collection?.spots || [])
+    .map(normalizeCollectionSpot)
+    .filter(Boolean);
+}
+
+function SpotCoverGrid({ spots }) {
+  const tiles = [...spots.slice(0, 4)];
+  while (tiles.length < 4) tiles.push(null);
+  return (
+    <View style={coverGridStyles.wrap}>
+      {tiles.map((spot, i) => {
+        const uri = spot ? spotThumbUri(spot) : null;
+        const vibe = spot ? vibeForCategory(spot.category) : 'cafe';
+        return (
+          <View key={spot?.id ?? `empty-${i}`} style={coverGridStyles.cell}>
+            {uri ? (
+              <Image source={{ uri }} style={coverGridStyles.img} />
+            ) : (
+              <DuotoneVibe vibe={vibe} />
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+const coverGridStyles = StyleSheet.create({
+  wrap: {
+    aspectRatio: 16 / 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    borderRadius: fieldGuide.radius.lg,
+    overflow: 'hidden',
+    backgroundColor: fieldGuide.inkElev,
+  },
+  cell: {
+    width: '50%',
+    height: '50%',
+    padding: 1,
+    overflow: 'hidden',
+  },
+  img: {
+    width: '100%',
+    height: '100%',
+  },
+});
 
 function privacyToFlags(privacy) {
   if (privacy === 'public') return { isPublic: true, sharedWith: [] };
@@ -149,8 +174,8 @@ export const CreateCollectionScreen = ({ navigation, route }) => {
 
   const [loading, setLoading] = useState(mode === 'edit');
   const [submitting, setSubmitting] = useState(false);
-  const [coverVibes, setCoverVibes] = useState(['cafe']);
-  const [coverImage, setCoverImage] = useState(null);
+  const [selectedSpots, setSelectedSpots] = useState([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [glyph, setGlyph] = useState(GLYPHS[0]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -172,8 +197,7 @@ export const CreateCollectionScreen = ({ navigation, route }) => {
         } else {
           setTitle(data.title || '');
           setDescription(data.description || '');
-          setCoverVibes(deriveInitialVibes(data));
-          setCoverImage(data.coverImage || null);
+          setSelectedSpots(spotsFromCollection(data));
           setGlyph(GLYPHS.includes(data.glyph) ? data.glyph : GLYPHS[0]);
           setPrivacy(flagsToPrivacy(data));
           if (typeof data.championAlerts === 'boolean') {
@@ -191,84 +215,57 @@ export const CreateCollectionScreen = ({ navigation, route }) => {
     };
   }, [id, mode, toast]);
 
-  /* ── derived ─────────────────────────────────────────────────────── */
-  const mosaicVibes = useMemo(() => {
-    if (coverVibes.length === 0) return ['cafe'];
-    return coverVibes;
-  }, [coverVibes]);
+  const selectedIds = useMemo(
+    () => selectedSpots.map((s) => s.id),
+    [selectedSpots],
+  );
 
-  const canSubmit = title.trim().length > 0 && !submitting;
-
-  /* ── handlers ────────────────────────────────────────────────────── */
-  const toggleVibe = (vibeId) => {
-    setCoverVibes((prev) => {
-      if (prev.includes(vibeId)) return prev.filter((v) => v !== vibeId);
-      if (prev.length >= MAX_COVER_VIBES) {
-        toast.show(`Up to ${MAX_COVER_VIBES} vibes per cover.`, { variant: 'info' });
-        return prev;
-      }
-      return [...prev, vibeId];
-    });
-  };
-
-  const pickPhoto = async () => {
-    try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        toast.show('Photo library access denied.', { variant: 'error' });
-        return;
-      }
-      const res = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.85,
-        aspect: [16, 10],
-        allowsEditing: true,
-      });
-      if (res.canceled) return;
-      const asset = res.assets?.[0];
-      if (!asset?.uri) return;
-      setCoverImage(asset.uri);
-      toast.show('Cover photo set.', { variant: 'success' });
-    } catch (err) {
-      logger.error('CreateCollection.pickPhoto', err);
-      toast.show('Could not open the photo library.', { variant: 'error' });
-    }
-  };
+  const canSubmit =
+    title.trim().length > 0 && selectedIds.length > 0 && !submitting;
 
   const handleSubmit = async () => {
     if (!title.trim()) {
       setTitleError('A title is required.');
       return;
     }
+    if (selectedIds.length === 0) {
+      toast.show('Pick at least one spot for this pocket.', { variant: 'info' });
+      return;
+    }
     setTitleError('');
     setSubmitting(true);
-
-    // TODO(phase-5): wire a /upload endpoint for collection covers.
-    // For now we keep remote URLs as-is and skip attaching local file URIs
-    // — they won't survive a JSON POST.
-    const uploadedCover =
-      coverImage && !coverImage.startsWith('file:') ? coverImage : null;
 
     const payload = {
       title: title.trim(),
       description: description.trim(),
       glyph,
-      coverVibes: mosaicVibes,
       championAlerts,
+      spotIds: selectedIds,
       ...privacyToFlags(privacy),
-      ...(uploadedCover ? { coverImage: uploadedCover } : {}),
     };
 
     try {
-      const result =
-        mode === 'edit'
-          ? await updateCollection(id, payload)
-          : await createCollection(payload);
+      if (mode === 'edit') {
+        const result = await updateCollection(id, payload);
+        if (result?.error) throw new Error(result.error);
+        toast.show('Changes saved.', { variant: 'success' });
+        navigation.goBack();
+        return;
+      }
+
+      const result = await createCollection(payload);
       if (result?.error) throw new Error(result.error);
-      toast.show(
-        mode === 'edit' ? 'Changes saved.' : 'Pocket created.',
-        { variant: 'success' },
-      );
+      const collectionId = result?.id ?? result?.data?.id ?? result?.collection?.id;
+      if (!collectionId) throw new Error('No collection id returned');
+
+      for (const spotId of selectedIds) {
+        const added = await addSpotToCollection(collectionId, spotId);
+        if (added?.error) {
+          logger.error('CreateCollection.addSpot', { spotId, error: added.error });
+        }
+      }
+
+      toast.show('Pocket created.', { variant: 'success' });
       navigation.goBack();
     } catch (err) {
       logger.error('CreateCollection.submit', err);
@@ -365,72 +362,40 @@ export const CreateCollectionScreen = ({ navigation, route }) => {
             </DisplayTitle>
           </View>
 
-          {/* Cover preview */}
-          <View style={styles.coverWrap}>
-            <MosaicCover
-              vibes={mosaicVibes}
-              aspectRatio={16 / 10}
-              radius={fieldGuide.radius.lg}
-            />
-            <Pressable
-              onPress={pickPhoto}
-              accessibilityRole="button"
-              accessibilityLabel="Pick a cover photo"
-              style={({ pressed }) => [
-                styles.coverPick,
-                { opacity: pressed ? 0.85 : 1 },
-              ]}
-            >
-              <Ionicons name="image-outline" size={14} color={fieldGuide.cream} />
-              <Text style={styles.coverPickText}>
-                {coverImage ? 'Replace photo' : 'Use a photo'}
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* Vibe swatches */}
           <View style={styles.section}>
-            <SectionLabel>Cover vibes</SectionLabel>
-            <Text style={styles.sectionHint}>
-              Pick up to {MAX_COVER_VIBES}. The mosaic above follows your choices.
-            </Text>
-            <View style={styles.swatchGrid}>
-              {VIBE_SWATCHES.map((v) => {
-                const active = coverVibes.includes(v.id);
-                return (
-                  <Pressable
-                    key={v.id}
-                    onPress={() => toggleVibe(v.id)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                    accessibilityLabel={`Vibe ${v.label}`}
-                    style={({ pressed }) => [
-                      styles.swatch,
-                      active && styles.swatchActive,
-                      { opacity: pressed ? 0.85 : 1 },
-                    ]}
-                  >
-                    <MosaicCover
-                      vibes={[v.id]}
-                      aspectRatio={1}
-                      radius={fieldGuide.radius.md}
-                    />
-                    <Text
-                      style={[
-                        styles.swatchLabel,
-                        active && styles.swatchLabelActive,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {v.label.toUpperCase()}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <FloatingLabelInput
+              label="Title"
+              value={title}
+              onChangeText={(v) => {
+                setTitle(v);
+                if (titleError) setTitleError('');
+              }}
+              placeholder="Rainy day cafés"
+              error={titleError || undefined}
+              returnKeyType="next"
+            />
           </View>
 
-          {/* Glyph */}
+          <View style={styles.section}>
+            <SectionLabel>Spots</SectionLabel>
+            <Text style={styles.sectionHint}>
+              Choose at least one. The cover mosaic follows your picks.
+            </Text>
+            <EditorialButton
+              variant="ghost"
+              size="sm"
+              onPress={() => setPickerOpen(true)}
+            >
+              {selectedIds.length > 0
+                ? `${selectedIds.length} spot${selectedIds.length === 1 ? '' : 's'} selected · Edit`
+                : 'Pick spots'}
+            </EditorialButton>
+          </View>
+
+          <View style={styles.coverWrap}>
+            <SpotCoverGrid spots={selectedSpots} />
+          </View>
+
           <View style={styles.section}>
             <SectionLabel>Glyph</SectionLabel>
             <View style={styles.glyphRow}>
@@ -464,20 +429,6 @@ export const CreateCollectionScreen = ({ navigation, route }) => {
             </View>
           </View>
 
-          {/* Inputs */}
-          <View style={styles.section}>
-            <FloatingLabelInput
-              label="Title"
-              value={title}
-              onChangeText={(v) => {
-                setTitle(v);
-                if (titleError) setTitleError('');
-              }}
-              placeholder="Rainy day cafés"
-              error={titleError || undefined}
-              returnKeyType="next"
-            />
-          </View>
           <View style={styles.section}>
             <FloatingLabelInput
               label="Description"
@@ -589,6 +540,13 @@ export const CreateCollectionScreen = ({ navigation, route }) => {
             </Pressable>
           ) : null}
         </ScrollView>
+
+        <SpotPickerSheet
+          visible={pickerOpen}
+          selectedSpots={selectedSpots}
+          onChangeSelected={setSelectedSpots}
+          onClose={() => setPickerOpen(false)}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
