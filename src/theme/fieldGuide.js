@@ -1,8 +1,8 @@
 /**
- * VibeSpot — Field Guide design system tokens.
+ * FENA — Field Guide design system tokens.
  *
  * Mirrors the CSS custom properties declared in `:root` of
- * `vibespot open design/css_app.css`. Treat this file as the single
+ * `fena open design/css_app.css`. Treat this file as the single
  * JS source of truth for Field Guide colors, type, radii, and the
  * duotone "vibe" gradient stops.
  *

@@ -1,4 +1,4 @@
-package com.vibespot.app
+package com.fena.app
 
 import android.app.Application
 import android.content.res.Configuration

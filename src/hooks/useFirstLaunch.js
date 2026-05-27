@@ -2,7 +2,7 @@
  * useFirstLaunch — tracks whether the user has seen the onboarding flow.
  *
  * Persists a single boolean under the AsyncStorage key
- * `vibespot.onboarded`. Returns `{ ready, onboarded, markOnboarded }`.
+ * `fena.onboarded`. Returns `{ ready, onboarded, markOnboarded }`.
  *
  *   - `ready`        false until AsyncStorage has been read once; gate
  *                    your navigator on this to avoid a flash of the
@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const STORAGE_KEY = 'vibespot.onboarded';
+const STORAGE_KEY = 'fena.onboarded';
 
 export function useFirstLaunch() {
   const [ready, setReady] = useState(false);

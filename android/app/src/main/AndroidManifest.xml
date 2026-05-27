@@ -31,8 +31,8 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
-        <data android:scheme="vibespot"/>
-        <data android:scheme="exp+vibespot"/>
+        <data android:scheme="fena"/>
+        <data android:scheme="exp+fena"/>
       </intent-filter>
     </activity>
   </application>

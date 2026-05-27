@@ -1,5 +1,5 @@
 /**
- * VibeSpot Design Tokens (2026)
+ * FENA Design Tokens (2026)
  * Premium urban editorial design system
  */
 

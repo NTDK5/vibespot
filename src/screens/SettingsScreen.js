@@ -19,13 +19,14 @@ import Constants from 'expo-constants';
 
 import MonoMeta from '../components/fieldguide/primitives/MonoMeta';
 import ChangePasswordSheet from '../components/fieldguide/sheets/ChangePasswordSheet';
+import { BRAND } from '../brand/fena';
 import fieldGuide from '../theme/fieldGuide';
 import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../context/ThemeContext';
 
-const KEY_CHAMPION = 'vibespot.settings.weeklyChampion';
-const KEY_PICKS = 'vibespot.settings.editorsPicks';
+const KEY_CHAMPION = 'fena.settings.weeklyChampion';
+const KEY_PICKS = 'fena.settings.editorsPicks';
 
 function SettingRow({
   icon,
@@ -274,7 +275,7 @@ export const SettingsScreen = ({ navigation }) => {
               icon="shield-outline"
               title="Privacy"
               onPress={() =>
-                Linking.openURL('https://vibespot.co/privacy').catch(() => {
+                Linking.openURL(BRAND.privacyUrl).catch(() => {
                   toast.show('Privacy policy link is not available yet.', {
                     variant: 'info',
                   });
@@ -298,7 +299,7 @@ export const SettingsScreen = ({ navigation }) => {
               icon="create-outline"
               title="Write the editors"
               onPress={() =>
-                Linking.openURL('mailto:readers@vibespot.co').catch(() => {
+                Linking.openURL(`mailto:${BRAND.supportEmail}`).catch(() => {
                   toast.show('Could not open mail.', { variant: 'error' });
                 })
               }
@@ -322,8 +323,11 @@ export const SettingsScreen = ({ navigation }) => {
         </Pressable>
 
         <View style={styles.versionFooter}>
-          <Text style={styles.wm}>VibeSpot.</Text>
-          <MonoMeta size="kicker">VOL. 04 · FIELD GUIDE EDITION</MonoMeta>
+          <Text style={styles.wm}>{`${BRAND.name}.`}</Text>
+          <MonoMeta size="kicker">{`VOL. 04 · ${BRAND.name} EDITION`}</MonoMeta>
+          <MonoMeta size="tab" style={styles.taglineFooter}>
+            {BRAND.tagline.toUpperCase()}
+          </MonoMeta>
         </View>
       </ScrollView>
 
@@ -458,5 +462,10 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: fieldGuide.cream,
     letterSpacing: -0.01,
+  },
+  taglineFooter: {
+    marginTop: 8,
+    color: fieldGuide.creamMute,
+    textAlign: 'center',
   },
 });

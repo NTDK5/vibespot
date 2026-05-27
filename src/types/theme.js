@@ -1,5 +1,5 @@
 // ============================================================
-// VibeSpot Design Token System
+// FENA Design Token System
 // Extends light/dark theme with full spacing, radius, type, shadow tokens
 // ============================================================
 

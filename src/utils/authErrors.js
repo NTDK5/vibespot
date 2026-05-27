@@ -1,25 +1,11 @@
 /**
- * Backend-tolerant error normalization for the auth flows added in
- * Phase 2 (forgot-password / verify-email / resend-verification).
- *
- * The three endpoints may not exist on the backend yet — this helper
- * maps whatever the network throws into a single user-facing string
- * so the UI never crashes and never shows a raw stack trace.
- *
- * Mapping (matches the spec):
- *   404           → "This isn't wired up yet — write the editors at
- *                    readers@vibespot.co for now."
- *   ≥500          → the server's `message` verbatim (or a fallback).
- *   no response   → "Off the grid. Check your connection."
- *   anything else → the server's `message` or the supplied fallback.
- *
- * Accepts a raw Axios error, a normalized payload from our
- * `axios.js` response interceptor (`error.normalized`), or anything
- * with a `.message` property.
+ * Backend-tolerant error normalization for auth flows (forgot-password,
+ * verify-email, resend-verification).
  */
 
-const NOT_WIRED_UP =
-  "This isn't wired up yet — write the editors at readers@vibespot.co for now.";
+import { BRAND } from '../brand/fena';
+
+const NOT_WIRED_UP = `This isn't wired up yet — write the editors at ${BRAND.supportEmail} for now.`;
 const OFFLINE = 'Off the grid. Check your connection.';
 
 export function normalizeAuthError(err, fallback = 'Something went wrong.') {

@@ -1,4 +1,4 @@
-# Using VibeSpot Without Cloud Functions
+# Using FENA Without Cloud Functions
 
 Your app is configured to work without Cloud Functions. Here's what you need to know:
 
@@ -20,7 +20,7 @@ Your app is configured to work without Cloud Functions. Here's what you need to 
 Since Cloud Functions aren't available, you need to manually set admin roles:
 
 1. **Register a user** through the app
-2. Go to [Firebase Console](https://console.firebase.google.com/project/vibespot-28e94/firestore)
+2. Go to [Firebase Console](https://console.firebase.google.com/project/fena/firestore)
 3. Navigate to **Firestore Database** > `users` collection
 4. Find the user document (by email or UID)
 5. Click **Edit** and change the `role` field from `"user"` to `"admin"`
@@ -68,7 +68,7 @@ This means ratings will update immediately without needing Cloud Functions.
 
 If you decide to upgrade to the Blaze plan later:
 
-1. Upgrade at: https://console.firebase.google.com/project/vibespot-28e94/usage/details
+1. Upgrade at: https://console.firebase.google.com/project/fena/usage/details
 2. Deploy Cloud Functions:
    ```bash
    firebase deploy --only functions
@@ -96,8 +96,8 @@ If you decide to upgrade to the Blaze plan later:
 
 ## 📚 Additional Resources
 
-- [Firebase Console](https://console.firebase.google.com/project/vibespot-28e94)
-- [Firestore Database](https://console.firebase.google.com/project/vibespot-28e94/firestore)
+- [Firebase Console](https://console.firebase.google.com/project/fena)
+- [Firestore Database](https://console.firebase.google.com/project/fena/firestore)
 - [Project README](./README.md)
 - [Setup Guide](./SETUP.md)
 

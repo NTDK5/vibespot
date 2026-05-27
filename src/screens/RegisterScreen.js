@@ -21,6 +21,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
+import { BRAND } from '../brand/fena';
+import { FenaLogoLockup } from '../components/brand';
 import fieldGuide from '../theme/fieldGuide';
 import {
   DisplayTitle,
@@ -135,9 +137,12 @@ function RegisterScreen({ navigation }) {
           />
 
           <View style={styles.body}>
+            <View style={styles.logoWrap}>
+              <FenaLogoLockup width={220} />
+            </View>
             <View style={styles.head}>
               <MonoMeta size="eyebrow" style={styles.eyebrow}>
-                {`NEW READER · NO. ${ISSUE_NUMBER}`}
+                {`NEW READER · ${BRAND.name}`}
               </MonoMeta>
               <DisplayTitle size="lg" italic="field guide.">
                 Start your field guide.
@@ -264,6 +269,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 22,
     paddingTop: 16,
+  },
+  logoWrap: {
+    alignItems: 'center',
+    marginBottom: 24,
   },
   head: {
     marginBottom: 28,

@@ -1,4 +1,6 @@
-# VibeSpot - React Native (Expo) + Firebase
+# FENA (ፍና) — React Native (Expo) + Firebase
+
+> Technical/runtime app identifier has been migrated to **fena**.
 
 A mobile app for discovering and reviewing amazing spots around you.
 
@@ -15,7 +17,7 @@ A mobile app for discovering and reviewing amazing spots around you.
 ## Project Structure
 
 ```
-vibespot/
+fena/
 ├── src/
 │   ├── components/          # Reusable UI components
 │   │   ├── Button.js

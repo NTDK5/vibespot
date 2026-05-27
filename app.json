@@ -1,32 +1,39 @@
 {
   "expo": {
-    "name": "VibeSpot",
-    "slug": "vibespot",
-    "scheme": "vibespot",
-    "icon": "./assets/logo.png",
+    "name": "FENA",
+    "slug": "fena",
+    "scheme": "fena",
+    "icon": "./assets/icon.png",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "splash": {
-      "backgroundColor": "#ffffff"
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#14161D"
     },
     "assetBundlePatterns": [
       "assets/**/*"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.vibespot.app"
+      "bundleIdentifier": "com.fena.app",
+      "icon": "./assets/icon.png"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/adaptive-icon-foreground.png",
+        "backgroundColor": "#14161D"
       },
-      "package": "com.vibespot.app",
+      "package": "com.fena.app",
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.RECORD_AUDIO"
       ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     },
     "updates": {
       "enabled": false,
@@ -36,22 +43,25 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow VibeSpot to use your location."
+          "locationAlwaysAndWhenInUsePermission": "Allow FENA to use your location."
         }
       ],
       [
         "expo-image-picker",
         {
-          "mediaLibraryPermission": "Allow VibeSpot to access your photos."
+          "photosPermission": "Allow FENA to access your photos.",
+          "cameraPermission": "Allow FENA to use your camera."
         }
       ],
       "expo-font",
-      "expo-asset"
+      "expo-asset",
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {
-        "projectId": "37f3f96d-ab6e-4b1c-8ab1-2d8898539937"
+        "projectId": "fa4c1460-7a14-4c6d-b710-1133987b79b1"
       }
-    }
+    },
+    "owner": "nati_2098"
   }
 }

@@ -41,7 +41,7 @@ For security, restrict your API key:
    - **Maps SDK for Android**
    - **Maps SDK for iOS** (if needed)
 5. Under **Application restrictions**, select **Android apps** and add:
-   - Package name: `com.vibespot.app`
+   - Package name: `com.fena.app`
    - SHA-1 certificate fingerprint: (get this from your keystore)
 
 ### Step 4: Rebuild the App

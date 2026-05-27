@@ -32,7 +32,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../components/ToastProvider';
 import { isValidEmail } from '../utils/helpers';
 
-const EDITOR_EMAIL = 'readers@vibespot.co';
+import { BRAND } from '../brand/fena';
 
 function ForgotPasswordScreen({ navigation }) {
   const { requestReset } = useAuth();
@@ -62,7 +62,7 @@ function ForgotPasswordScreen({ navigation }) {
   };
 
   const openMail = () => {
-    Linking.openURL(`mailto:${EDITOR_EMAIL}`).catch(() => {
+    Linking.openURL(`mailto:${BRAND.supportEmail}`).catch(() => {
       toast?.show?.('No mail app available.', { variant: 'error' });
     });
   };
@@ -136,7 +136,7 @@ function ForgotPasswordScreen({ navigation }) {
                       style={styles.helpMail}
                       accessibilityRole="link"
                     >
-                      {EDITOR_EMAIL}
+                      {BRAND.supportEmail}
                     </Text>
                     {' '}— we usually reply within a day.
                   </Text>

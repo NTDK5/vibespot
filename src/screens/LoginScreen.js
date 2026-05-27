@@ -32,6 +32,8 @@ import {
   TopBar,
 } from '../components/fieldguide';
 
+import { BRAND } from '../brand/fena';
+import { FenaLogoLockup } from '../components/brand';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../components/ToastProvider';
 import { isValidEmail } from '../utils/helpers';
@@ -60,7 +62,7 @@ function LoginScreen({ navigation }) {
   // Google Auth Request — preserved from the legacy LoginScreen.
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || 'YOUR_WEB_CLIENT_ID',
-    redirectUri: makeRedirectUri({ scheme: 'vibespot' }),
+    redirectUri: makeRedirectUri({ scheme: 'fena' }),
   });
 
   useEffect(() => {
@@ -127,6 +129,9 @@ function LoginScreen({ navigation }) {
           )}
 
           <View style={styles.body}>
+            <View style={styles.logoWrap}>
+              <FenaLogoLockup width={240} />
+            </View>
             <View style={styles.head}>
               <MonoMeta size="eyebrow" style={styles.eyebrow}>
                 Returning Reader
@@ -229,7 +234,8 @@ function LoginScreen({ navigation }) {
               style={styles.footerLinkWrap}
             >
               <Text style={styles.footerText}>
-                New to VibeSpot?  <Text style={styles.footerEmber}>Start your guide</Text>
+                {`New to ${BRAND.name}?  `}
+                <Text style={styles.footerEmber}>Start your guide</Text>
               </Text>
             </Pressable>
           </View>
@@ -262,6 +268,10 @@ const styles = StyleSheet.create({
   body: {
     paddingHorizontal: 22,
     paddingBottom: 8,
+  },
+  logoWrap: {
+    alignItems: 'center',
+    marginBottom: 28,
   },
   head: {
     marginBottom: 36,

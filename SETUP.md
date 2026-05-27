@@ -1,4 +1,4 @@
-# VibeSpot Setup Guide
+# FENA Setup Guide
 
 ## Quick Start Checklist
 

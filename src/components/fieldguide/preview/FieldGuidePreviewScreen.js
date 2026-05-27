@@ -19,6 +19,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BRAND } from '../../../brand/fena';
 import fieldGuide from '../../../theme/fieldGuide';
 import {
   MonoMeta,
@@ -185,9 +186,8 @@ export default function FieldGuidePreviewScreen({ navigation }) {
           </Group>
 
           <Group title="DROPCAP">
-            <Dropcap letter="V">
-              VibeSpot reads the city the way an editor reads a magazine — every spot
-              numbered, every save tucked into a pocket of paper. Tap, stamp, return later.
+            <Dropcap letter={BRAND.name[0]}>
+              {`${BRAND.name} reads the city the way an editor reads a magazine — every spot numbered, every save tucked into a pocket of paper. Tap, stamp, return later.`}
             </Dropcap>
           </Group>
 
@@ -319,7 +319,7 @@ export default function FieldGuidePreviewScreen({ navigation }) {
                 label="Email"
                 value={text3}
                 onChangeText={setText3}
-                placeholder="editor@vibespot.app"
+                placeholder={`editor@${BRAND.supportEmail.split('@')[1]}`}
                 error="Doesn't look like an email"
               />
               <FloatingLabelInput

@@ -1,5 +1,5 @@
 /**
- * SpotDiscoveryStack - Signature VibeSpot interaction
+ * SpotDiscoveryStack - Signature FENA interaction
  * Stack-based cards with tilt-on-scroll and mood-reactive transitions
  */
 import React, { useRef } from 'react';

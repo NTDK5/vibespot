@@ -1,6 +1,6 @@
 {
   "name": "functions",
-  "description": "Cloud Functions for VibeSpot",
+  "description": "Cloud Functions for FENA",
   "scripts": {
     "lint": "eslint .",
     "serve": "firebase emulators:start --only functions",

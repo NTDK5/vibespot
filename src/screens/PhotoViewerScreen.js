@@ -33,6 +33,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { formatPhotoShareMessage } from '../brand/fena';
 import {
   ActivityIndicator,
   Animated,
@@ -198,9 +199,7 @@ export const PhotoViewerScreen = ({ navigation, route }) => {
     if (!uri) return;
     try {
       await Share.share({
-        message: spot?.title
-          ? `${spot.title} on VibeSpot`
-          : 'A photo on VibeSpot',
+        message: formatPhotoShareMessage(spot?.title),
         url: uri,
       });
     } catch (err) {

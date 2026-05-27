@@ -19,7 +19,7 @@
  *   - removeSpotFromCollection on tap-to-remove (with confirm).
  *   - Done reordering → updateCollection(id, { spotOrder }). If the
  *     backend rejects spotOrder, we Toast and persist the order in
- *     AsyncStorage under `vibespot.collectionOrder.${id}`.
+ *     AsyncStorage under `fena.collectionOrder.${id}`.
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -274,7 +274,7 @@ export const CollectionDetailScreen = ({ navigation, route }) => {
       let next = deriveItems(collection);
       // Apply any locally-saved order overlay.
       try {
-        const stored = await AsyncStorage.getItem(`vibespot.collectionOrder.${id}`);
+        const stored = await AsyncStorage.getItem(`fena.collectionOrder.${id}`);
         if (stored && !cancelled) {
           const order = JSON.parse(stored);
           if (Array.isArray(order)) {
@@ -338,7 +338,7 @@ export const CollectionDetailScreen = ({ navigation, route }) => {
       // Backend may not understand spotOrder yet — persist locally.
       try {
         await AsyncStorage.setItem(
-          `vibespot.collectionOrder.${id}`,
+          `fena.collectionOrder.${id}`,
           JSON.stringify(spotOrder),
         );
         toast.show('Order saved locally.', { variant: 'info' });

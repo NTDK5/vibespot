@@ -28,6 +28,7 @@ import {
   MonoMeta,
   SpotPhoto,
 } from '../components/fieldguide';
+import { BRAND } from '../brand/fena';
 import { useFirstLaunch } from '../hooks/useFirstLaunch';
 
 const PAGES = [
@@ -37,7 +38,7 @@ const PAGES = [
     title: 'Not every place',
     italic: 'is worth your time.',
     body:
-      'VibeSpot is a curated guide to places with character — hidden cafés, rooftops worth the climb, quiet workspaces, nightlife locals actually go to.',
+      `${BRAND.name} is a field guide to places with character — hidden cafés, rooftops worth the climb, quiet workspaces, nightlife locals actually go to.`,
   },
   {
     vibe: 'cafe',

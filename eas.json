@@ -12,7 +12,8 @@
       },
       "env": {
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
-      }
+      },
+      "prebuildCommand": "npx expo prebuild --platform android --no-install --clean"
     },
     "preview": {
       "distribution": "internal",
@@ -21,13 +22,18 @@
       },
       "env": {
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
-      }
+      },
+      "prebuildCommand": "npx expo prebuild --platform android --no-install --clean"
     },
     "production": {
       "android": {
         "buildType": "app-bundle"
       },
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+      },
+      "prebuildCommand": "npx expo prebuild --platform android --no-install --clean"
     }
   },
   "submit": {

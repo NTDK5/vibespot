@@ -1,9 +1,9 @@
-# VibeSpot Project Structure
+# FENA Project Structure
 
 ## Complete File Tree
 
 ```
-vibespot/
+fena/
 ├── App.js                          # Main app entry point
 ├── app.json                        # Expo configuration
 ├── babel.config.js                 # Babel configuration

@@ -1,5 +1,5 @@
 /**
- * VibeSpot Dynamic Vibe Color Engine
+ * FENA Dynamic Vibe Color Engine
  *
  * Given a vibe's hex seed color, returns a complete palette:
  *   base, soft, muted, onColor, border, glow

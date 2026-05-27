@@ -44,6 +44,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 
+import { BRAND, formatSpotShareMessage } from '../brand/fena';
 import {
   CollectionPickerSheet,
   DisplayTitle,
@@ -349,7 +350,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
     try {
       await Share.share({
         title: spot.title,
-        message: `${spot.title} on VibeSpot — ${spot?.address || ''}`.trim(),
+        message: formatSpotShareMessage(spot.title, spot?.address || ''),
         url: spot?.shareUrl || undefined,
       });
       if (spotId) {
@@ -996,7 +997,7 @@ function ContactList({ spot, onOpen, onMaps }) {
   if (rows.length === 0) {
     return (
       <Text style={styles.contactFallback}>
-        No contact details yet — ask the editors at readers@vibespot.co.
+        {`No contact details yet — ask the editors at ${BRAND.supportEmail}.`}
       </Text>
     );
   }

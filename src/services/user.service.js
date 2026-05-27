@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../config/axios';
 
-export const profileStorageKey = (userId) => `vibespot.userProfile.${userId}`;
+export const profileStorageKey = (userId) => `fena.userProfile.${userId}`;
 
 export const getMe = async () => {
   try {
