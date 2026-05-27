@@ -1,156 +1,217 @@
-import React, { useState, useEffect } from 'react';
+/**
+ * EditSpotScreen — Phase 5 / design 18.
+ *
+ * Super-admin spot editor with editor banner, cover/gallery, and
+ * sectioned fields. Preserves updateSpot, uploadSpotImages, deleteSpot.
+ */
+
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
+  Alert,
+  Dimensions,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
-  Alert,
-  TouchableOpacity,
-  Modal,
-  ActivityIndicator,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Dimensions,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LeafletMap } from '../components/LeafletMap';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Button } from '../components/Button';
-import { ImageUploader } from '../components/ImageUploader';
-import { getSpotById, updateSpot } from '../services/spots.service';
-import { uploadSpotImages } from '../services/upload';
-import { useLocation } from '../hooks/useLocation';
-import { CATEGORIES, PRICE_RANGES } from '../utils/constants';
-import { useAuth } from '../hooks/useAuth';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
 
-/**
- * Edit Spot Screen (Superadmin Only)
- */
+import FloatingLabelInput from '../components/fieldguide/form/FloatingLabelInput';
+import CategoryGrid from '../components/fieldguide/form/CategoryGrid';
+import PriceTierRow, { WIZARD_PRICE_TIERS } from '../components/fieldguide/form/PriceTierRow';
+import HoursEditor, { normalizeHoursFromSpot } from '../components/fieldguide/form/HoursEditor';
+import SpotMediaUploader from '../components/fieldguide/form/SpotMediaUploader';
+import { Pill } from '../components/fieldguide';
+import MonoMeta from '../components/fieldguide/primitives/MonoMeta';
+import EditorialButton from '../components/fieldguide/form/EditorialButton';
+import LoadingScreen from '../components/fieldguide/state/LoadingScreen';
+import ErrorScreen from '../components/fieldguide/state/ErrorScreen';
+import { LeafletMap } from '../components/LeafletMap';
+import fieldGuide from '../theme/fieldGuide';
+import { useToast } from '../components/ToastProvider';
+import { useAuth } from '../hooks/useAuth';
+import { useLocation } from '../hooks/useLocation';
+import {
+  deleteSpot,
+  getSpotById,
+  updateSpot,
+} from '../services/spots.service';
+import { uploadSpotImages } from '../services/upload';
+import { CATEGORIES } from '../utils/constants';
+import { indexNumberFor } from '../utils/spotHelpers';
+import { logger } from '../utils/logger';
+
+const VIBE_OPTIONS = [
+  'SLOW',
+  'GOOD LIGHT',
+  'CROWDED',
+  'SOLO-FRIENDLY',
+  'FOR FRIENDS',
+  'CARDAMOM BUN',
+  'LATE-NIGHT',
+  'WORTH THE WALK',
+  'CASH-ONLY',
+];
+
+function hoursForApi(hours) {
+  const out = {};
+  Object.keys(hours || {}).forEach((day) => {
+    const range = hours[day];
+    if (Array.isArray(range) && range.length >= 2) {
+      out[day] = [Math.floor(range[0]), Math.floor(range[1])];
+    }
+  });
+  return Object.keys(out).length ? out : undefined;
+}
+
+function matchPriceValue(spot) {
+  const pr = spot?.priceRange;
+  const tier = WIZARD_PRICE_TIERS.find((t) => t.value === pr);
+  if (tier) return tier.value;
+  if (pr === 'free') return 'low';
+  return 'medium';
+}
+
 export const EditSpotScreen = ({ route, navigation }) => {
-  const { spotId } = route.params;
-  const { location } = useLocation();
+  const spotId = route?.params?.spotId;
   const { isSuperAdmin } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const { location } = useLocation();
+  const toast = useToast();
+  const insets = useSafeAreaInsets();
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
-  const [priceRange, setPriceRange] = useState('');
-  const [tags, setTags] = useState('');
-  const [images, setImages] = useState([]);
-  const [existingImages, setExistingImages] = useState([]);
-  const [mapModalVisible, setMapModalVisible] = useState(false);
-  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [priceRange, setPriceRange] = useState('medium');
+  const [vibeTags, setVibeTags] = useState([]);
   const [address, setAddress] = useState('');
   const [bestTime, setBestTime] = useState('');
+  const [hours, setHours] = useState(normalizeHoursFromSpot(null));
   const [featureInput, setFeatureInput] = useState('');
   const [features, setFeatures] = useState([]);
-  const [lat, setLatitude] = useState(location?.latitude ?? 9.0080);
-  const [lng, setLongitude] = useState(location?.longitude ?? 38.7886);
+  const [lat, setLat] = useState(38.7886);
+  const [lng, setLng] = useState(-9.008);
   const [website, setWebsite] = useState('');
   const [instagram, setInstagram] = useState('');
   const [facebook, setFacebook] = useState('');
   const [twitter, setTwitter] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [newImages, setNewImages] = useState([]);
+  const [existingImages, setExistingImages] = useState([]);
   const [isEditorsPick, setIsEditorsPick] = useState(false);
-  const [weeklyRank, setWeeklyRank] = useState("");
+  const [weeklyRank, setWeeklyRank] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [draftLat, setDraftLat] = useState(lat);
+  const [draftLng, setDraftLng] = useState(lng);
 
-  useEffect(() => {
-    if (!isSuperAdmin) {
-      Alert.alert('Access Denied', 'Only superadmins can edit spots');
-      navigation.goBack();
-      return;
-    }
-    loadSpot();
-  }, [spotId, isSuperAdmin]);
   useEffect(() => {
     if (!isSuperAdmin) {
       navigation.replace('Home');
     }
-    if (location && typeof location.latitude === 'number' && typeof location.longitude === 'number') {
-    setLatitude(location.latitude);
-    setLongitude(location.longitude);
+  }, [isSuperAdmin, navigation]);
 
-    }}, [location, isSuperAdmin]);
+  const query = useQuery({
+    queryKey: ['edit-spot', spotId],
+    queryFn: () => getSpotById(spotId),
+    enabled: !!spotId && isSuperAdmin,
+  });
 
-  const loadSpot = async () => {
-    setLoading(true);
-    try {
-      const spot = await getSpotById(spotId);
-      if (spot.error || !spot) {
-        Alert.alert('Error', 'Failed to load spot');
-        navigation.goBack();
-        return;
-      }
+  const spot = query.data && !query.data.error ? query.data : null;
 
-      setTitle(spot.title || '');
-      setDescription(spot.description || '');
-      setCategory(spot.category || '');
-      setPriceRange(spot.priceRange || '');
-      setTags(spot.tags?.join(', ') || '');
-      setAddress(spot.address || '');
-      setBestTime(spot.bestTime || '');
-      setFeatures(spot.features || []);
-      setLatitude(spot.lat || location?.latitude || 9.0080);
-      setLongitude(spot.lng || location?.longitude || 38.7886);
-      setExistingImages(spot.images || []);
-      setWebsite(spot.website || '');
-      setInstagram(spot.instagram || '');
-      setFacebook(spot.facebook || '');
-      setTwitter(spot.twitter || '');
-      setPhone(spot.phone || '');
-      setEmail(spot.email || '');
-      setIsEditorsPick(spot.isEditorsPick || false);
-      setWeeklyRank(
-        typeof spot.weeklyRank === "number" && !isNaN(spot.weeklyRank)
-          ? String(spot.weeklyRank)
-          : ""
-      );
-    } catch (error) {
-      console.error('Error loading spot:', error);
-      Alert.alert('Error', 'Failed to load spot');
-      navigation.goBack();
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    if (!spot) return;
+    setTitle(spot.title || '');
+    setDescription(spot.description || '');
+    setCategory(spot.category || '');
+    setPriceRange(matchPriceValue(spot));
+    const spotTags = Array.isArray(spot.tags) ? spot.tags : [];
+    setVibeTags(
+      spotTags.filter((t) =>
+        VIBE_OPTIONS.includes(String(t).toUpperCase()),
+      ).map((t) => String(t).toUpperCase()),
+    );
+    setFeatures(spot.features || []);
+    setAddress(spot.address || '');
+    setBestTime(spot.bestTime || '');
+    setHours(normalizeHoursFromSpot(spot.hours));
+    setLat(spot.lat ?? spot.latitude ?? 38.7886);
+    setLng(spot.lng ?? spot.longitude ?? -9.008);
+    setExistingImages(
+      Array.isArray(spot.images) ? spot.images.filter(Boolean) : [],
+    );
+    setWebsite(spot.website || '');
+    setInstagram(spot.instagram || '');
+    setFacebook(spot.facebook || '');
+    setTwitter(spot.twitter || '');
+    setPhone(spot.phone || '');
+    setEmail(spot.email || '');
+    setIsEditorsPick(!!spot.isEditorsPick);
+    setWeeklyRank(
+      typeof spot.weeklyRank === 'number' && !Number.isNaN(spot.weeklyRank)
+        ? String(spot.weeklyRank)
+        : '',
+    );
+  }, [spot]);
+
+  const toggleVibe = (tag) => {
+    setVibeTags((prev) => {
+      if (prev.includes(tag)) return prev.filter((t) => t !== tag);
+      if (prev.length >= 5) return prev;
+      return [...prev, tag];
+    });
   };
 
   const addFeature = () => {
     const trimmed = featureInput.trim();
-    if (!trimmed) return;
+    if (!trimmed || features.includes(trimmed)) return;
     setFeatures([...features, trimmed]);
     setFeatureInput('');
   };
 
-  const removeFeature = (feature) => {
-    setFeatures(features.filter(f => f !== feature));
+  const buildTags = () => {
+    const merged = [
+      ...vibeTags.map((t) => t.toLowerCase()),
+      ...features.map((f) => f.toLowerCase()),
+    ];
+    return [...new Set(merged)];
   };
 
-  const handleSubmit = async () => {
-    if (!title.trim()) return Alert.alert("Error", "Please enter a title");
-    if (!description.trim()) return Alert.alert("Error", "Please enter a description");
-    if (!category) return Alert.alert("Error", "Please select a category");
+  const handleSave = async () => {
+    if (!title.trim()) {
+      toast.show('Title is required.', { variant: 'error' });
+      return;
+    }
+    if (!description.trim()) {
+      toast.show('Description is required.', { variant: 'error' });
+      return;
+    }
+    if (!category) {
+      toast.show('Pick a category.', { variant: 'error' });
+      return;
+    }
 
     setSubmitting(true);
-
     try {
       const spotData = {
         title: title.trim(),
         description: description.trim(),
         category,
         priceRange,
-        tags: tags
-          .split(",")
-          .map((t) => t.trim())
-          .filter((t) => t),
+        tags: buildTags(),
         lat,
         lng,
-        address,
-        bestTime,
+        address: address.trim(),
+        bestTime: bestTime.trim() || undefined,
+        hours: hoursForApi(hours),
         features,
         website: website.trim() || undefined,
         instagram: instagram.trim() || undefined,
@@ -158,870 +219,559 @@ export const EditSpotScreen = ({ route, navigation }) => {
         twitter: twitter.trim() || undefined,
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
+        isEditorsPick,
+        weeklyRank:
+          weeklyRank.trim() === ''
+            ? null
+            : Number.parseInt(weeklyRank, 10),
       };
 
-      // Update spot
       const result = await updateSpot(spotId, spotData);
-
-      if (result.error) {
-        throw new Error(result.error || "Failed to update spot");
+      if (result?.error) {
+        throw new Error(result.error);
       }
 
-      // Upload new images if any
-      if (images.length > 0) {
-        const uploadResult = await uploadSpotImages(spotId, images);
-        if (uploadResult.error) {
-          Alert.alert("Warning", "Spot updated but some images failed to upload");
+      if (newImages.length > 0) {
+        const uploadResult = await uploadSpotImages(spotId, newImages);
+        if (uploadResult?.error) {
+          toast.show('Saved, but some photos failed to upload.', {
+            variant: 'info',
+          });
         }
       }
 
-      Alert.alert("Success", "Spot updated successfully!", [
-        { text: "OK", onPress: () => navigation.goBack() },
-      ]);
-    } catch (error) {
-      Alert.alert("Error", error.message || "Failed to update spot");
+      toast.show('Spot updated.', { variant: 'success' });
+      navigation.goBack();
+    } catch (err) {
+      logger.error('EditSpot.save', err);
+      toast.show(err.message || 'Failed to update spot.', { variant: 'error' });
     } finally {
       setSubmitting(false);
     }
   };
 
+  const handleDelete = () => {
+    Alert.alert(
+      'Remove this spot?',
+      'It will disappear from the field guide for all readers.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const result = await deleteSpot(spotId);
+              if (result?.error) throw new Error(result.error);
+              toast.show('Spot removed.', { variant: 'success' });
+              navigation.navigate('Home');
+            } catch (err) {
+              logger.error('EditSpot.delete', err);
+              toast.show(err.message || 'Could not remove spot.', {
+                variant: 'error',
+              });
+            }
+          },
+        },
+      ],
+    );
+  };
 
-  const selectedCategoryLabel = CATEGORIES.find((c) => c.id === category)?.label || 'Select Category';
+  const openMap = () => {
+    setDraftLat(lat);
+    setDraftLng(lng);
+    setMapOpen(true);
+  };
 
-  if (loading) {
+  if (!isSuperAdmin) {
+    return null;
+  }
+
+  if (query.isLoading) {
+    return <LoadingScreen message="Loading spot…" />;
+  }
+
+  if (query.isError || !spot) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6C5CE7" />
-        <Text style={styles.loadingText}>Loading spot...</Text>
-      </View>
+      <ErrorScreen
+        code="ERR · 404"
+        title="Could not load this spot."
+        italic="spot."
+        body="The link might be stale, or you may not have editor access."
+        onRetry={() => navigation.goBack()}
+      />
     );
   }
 
+  const indexLabel = indexNumberFor(spot);
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView edges={['top']} style={styles.safe}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+        style={styles.fill}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Edit Spot</Text>
-          <View style={{ width: 40 }} />
+        <View style={styles.topbar}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.iconBtn,
+              { opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <Ionicons name="chevron-back" size={18} color={fieldGuide.cream} />
+          </Pressable>
+          <Text style={styles.topTitle}>{`Edit · No. ${indexLabel}`}</Text>
+          <Pressable
+            onPress={handleSave}
+            disabled={submitting}
+            hitSlop={8}
+            style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
+          >
+            <Text style={styles.saveLink}>
+              {submitting ? '…' : 'SAVE'}
+            </Text>
+          </Pressable>
         </View>
 
-        <ScrollView 
-          style={styles.scrollView}
+        <ScrollView
+          contentContainerStyle={[
+            styles.scroll,
+            { paddingBottom: insets.bottom + 100 },
+          ]}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.content}
         >
-          {/* Title Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="create-outline" size={20} color="#6C5CE7" />
-              <Text style={styles.sectionTitle}>Basic Information</Text>
+          <View style={styles.editorBanner}>
+            <View style={styles.editorIcon}>
+              <Text style={styles.editorIconText}>✦</Text>
             </View>
-            <Text style={styles.label}>Title *</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter spot title"
-                placeholderTextColor="#999"
-                value={title}
-                onChangeText={setTitle}
-              />
-            </View>
-
-            <Text style={styles.label}>Description *</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Describe the spot..."
-                placeholderTextColor="#999"
-                value={description}
-                onChangeText={setDescription}
-                multiline
-                numberOfLines={4}
-              />
-            </View>
+            <Text style={styles.editorCopy}>
+              You are editing as an <Text style={styles.editorBold}>editor</Text>.
+              Changes go live after save. Verified spots stay visible to readers.
+            </Text>
           </View>
 
-          {/* Editor's Pick (Superadmin only) */}
-          {isSuperAdmin && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="ribbon-outline" size={20} color="#6C5CE7" />
-                <Text style={styles.sectionTitle}>Editor’s Picks</Text>
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <Text style={styles.label}>Mark as Editor’s Pick</Text>
-                <TouchableOpacity
-                  onPress={() => setIsEditorsPick(!isEditorsPick)}
-                  style={[
-                    styles.togglePill,
-                    isEditorsPick && styles.togglePillActive,
-                  ]}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.togglePillText, isEditorsPick && styles.togglePillTextActive]}>
-                    {isEditorsPick ? "Enabled" : "Disabled"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.helperText}>
-                Display this spot in Editor’s Picks on the home page.
-              </Text>
-              {isEditorsPick && (
-                <>
-                  <Text style={[styles.label, { marginTop: 12 }]}>Weekly rank (optional)</Text>
-                  <View style={styles.inputContainer}>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="1"
-                      keyboardType="numeric"
-                      value={weeklyRank}
-                      onChangeText={setWeeklyRank}
-                    />
-                  </View>
-                  <Text style={styles.helperText}>
-                    Lower numbers appear first. Leave blank to use default ordering.
-                  </Text>
-                </>
-              )}
-            </View>
-          )}
-
-          {/* Category Section */}
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="grid-outline" size={20} color="#6C5CE7" />
-              <Text style={styles.sectionTitle}>Category & Pricing</Text>
-            </View>
-            <Text style={styles.label}>Category *</Text>
-            <TouchableOpacity
-              style={styles.selectButton}
-              onPress={() => setCategoryModalVisible(true)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.selectButtonContent}>
-                <Ionicons name="pricetag-outline" size={20} color="#6C5CE7" />
-                <Text style={styles.selectButtonText}>{selectedCategoryLabel}</Text>
-              </View>
-              <Ionicons name="chevron-down" size={20} color="#666" />
-            </TouchableOpacity>
+            <MonoMeta size="eyebrow">Cover photo</MonoMeta>
+            <SpotMediaUploader
+              images={newImages}
+              existingUrls={existingImages}
+              onChange={setNewImages}
+              vibe={category || 'cafe'}
+            />
+          </View>
 
-            <Text style={styles.label}>Price Range</Text>
-            <View style={styles.priceRangeContainer}>
-              {PRICE_RANGES.map((range) => (
-                <TouchableOpacity
-                  key={range.id}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Basics</Text>
+            <FloatingLabelInput
+              label="Title"
+              value={title}
+              onChangeText={setTitle}
+            />
+            <FloatingLabelInput
+              label="Description"
+              value={description}
+              onChangeText={setDescription}
+              multiline
+            />
+            <MonoMeta size="eyebrow" style={{ marginTop: 8 }}>
+              Category
+            </MonoMeta>
+            <CategoryGrid
+              categories={CATEGORIES}
+              value={category}
+              onChange={setCategory}
+            />
+            <PriceTierRow value={priceRange} onChange={setPriceRange} />
+          </View>
+
+          {isSuperAdmin ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Editor&apos;s picks</Text>
+              <Pressable
+                onPress={() => setIsEditorsPick((v) => !v)}
+                style={styles.editorsRow}
+              >
+                <MonoMeta size="spot">Mark as editor&apos;s pick</MonoMeta>
+                <View
                   style={[
-                    styles.priceRangeButton,
-                    priceRange === range.value && styles.priceRangeButtonActive,
+                    styles.toggle,
+                    isEditorsPick && styles.toggleOn,
                   ]}
-                  onPress={() => setPriceRange(range.value)}
-                  activeOpacity={0.7}
                 >
-                  <Text
-                    style={[
-                      styles.priceRangeText,
-                      priceRange === range.value && styles.priceRangeTextActive,
-                    ]}
-                  >
-                    {range.label}
+                  <Text style={styles.toggleText}>
+                    {isEditorsPick ? 'ON' : 'OFF'}
                   </Text>
-                </TouchableOpacity>
+                </View>
+              </Pressable>
+              {isEditorsPick ? (
+                <FloatingLabelInput
+                  label="Weekly rank (optional)"
+                  value={weeklyRank}
+                  onChangeText={setWeeklyRank}
+                  keyboardType="number-pad"
+                  placeholder="1"
+                />
+              ) : null}
+            </View>
+          ) : null}
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Location</Text>
+            <Pressable onPress={openMap} style={styles.mapPreview}>
+              <LeafletMap
+                latitude={lat}
+                longitude={lng}
+                interactive={false}
+                height={200}
+                showUserLocation={!!location}
+                userLocation={location}
+              />
+            </Pressable>
+            <Pressable onPress={openMap} style={styles.adjustMap}>
+              <MonoMeta size="spot">Adjust on map ↗</MonoMeta>
+            </Pressable>
+            <FloatingLabelInput
+              label="Address"
+              value={address}
+              onChangeText={setAddress}
+            />
+            <MonoMeta size="spot">
+              {`LAT ${lat.toFixed(5)} · LNG ${lng.toFixed(5)}`}
+            </MonoMeta>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Hours</Text>
+            <FloatingLabelInput
+              label="Best time to visit"
+              value={bestTime}
+              onChangeText={setBestTime}
+            />
+            <HoursEditor value={hours} onChange={setHours} />
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Contact</Text>
+            <FloatingLabelInput label="Website" value={website} onChangeText={setWebsite} autoCapitalize="none" />
+            <FloatingLabelInput label="Instagram" value={instagram} onChangeText={setInstagram} autoCapitalize="none" />
+            <FloatingLabelInput label="Facebook" value={facebook} onChangeText={setFacebook} autoCapitalize="none" />
+            <FloatingLabelInput label="Twitter / X" value={twitter} onChangeText={setTwitter} autoCapitalize="none" />
+            <FloatingLabelInput label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+            <FloatingLabelInput label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Tags & vibes</Text>
+            <View style={styles.pillWrap}>
+              {VIBE_OPTIONS.map((tag) => (
+                <Pill
+                  key={tag}
+                  variant={vibeTags.includes(tag) ? 'ember' : 'default'}
+                  onPress={() => toggleVibe(tag)}
+                >
+                  {tag}
+                </Pill>
+              ))}
+            </View>
+            <View style={styles.featureRow}>
+              <TextInput
+                value={featureInput}
+                onChangeText={setFeatureInput}
+                onSubmitEditing={addFeature}
+                placeholder="Add a feature…"
+                placeholderTextColor={fieldGuide.creamFaint}
+                style={styles.featureInput}
+              />
+              <Pressable onPress={addFeature} style={styles.featureAdd}>
+                <Ionicons name="add" size={18} color={fieldGuide.cream} />
+              </Pressable>
+            </View>
+            <View style={styles.pillWrap}>
+              {features.map((f) => (
+                <Pill
+                  key={f}
+                  onPress={() =>
+                    setFeatures(features.filter((x) => x !== f))
+                  }
+                >
+                  {`${f.toUpperCase()} ×`}
+                </Pill>
               ))}
             </View>
           </View>
 
-          {/* Features Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="star-outline" size={20} color="#6C5CE7" />
-              <Text style={styles.sectionTitle}>Features</Text>
-            </View>
-            <View style={styles.featureInputRow}>
-              <View style={[styles.inputContainer, { flex: 1 }]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Add feature e.g. WiFi, Parking"
-                  placeholderTextColor="#999"
-                  value={featureInput}
-                  onChangeText={setFeatureInput}
-                  onSubmitEditing={addFeature}
-                />
-              </View>
-              <TouchableOpacity
-                onPress={addFeature}
-                style={styles.addFeatureButton}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="add-circle" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Selected Features */}
-            {features.length > 0 && (
-              <View style={styles.featuresContainer}>
-                {features.map((feature, index) => (
-                  <View key={index} style={styles.featureChip}>
-                    <Text style={styles.featureChipText}>{feature}</Text>
-                    <TouchableOpacity onPress={() => removeFeature(feature)}>
-                      <Ionicons name="close-circle" size={18} color="#6C5CE7" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            )}
+          <View style={styles.danger}>
+            <Pressable onPress={handleDelete} hitSlop={8}>
+              <Text style={styles.dangerLink}>
+                Remove this spot from the field guide
+              </Text>
+            </Pressable>
           </View>
-
-          {/* Location Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="location-outline" size={20} color="#6C5CE7" />
-              <Text style={styles.sectionTitle}>Location Details</Text>
-            </View>
-            <Text style={styles.label}>Address *</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter full address"
-                placeholderTextColor="#999"
-                value={address}
-                onChangeText={setAddress}
-              />
-            </View>
-
-            <Text style={styles.label}>Coordinates</Text>
-            <TouchableOpacity
-              style={styles.mapButton}
-              onPress={() => setMapModalVisible(true)}
-              activeOpacity={0.7}
-            >
-              <LinearGradient
-                colors={['#6C5CE7', '#A29BFE']}
-                style={styles.mapButtonGradient}
-              >
-                <Ionicons name="location" size={20} color="#fff" />
-                <Text style={styles.mapButtonText}>
-                  {lat?.toFixed(4) || '0.0000'}, {lng?.toFixed(4) || '0.0000'}
-                </Text>
-                <Ionicons name="chevron-forward" size={20} color="#fff" />
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <Text style={styles.label}>Best Time To Visit (optional)</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. Morning, Weekend, Sunset"
-                placeholderTextColor="#999"
-                value={bestTime}
-                onChangeText={setBestTime}
-              />
-            </View>
-          </View>
-
-          {/* Tags Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="pricetags-outline" size={20} color="#6C5CE7" />
-              <Text style={styles.sectionTitle}>Tags</Text>
-            </View>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., outdoor, scenic, quiet (comma-separated)"
-                placeholderTextColor="#999"
-                value={tags}
-                onChangeText={setTags}
-              />
-            </View>
-          </View>
-
-          {/* Contact & Social Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="call-outline" size={20} color="#6C5CE7" />
-              <Text style={styles.sectionTitle}>Contact & Social Media</Text>
-            </View>
-            <Text style={styles.label}>Phone</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. +1234567890"
-                placeholderTextColor="#999"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-              />
-            </View>
-
-            <Text style={styles.label}>Email</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="contact@example.com"
-                placeholderTextColor="#999"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-
-            <Text style={styles.label}>Website</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="https://example.com"
-                placeholderTextColor="#999"
-                value={website}
-                onChangeText={setWebsite}
-                keyboardType="url"
-                autoCapitalize="none"
-              />
-            </View>
-
-            <Text style={styles.label}>Instagram</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="https://instagram.com/username"
-                placeholderTextColor="#999"
-                value={instagram}
-                onChangeText={setInstagram}
-                keyboardType="url"
-                autoCapitalize="none"
-              />
-            </View>
-
-            <Text style={styles.label}>Facebook</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="https://facebook.com/username"
-                placeholderTextColor="#999"
-                value={facebook}
-                onChangeText={setFacebook}
-                keyboardType="url"
-                autoCapitalize="none"
-              />
-            </View>
-
-            <Text style={styles.label}>Twitter/X</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="https://twitter.com/username"
-                placeholderTextColor="#999"
-                value={twitter}
-                onChangeText={setTwitter}
-                keyboardType="url"
-                autoCapitalize="none"
-              />
-            </View>
-          </View>
-
-          {/* Images Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="images-outline" size={20} color="#6C5CE7" />
-              <Text style={styles.sectionTitle}>Images</Text>
-            </View>
-            {existingImages.length > 0 && (
-              <View style={styles.existingImagesContainer}>
-                <Text style={styles.existingImagesLabel}>Current Images:</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.existingImagesScroll}>
-                  {existingImages.map((img, index) => (
-                    <Image
-                      key={index}
-                      source={{ uri: img }}
-                      style={styles.existingImage}
-                    />
-                  ))}
-                </ScrollView>
-                <Text style={styles.existingImagesNote}>
-                  Note: Adding new images will replace existing ones
-                </Text>
-              </View>
-            )}
-            <Text style={styles.addImagesLabel}>Add New Images:</Text>
-            <ImageUploader
-              onImagesSelected={setImages}
-              multiple={true}
-              maxImages={10}
-            />
-          </View>
-
-          <Button
-            title="Update Spot"
-            onPress={handleSubmit}
-            loading={submitting}
-            style={styles.submitButton}
-          />
-          <View style={{ height: 40 }} />
         </ScrollView>
+
+        <View
+          style={[
+            styles.stickySave,
+            { paddingBottom: insets.bottom + 12 },
+          ]}
+        >
+          <EditorialButton
+            variant="primary"
+            block
+            onPress={handleSave}
+            loading={submitting}
+          >
+            Save changes
+          </EditorialButton>
+        </View>
       </KeyboardAvoidingView>
 
-      {/* Category Modal */}
-      <Modal
-        visible={categoryModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setCategoryModalVisible(false)}
-      >
-        <ScrollView style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Category</Text>
-              <TouchableOpacity onPress={() => setCategoryModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#333" />
-              </TouchableOpacity>
-            </View>
-            {CATEGORIES.map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryOption,
-                  category === cat.id && styles.categoryOptionActive,
-                ]}
-                onPress={() => {
-                  setCategory(cat.id);
-                  setCategoryModalVisible(false);
-                }}
-              >
-                <Ionicons
-                  name={cat.icon}
-                  size={20}
-                  color={category === cat.id ? '#007AFF' : '#666'}
-                />
-                <Text
-                  style={[
-                    styles.categoryOptionText,
-                    category === cat.id && styles.categoryOptionTextActive,
-                  ]}
-                >
-                  {cat.label}
-                </Text>
-                {category === cat.id && (
-                  <Ionicons name="checkmark" size={20} color="#007AFF" />
-                )}
-              </TouchableOpacity>
-            ))}
+      <Modal visible={mapOpen} animationType="slide" onRequestClose={() => setMapOpen(false)}>
+        <View style={styles.mapModal}>
+          <View style={styles.mapModalHead}>
+            <Text style={styles.mapModalTitle}>Adjust pin</Text>
+            <Pressable onPress={() => setMapOpen(false)}>
+              <Ionicons name="close" size={20} color={fieldGuide.cream} />
+            </Pressable>
           </View>
-        </ScrollView>
-      </Modal>
-
-      {/* Map Modal */}
-      <Modal
-        visible={mapModalVisible}
-        animationType="slide"
-        onRequestClose={() => setMapModalVisible(false)}
-      >
-        <View style={styles.mapModalContainer}>
-          <View style={styles.mapModalHeader}>
-            <Text style={styles.mapModalTitle}>Select Location</Text>
-            <TouchableOpacity onPress={() => setMapModalVisible(false)}>
-              <Ionicons name="close" size={24} color="#333" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.leafletMapContainer}>
+          <View style={styles.mapModalBody}>
             <LeafletMap
-              latitude={lat || 9.0080}
-              longitude={lng || 38.7886}
-              onLocationChange={(coords) => {
-                setLatitude(coords.latitude);
-                setLongitude(coords.longitude);
+              latitude={draftLat}
+              longitude={draftLng}
+              onLocationChange={(c) => {
+                setDraftLat(c.latitude);
+                setDraftLng(c.longitude);
               }}
-              interactive={true}
-              height={Dimensions.get('window').height - 200}
-              showUserLocation={true}
+              interactive
+              height={Dimensions.get('window').height - 220}
+              showUserLocation={!!location}
               userLocation={location}
             />
           </View>
-          <View style={styles.mapModalFooter}>
-            <View style={styles.coordinateDisplay}>
-              <Ionicons name="location" size={20} color="#6C5CE7" />
-              <Text style={styles.coordinateText}>
-                {lat?.toFixed(6)}, {lng?.toFixed(6)}
-              </Text>
-            </View>
-            <Button
-              title="Confirm Location"
-              onPress={() => setMapModalVisible(false)}
-              style={styles.confirmButton}
-            />
-          </View>
+          <Pressable
+            onPress={() => {
+              setLat(draftLat);
+              setLng(draftLng);
+              setMapOpen(false);
+            }}
+            style={styles.mapConfirm}
+          >
+            <Text style={styles.mapConfirmText}>Confirm location</Text>
+          </Pressable>
         </View>
       </Modal>
-      </SafeAreaView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safe: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: fieldGuide.ink,
   },
-  keyboardView: {
-    flex: 1,
-  },
-  header: {
+  fill: { flex: 1 },
+  topbar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F0F0F0',
-    justifyContent: 'center',
+  iconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
     alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1A1A1A',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
     justifyContent: 'center',
+  },
+  topTitle: {
+    fontFamily: fieldGuide.fonts.serifMedium,
+    fontSize: 18,
+    color: fieldGuide.cream,
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 8,
+  },
+  saveLink: {
+    fontFamily: fieldGuide.fonts.monoMed,
+    fontSize: 10,
+    letterSpacing: fieldGuide.tracking.wider(10),
+    color: fieldGuide.ember,
+    textTransform: 'uppercase',
+  },
+  scroll: {
+    paddingTop: 0,
+  },
+  editorBanner: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+    backgroundColor: 'rgba(232,116,58,0.08)',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#666',
+  editorIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: fieldGuide.ember,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  content: {
-    padding: 20,
+  editorIconText: {
+    fontFamily: fieldGuide.fonts.serif,
+    fontSize: 14,
+    color: '#FFF8F1',
+  },
+  editorCopy: {
+    flex: 1,
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 11.5,
+    lineHeight: 17,
+    color: fieldGuide.creamSoft,
+  },
+  editorBold: {
+    fontFamily: fieldGuide.fonts.sansSemi,
+    color: fieldGuide.cream,
   },
   section: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-    gap: 8,
+    paddingHorizontal: 22,
+    paddingVertical: 22,
+    gap: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A1A1A',
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-    marginTop: 4,
-  },
-  inputContainer: {
-    borderRadius: 12,
-    backgroundColor: '#F8F9FA',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    marginBottom: 16,
-  },
-  input: {
-    padding: 16,
+    fontFamily: fieldGuide.fonts.serifMedium,
     fontSize: 16,
-    color: '#1A1A1A',
-    backgroundColor: 'transparent',
+    color: fieldGuide.cream,
+    marginBottom: 4,
   },
-  textArea: {
-    minHeight: 120,
-    textAlignVertical: 'top',
-  },
-  selectButton: {
+  editorsRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    borderRadius: 12,
-    padding: 16,
-    backgroundColor: '#F8F9FA',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    marginBottom: 16,
   },
-  selectButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  toggle: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: fieldGuide.radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine2,
   },
-  selectButtonText: {
-    fontSize: 16,
-    color: '#1A1A1A',
-    fontWeight: '500',
+  toggleOn: {
+    backgroundColor: fieldGuide.ember,
+    borderColor: fieldGuide.ember,
   },
-  priceRangeContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+  toggleText: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9,
+    color: fieldGuide.creamMute,
+    letterSpacing: fieldGuide.tracking.wider(9),
   },
-  priceRangeButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: '#E0E0E0',
-    backgroundColor: '#fff',
-  },
-  priceRangeButtonActive: {
-    backgroundColor: '#6C5CE7',
-    borderColor: '#6C5CE7',
-  },
-  priceRangeText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-  },
-  priceRangeTextActive: {
-    color: '#fff',
-  },
-  featureInputRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
-  addFeatureButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#6C5CE7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#6C5CE7',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  featuresContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
-  },
-  featureChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E3F2FD',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 8,
-  },
-  featureChipText: {
-    color: '#6C5CE7',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  mapButton: {
-    borderRadius: 12,
+  mapPreview: {
+    height: 200,
+    borderRadius: fieldGuide.radius.lg,
     overflow: 'hidden',
-    marginBottom: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
   },
-  mapButtonGradient: {
+  adjustMap: {
+    alignSelf: 'flex-start',
+  },
+  pillWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  featureRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    gap: 12,
+    gap: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine2,
   },
-  mapButtonText: {
+  featureInput: {
     flex: 1,
+    fontFamily: fieldGuide.fonts.serif,
     fontSize: 16,
-    color: '#fff',
-    fontWeight: '600',
+    color: fieldGuide.cream,
+    paddingVertical: 12,
   },
-  submitButton: {
-    marginTop: 8,
-    marginBottom: 20,
+  featureAdd: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: fieldGuide.ember,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  existingImagesContainer: {
-    marginBottom: 16,
-    padding: 12,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-  },
-  existingImagesLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
-  },
-  existingImagesScroll: {
-    marginBottom: 8,
-  },
-  existingImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    marginRight: 8,
-  },
-  existingImagesNote: {
-    fontSize: 12,
-    color: '#999',
-    fontStyle: 'italic',
+  danger: {
+    paddingHorizontal: 22,
+    paddingVertical: 24,
     marginTop: 8,
   },
-  addImagesLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-    marginTop: 8,
+  dangerLink: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 10,
+    letterSpacing: fieldGuide.tracking.wider(10),
+    color: fieldGuide.rose,
+    textTransform: 'uppercase',
+    textAlign: 'center',
   },
-  modalContainer: {
+  stickySave: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
+    backgroundColor: fieldGuide.ink,
+  },
+  mapModal: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: fieldGuide.ink,
   },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    maxHeight: '80%',
-  },
-  modalHeader: {
+  mapModalHead: {
+    paddingTop: 54,
+    paddingHorizontal: 22,
+    paddingBottom: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1A1A1A',
-  },
-  categoryOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    backgroundColor: '#F8F9FA',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  categoryOptionActive: {
-    backgroundColor: '#E3F2FD',
-    borderColor: '#6C5CE7',
-  },
-  categoryOptionText: {
-    flex: 1,
-    fontSize: 16,
-    color: '#1A1A1A',
-    marginLeft: 12,
-    fontWeight: '500',
-  },
-  categoryOptionTextActive: {
-    color: '#6C5CE7',
-    fontWeight: '700',
-  },
-  mapModalContainer: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  mapModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
   },
   mapModalTitle: {
+    fontFamily: fieldGuide.fonts.serifMedium,
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    color: fieldGuide.cream,
   },
-  map: {
+  mapModalBody: {
     flex: 1,
-  },
-  leafletMapContainer: {
-    flex: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-    margin: 16,
-  },
-  coordinateDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#f8f9fa',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  coordinateText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    fontFamily: 'monospace',
-  },
-  confirmButton: {
-    marginTop: 0,
-  },
-  mapModalFooter: {
     padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
   },
-  mapErrorContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  mapConfirm: {
+    margin: 16,
+    backgroundColor: fieldGuide.ember,
+    borderRadius: fieldGuide.radius.full,
+    paddingVertical: 14,
     alignItems: 'center',
-    padding: 32,
-    backgroundColor: '#f8f9fa',
   },
-  mapErrorTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#333',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  mapErrorText: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  mapErrorButton: {
-    backgroundColor: '#6C5CE7',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  mapErrorButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  mapConfirmText: {
+    fontFamily: fieldGuide.fonts.monoMed,
+    fontSize: 10,
+    letterSpacing: fieldGuide.tracking.wider(10),
+    color: '#FFF8F1',
+    textTransform: 'uppercase',
   },
 });
-

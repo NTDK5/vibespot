@@ -29,6 +29,11 @@ export { default as IconSquare } from './chrome/IconSquare';
 export { default as EditorialButton } from './form/EditorialButton';
 export { default as FloatingLabelInput } from './form/FloatingLabelInput';
 export { default as SearchBar } from './form/SearchBar';
+export { default as SpotWizardShell } from './form/SpotWizardShell';
+export { default as CategoryGrid } from './form/CategoryGrid';
+export { default as PriceTierRow, WIZARD_PRICE_TIERS } from './form/PriceTierRow';
+export { default as HoursEditor, createEmptyHours, normalizeHoursFromSpot } from './form/HoursEditor';
+export { default as SpotMediaUploader } from './form/SpotMediaUploader';
 
 // spot system
 export { default as DuotoneVibe } from './spot/DuotoneVibe';
@@ -81,6 +86,11 @@ import IconSquare from './chrome/IconSquare';
 import EditorialButton from './form/EditorialButton';
 import FloatingLabelInput from './form/FloatingLabelInput';
 import SearchBar from './form/SearchBar';
+import SpotWizardShell from './form/SpotWizardShell';
+import CategoryGrid from './form/CategoryGrid';
+import PriceTierRow from './form/PriceTierRow';
+import HoursEditor from './form/HoursEditor';
+import SpotMediaUploader from './form/SpotMediaUploader';
 import DuotoneVibe from './spot/DuotoneVibe';
 import IndexStamp from './spot/IndexStamp';
 import SaveStamp from './spot/SaveStamp';
@@ -120,6 +130,11 @@ export const FG = Object.freeze({
   EditorialButton,
   FloatingLabelInput,
   SearchBar,
+  SpotWizardShell,
+  CategoryGrid,
+  PriceTierRow,
+  HoursEditor,
+  SpotMediaUploader,
   DuotoneVibe,
   IndexStamp,
   SaveStamp,
