@@ -4,7 +4,10 @@ import * as SplashScreen from 'expo-splash-screen';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { AuthProvider } from './src/context/AuthContext';
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+
+import { AppNavigator } from "./src/navigation/AppNavigator";
+import { AuthProvider } from "./src/context/AuthContext";
 import { ThemeProvider } from "./src/context/ThemeContext";
 import { ToastProvider } from "./src/components/ToastProvider";
 import { AppStatusProvider } from './src/context/AppStatusContext';
@@ -61,7 +64,6 @@ export default function App() {
         </AuthProvider>
       </SafeAreaProvider>
       </QueryClientProvider>
-      </GestureHandlerRootView>
-    </>
+    </GestureHandlerRootView>
   );
 }
