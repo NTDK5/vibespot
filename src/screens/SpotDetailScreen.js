@@ -78,6 +78,10 @@ import {
   unsaveSpot,
 } from '../services/savedSpots.service';
 import {
+  isSpotVisited,
+  markSpotAsVisited,
+} from '../services/visitedSpots.service';
+import {
   indexForSpot,
   openStatus,
   prettyCategory,
@@ -89,6 +93,7 @@ import { distanceKmFromUser, kmToMiles, walkingMinutes } from '../utils/geo';
 const SCREEN_W = Dimensions.get('window').width;
 const HERO_H = 520;
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const VISIT_RADIUS_M = 100;
 
 /* ─────────────────────────────────────────────────────────────────── */
 /*  HELPERS                                                            */
@@ -253,6 +258,25 @@ export const SpotDetailScreen = ({ navigation, route }) => {
     }, [refreshSaved]),
   );
 
+  const [visited, setVisited] = useState(false);
+  const [visitBusy, setVisitBusy] = useState(false);
+
+  const refreshVisited = useCallback(async () => {
+    if (!spotId) return;
+    try {
+      const v = await isSpotVisited(spotId);
+      setVisited(!!v);
+    } catch (err) {
+      logger.error('SpotDetail.isSpotVisited', err);
+    }
+  }, [spotId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshVisited();
+    }, [refreshVisited]),
+  );
+
   const toggleSave = useCallback(async () => {
     if (!spotId) return;
     const next = !saved;
@@ -301,6 +325,10 @@ export const SpotDetailScreen = ({ navigation, route }) => {
     });
   }, [coords, userLocation]);
   const walkMin = useMemo(() => walkingMinutes(distanceKm), [distanceKm]);
+  const canStamp = useMemo(() => {
+    if (distanceKm == null) return false;
+    return distanceKm * 1000 <= VISIT_RADIUS_M;
+  }, [distanceKm]);
   const distanceMiles = useMemo(() => {
     if (distanceKm == null) return null;
     return kmToMiles(distanceKm);
@@ -344,6 +372,29 @@ export const SpotDetailScreen = ({ navigation, route }) => {
       toast.show('Could not open maps.', { variant: 'error' });
     }
   }, [coords, toast]);
+
+  const handleStampVisit = useCallback(async () => {
+    if (!spotId || visited || visitBusy) return;
+    if (!canStamp) {
+      toast.show("You're not close enough yet — within 100 m to stamp.", {
+        variant: 'info',
+      });
+      return;
+    }
+    setVisitBusy(true);
+    setVisited(true);
+    try {
+      const result = await markSpotAsVisited(spotId);
+      if (result?.error) throw new Error(result.error);
+      toast.show("Stamped · you've been here.", { variant: 'success' });
+    } catch (err) {
+      logger.error('SpotDetail.stampVisit', err);
+      setVisited(false);
+      toast.show('Could not stamp this visit.', { variant: 'error' });
+    } finally {
+      setVisitBusy(false);
+    }
+  }, [spotId, visited, visitBusy, canStamp, toast]);
 
   const openExternal = useCallback(async (url) => {
     try {
@@ -785,20 +836,38 @@ export const SpotDetailScreen = ({ navigation, route }) => {
             { paddingBottom: insets.bottom + 4 },
           ]}
         >
-          <EditorialButton
-            variant="primary"
-            size="md"
-            block
-            leading={
-              <Ionicons name="walk-outline" size={16} color="#FFF8F1" />
-            }
-            onPress={openDirections}
-            style={styles.ctaPrimary}
-          >
-            {walkMin != null
-              ? `Walk there · ${walkMin} min`
-              : 'Open directions'}
-          </EditorialButton>
+          <View style={styles.ctaCol}>
+            <View style={styles.ctaActions}>
+              <EditorialButton
+                variant="primary"
+                size="md"
+                leading={
+                  <Ionicons name="walk-outline" size={16} color="#FFF8F1" />
+                }
+                onPress={openDirections}
+                style={styles.ctaWalk}
+              >
+                {walkMin != null
+                  ? `Walk there · ${walkMin} min`
+                  : 'Open directions'}
+              </EditorialButton>
+              <EditorialButton
+                variant="ghost"
+                size="md"
+                onPress={handleStampVisit}
+                disabled={visited || !canStamp || visitBusy || !userLocation}
+                loading={visitBusy}
+                style={styles.ctaStamp}
+              >
+                {visited ? 'Visited' : 'Stamp visit'}
+              </EditorialButton>
+            </View>
+            {!visited && !canStamp ? (
+              <MonoMeta size="tab" style={styles.ctaHint}>
+                WITHIN 100 M TO STAMP
+              </MonoMeta>
+            ) : null}
+          </View>
           <Pressable
             onPress={() => setPickerOpen(true)}
             accessibilityRole="button"
@@ -1293,11 +1362,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 14,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     gap: 8,
   },
-  ctaPrimary: {
+  ctaCol: {
     flex: 1,
+    minWidth: 0,
+  },
+  ctaActions: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 8,
+  },
+  ctaWalk: {
+    flex: 1,
+  },
+  ctaStamp: {
+    flex: 0.45,
+    minWidth: 108,
+  },
+  ctaHint: {
+    marginTop: 6,
+    color: fieldGuide.creamMute,
+    textAlign: 'center',
   },
   ctaIconBtn: {
     width: 52,
