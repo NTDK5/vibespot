@@ -22,6 +22,9 @@ import { MapScreen } from '../screens/MapScreen';
 import SpotDetailsScreen from '../screens/SpotDetailScreen';
 import { AddSpotScreen } from '../screens/AddSpotScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { EditProfileScreen } from '../screens/EditProfileScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
+import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { EditSpotScreen } from '../screens/EditSpotScreen';
 import { CollectionsScreen } from '../screens/CollectionsScreen';
 import { CollectionDetailScreen } from '../screens/CollectionDetailScreen';
@@ -137,6 +140,12 @@ export const AppNavigator = () => {
             <Stack.Screen name="MainTabs" component={MainTabs} />
             <Stack.Screen name="SpotDetail" component={SpotDetailsScreen} />
             <Stack.Screen name="EditSpot" component={EditSpotScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+            <Stack.Screen
+              name="Notifications"
+              component={NotificationsScreen}
+            />
             <Stack.Screen
               name="CollectionDetail"
               component={CollectionDetailScreen}
