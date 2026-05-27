@@ -22,11 +22,12 @@
  */
 
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import fieldGuide from '../../../theme/fieldGuide';
 import MonoMeta from '../primitives/MonoMeta';
 import RatingDots from './RatingDots';
+import { getDisplayableReviewPhotos } from '../../../utils/reviewPhotos';
 
 const AVATAR_PALETTE = [
   { bg: fieldGuide.emberSoft, color: fieldGuide.ink },
@@ -88,6 +89,7 @@ export default function ReviewRow({ review, onPress, style }) {
   const meta = [when, place].filter(Boolean).join(' · ');
 
   const palette = avatarColors(review?.user?.id || name);
+  const photos = getDisplayableReviewPhotos(review);
 
   const Wrapper = onPress ? Pressable : View;
   const wrapperProps = onPress
@@ -125,6 +127,19 @@ export default function ReviewRow({ review, onPress, style }) {
         <Text style={styles.body} numberOfLines={3}>
           {text.startsWith('"') ? text : `"${text}"`}
         </Text>
+      ) : null}
+
+      {photos.length > 0 ? (
+        <View style={styles.photoRow}>
+          {photos.slice(0, 3).map((uri, i) => (
+            <Image
+              key={`${uri}-${i}`}
+              source={{ uri }}
+              style={styles.photoThumb}
+              resizeMode="cover"
+            />
+          ))}
+        </View>
       ) : null}
     </Wrapper>
   );
@@ -175,5 +190,16 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 21,
     color: fieldGuide.creamSoft,
+  },
+  photoRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  photoThumb: {
+    width: 52,
+    height: 52,
+    borderRadius: fieldGuide.radius.sm,
+    backgroundColor: fieldGuide.inkElev,
   },
 });

@@ -40,6 +40,7 @@ import {
 import { getSpotById } from '../services/spots.service';
 import { indexForSpot, zeroPad } from '../utils/spotHelpers';
 import { useAuth } from '../hooks/useAuth';
+import { getDisplayableReviewPhotos } from '../utils/reviewPhotos';
 
 const PAGE_SIZE = 20;
 
@@ -54,6 +55,7 @@ const FILTERS = [
 
 function safeArray(maybe) {
   if (Array.isArray(maybe)) return maybe;
+  if (Array.isArray(maybe?.comments)) return maybe.comments;
   if (Array.isArray(maybe?.items)) return maybe.items;
   if (Array.isArray(maybe?.data)) return maybe.data;
   return [];
@@ -61,7 +63,7 @@ function safeArray(maybe) {
 
 function isInertFor(filter, reviews) {
   if (filter === 'photos') {
-    return !reviews.some((r) => Array.isArray(r?.photos) && r.photos.length > 0);
+    return !reviews.some((r) => getDisplayableReviewPhotos(r).length > 0);
   }
   if (filter === 'fives') {
     return !reviews.some((r) => typeof r?.rating === 'number');
@@ -81,9 +83,7 @@ function applyFilter(filter, reviews) {
         return tb - ta;
       });
     case 'photos':
-      return reviews.filter(
-        (r) => Array.isArray(r?.photos) && r.photos.length > 0,
-      );
+      return reviews.filter((r) => getDisplayableReviewPhotos(r).length > 0);
     case 'fives':
       return reviews.filter(
         (r) => typeof r?.rating === 'number' && Math.round(r.rating) === 5,
@@ -132,14 +132,21 @@ export const ReviewsScreen = ({ navigation, route }) => {
     if (nextPage === 1) setLoading(true);
     else setLoadingMore(true);
     try {
-      const data = await getSpotComments(spotId, nextPage, PAGE_SIZE);
-      if (data?.error) {
-        logger.error('Reviews.getSpotComments', data.error);
+      const payload = await getSpotComments(spotId, nextPage, PAGE_SIZE);
+      if (payload?.error) {
+        logger.error('Reviews.getSpotComments', payload.error);
         setHasMore(false);
       } else {
-        const arr = safeArray(data);
+        const arr = safeArray(payload?.comments ?? payload);
+        const meta = payload?.meta;
         setReviews((prev) => (nextPage === 1 ? arr : [...prev, ...arr]));
-        if (arr.length < PAGE_SIZE) setHasMore(false);
+
+        if (Number.isFinite(meta?.totalPages)) {
+          setHasMore(nextPage < meta.totalPages);
+        } else {
+          setHasMore(arr.length >= PAGE_SIZE);
+        }
+
         setPage(nextPage);
       }
     } catch (err) {
@@ -161,9 +168,6 @@ export const ReviewsScreen = ({ navigation, route }) => {
   };
 
   // ── derived stats ────────────────────────────────────────────────
-  // TODO(backend): comments do not currently expose a `rating` field.
-  // Once they do, the bars will fill automatically. For now everything
-  // sits at 0 if rating is absent.
   const distribution = useMemo(() => {
     const counts = [0, 0, 0, 0, 0];
     reviews.forEach((r) => {

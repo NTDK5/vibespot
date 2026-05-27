@@ -57,7 +57,6 @@ import {
   vibeForCategory,
   zeroPad,
 } from '../utils/spotHelpers';
-import { useAuth } from '../hooks/useAuth';
 
 const MAX_CHARS = 600;
 const MIN_CHARS = 30;
@@ -93,7 +92,6 @@ export const WriteReviewScreen = ({ navigation, route }) => {
   const spotId = route?.params?.spotId ?? route?.params?.id;
   const toast = useToast();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
 
   const [spot, setSpot] = useState(null);
   const [rating, setRating] = useState(0);
@@ -144,6 +142,18 @@ export const WriteReviewScreen = ({ navigation, route }) => {
 
   const dirty = rating > 0 || text.trim().length > 0 || photos.length > 0 || tags.length > 0;
   const canSubmit = rating > 0 && text.trim().length >= MIN_CHARS && !submitting;
+  const charsUsed = text.trim().length;
+  const charsRemaining = Math.max(0, MIN_CHARS - charsUsed);
+  const hasRating = rating > 0;
+  const hasMinChars = charsUsed >= MIN_CHARS;
+  const submitReady = hasRating && hasMinChars && !submitting;
+  const submitHint = !hasRating
+    ? 'Select a rating first.'
+    : !hasMinChars
+      ? `Write at least ${charsRemaining} more ${charsRemaining === 1 ? 'character' : 'characters'}.`
+      : submitting
+        ? 'Posting your review...'
+        : 'Ready to post.';
 
   // ── handlers ──────────────────────────────────────────────────────
   const handleCancel = () => {
@@ -188,7 +198,11 @@ export const WriteReviewScreen = ({ navigation, route }) => {
         quality: 0.85,
       });
       if (result.canceled) return;
-      const next = (result.assets || []).map((a) => ({ uri: a.uri }));
+      const next = (result.assets || []).map((a, i) => ({
+        uri: a.uri,
+        name: a.fileName || `review_${Date.now()}_${i}.jpg`,
+        type: a.mimeType || 'image/jpeg',
+      }));
       setPhotos((prev) => [...prev, ...next].slice(0, 8));
     } catch (err) {
       logger.error('WriteReview.pickPhotos', err);
@@ -213,7 +227,16 @@ export const WriteReviewScreen = ({ navigation, route }) => {
       });
       if (result.canceled) return;
       const asset = result.assets?.[0];
-      if (asset?.uri) setPhotos((prev) => [...prev, { uri: asset.uri }].slice(0, 8));
+      if (asset?.uri) {
+        setPhotos((prev) => [
+          ...prev,
+          {
+            uri: asset.uri,
+            name: asset.fileName || `review_${Date.now()}.jpg`,
+            type: asset.mimeType || 'image/jpeg',
+          },
+        ].slice(0, 8));
+      }
     } catch (err) {
       logger.error('WriteReview.takePhoto', err);
       toast.show('Could not open the camera.', { variant: 'error' });
@@ -227,7 +250,7 @@ export const WriteReviewScreen = ({ navigation, route }) => {
   };
 
   const handlePost = async () => {
-    if (!canSubmit || !spotId) return;
+    if (!spotId || !canSubmit) return;
     setSubmitting(true);
     try {
       // TODO(backend): there's no dedicated review-photos endpoint yet.
@@ -237,11 +260,10 @@ export const WriteReviewScreen = ({ navigation, route }) => {
       const payload = {
         text: text.trim(),
         rating,
-        photos: photos.map((p) => p.uri),
+        photos,
         tags,
         anonymous,
       };
-      if (user?.id && !anonymous) payload.userId = user.id;
 
       const result = await createCommentWithMeta(spotId, payload);
       if (result?.error) {
@@ -262,6 +284,25 @@ export const WriteReviewScreen = ({ navigation, route }) => {
       setSubmitting(false);
     }
   };
+
+  const onPressPost = useCallback(() => {
+    if (!spotId) {
+      toast.show('Spot unavailable.', { variant: 'error' });
+      return;
+    }
+    if (rating <= 0) {
+      toast.show('Select a rating first.', { variant: 'info' });
+      return;
+    }
+    if (charsUsed < MIN_CHARS) {
+      const remaining = MIN_CHARS - charsUsed;
+      toast.show(`Write at least ${remaining} more ${remaining === 1 ? 'character' : 'characters'}.`, {
+        variant: 'info',
+      });
+      return;
+    }
+    handlePost();
+  }, [spotId, rating, charsUsed, toast, handlePost]);
 
   // ── derived ───────────────────────────────────────────────────────
   const indexLabel = `NO. ${zeroPad(indexForSpot(spot || { id: spotId }, 0), 3)}`;
@@ -292,16 +333,21 @@ export const WriteReviewScreen = ({ navigation, route }) => {
           </Pressable>
           <Text style={styles.title}>Write a review</Text>
           <Pressable
-            onPress={handlePost}
+            onPress={onPressPost}
             accessibilityRole="button"
-            accessibilityState={{ disabled: !canSubmit }}
-            disabled={!canSubmit}
+            accessibilityLabel={submitting ? 'Posting review' : 'Post review'}
+            accessibilityState={{ disabled: !canSubmit, busy: submitting }}
             hitSlop={10}
+            style={[
+              styles.postBtn,
+              !canSubmit && styles.postBtnDisabled,
+              submitting && styles.postBtnBusy,
+            ]}
           >
             {submitting ? (
-              <ActivityIndicator color={fieldGuide.ember} />
+              <ActivityIndicator color="#FFF8F1" size="small" />
             ) : (
-              <Text style={[styles.post, !canSubmit && styles.postDisabled]}>
+              <Text style={[styles.postBtnText, !canSubmit && styles.postBtnTextDisabled]}>
                 Post
               </Text>
             )}
@@ -374,6 +420,17 @@ export const WriteReviewScreen = ({ navigation, route }) => {
           {/* WORDS */}
           <View style={styles.section}>
             <Text style={styles.sectionLbl}>IN YOUR OWN WORDS</Text>
+            <View style={styles.submitStatusRow}>
+              <Text style={[styles.submitStatusText, !hasRating && styles.submitStatusWarn]}>
+                {`Rating: ${hasRating ? '✓' : '✕'}`}
+              </Text>
+              <Text style={[styles.submitStatusText, !hasMinChars && styles.submitStatusWarn]}>
+                {`Chars: ${charsUsed}/${MIN_CHARS}`}
+              </Text>
+              <Text style={[styles.submitStatusText, submitReady && styles.submitStatusReady]}>
+                {submitHint.toUpperCase()}
+              </Text>
+            </View>
             <TextInput
               value={text}
               onChangeText={(v) => {
@@ -390,13 +447,10 @@ export const WriteReviewScreen = ({ navigation, route }) => {
               <Text
                 style={[
                   styles.charCount,
-                  text.length < MIN_CHARS && { color: fieldGuide.rose },
+                  charsUsed < MIN_CHARS && styles.charCountWarn,
                 ]}
               >
-                {`${text.length} / ${MAX_CHARS}`}
-                {text.length < MIN_CHARS
-                  ? `  ·  ${MIN_CHARS - text.length} TO GO`
-                  : ''}
+                {`${text.length} / ${MAX_CHARS} (min ${MIN_CHARS})`}
               </Text>
             </View>
           </View>
@@ -546,15 +600,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: fieldGuide.cream,
   },
-  post: {
+  postBtn: {
+    minWidth: 76,
+    height: 34,
+    paddingHorizontal: 14,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: fieldGuide.ember,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.ember,
+  },
+  postBtnDisabled: {
+    backgroundColor: fieldGuide.inkElev,
+    borderColor: fieldGuide.inkLine2,
+    opacity: 0.7,
+  },
+  postBtnBusy: {
+    backgroundColor: fieldGuide.ember,
+    borderColor: fieldGuide.ember,
+  },
+  postBtnText: {
     fontFamily: fieldGuide.fonts.monoMed,
     fontSize: 10,
     letterSpacing: fieldGuide.tracking.wider(10),
-    color: fieldGuide.ember,
+    color: '#FFF8F1',
     textTransform: 'uppercase',
   },
-  postDisabled: {
-    color: fieldGuide.creamFaint,
+  postBtnTextDisabled: {
+    color: fieldGuide.creamMute,
   },
 
   placeCard: {
@@ -663,6 +737,26 @@ const styles = StyleSheet.create({
     color: fieldGuide.cream,
     padding: 0,
   },
+  submitStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    gap: 8,
+  },
+  submitStatusText: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9,
+    letterSpacing: fieldGuide.tracking.wider(9),
+    color: fieldGuide.creamMute,
+    textTransform: 'uppercase',
+  },
+  submitStatusWarn: {
+    color: fieldGuide.rose,
+  },
+  submitStatusReady: {
+    color: fieldGuide.moss,
+  },
   charCountRow: {
     marginTop: 8,
     alignItems: 'flex-end',
@@ -673,6 +767,9 @@ const styles = StyleSheet.create({
     letterSpacing: fieldGuide.tracking.wider(9),
     color: fieldGuide.creamFaint,
     textTransform: 'uppercase',
+  },
+  charCountWarn: {
+    color: fieldGuide.rose,
   },
 
   photoRow: {

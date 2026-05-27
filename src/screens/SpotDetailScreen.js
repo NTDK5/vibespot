@@ -101,6 +101,7 @@ const VISIT_RADIUS_M = 100;
 
 function safeArray(maybe) {
   if (Array.isArray(maybe)) return maybe;
+  if (Array.isArray(maybe?.comments)) return maybe.comments;
   if (Array.isArray(maybe?.items)) return maybe.items;
   if (Array.isArray(maybe?.data)) return maybe.data;
   return [];
@@ -236,9 +237,10 @@ export const SpotDetailScreen = ({ navigation, route }) => {
     queryFn: () => getSpotComments(spotId, 1, 3),
     enabled: !!spotId,
   });
+  const reviewsPayload = commentsQuery.data;
   const reviews = useMemo(
-    () => safeArray(commentsQuery.data),
-    [commentsQuery.data],
+    () => safeArray(reviewsPayload?.comments ?? reviewsPayload),
+    [reviewsPayload],
   );
 
   /* ── saved state ─────────────────────────────────────────────────── */

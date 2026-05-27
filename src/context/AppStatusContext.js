@@ -12,7 +12,6 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import NetInfo from '@react-native-community/netinfo';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -20,6 +19,7 @@ import OfflineBanner from '../components/fieldguide/state/OfflineBanner';
 import SuccessSheet from '../components/fieldguide/state/SuccessSheet';
 import { useAuth } from '../hooks/useAuth';
 import { networkEvents } from '../utils/networkEvents';
+import { subscribeNetInfo } from '../utils/safeNetInfo';
 import { showToast } from '../utils/toastBus';
 
 const AppStatusContext = createContext(null);
@@ -42,7 +42,11 @@ export function AppStatusProvider({ children }) {
   const [success, setSuccess] = useState(defaultSuccess);
 
   useEffect(() => {
-    const unsubNet = NetInfo.addEventListener((state) => {
+    const unsubAxios = networkEvents.subscribe(() => {
+      setAxiosOffline(networkEvents.getAxiosOffline());
+    });
+
+    const unsubNet = subscribeNetInfo((state) => {
       const connected =
         state.isConnected != null
           ? state.isConnected && state.isInternetReachable !== false
@@ -53,19 +57,6 @@ export function AppStatusProvider({ children }) {
         networkEvents.setOffline(false);
         setLastSyncAt(new Date());
       }
-    });
-
-    const unsubAxios = networkEvents.subscribe(() => {
-      setAxiosOffline(networkEvents.getAxiosOffline());
-    });
-
-    NetInfo.fetch().then((state) => {
-      const connected =
-        state.isConnected != null
-          ? state.isConnected && state.isInternetReachable !== false
-          : true;
-      setNetConnected(connected);
-      if (connected) setLastSyncAt(new Date());
     });
 
     return () => {
@@ -96,13 +87,9 @@ export function AppStatusProvider({ children }) {
     });
   }, []);
 
-  const showErrorScreen = useCallback(({ code, onRetry } = {}) => {
+  const showErrorScreen = useCallback(({ code } = {}) => {
     const label = code ? `Return to sender · ${code}` : 'Return to sender · try again';
-    showToast(label, {
-      variant: 'error',
-      onPress: onRetry,
-    });
-    onRetry?.();
+    showToast(label, { variant: 'error' });
   }, []);
 
   const value = useMemo(

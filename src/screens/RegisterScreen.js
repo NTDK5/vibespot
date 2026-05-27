@@ -1,287 +1,333 @@
-import React, { useState } from 'react';
+/**
+ * RegisterScreen — Field Guide signup.
+ *
+ * Source: screens/04-signup.html. Replaces the legacy Login-style
+ * scrollable card with a clean ink form. Calls AuthContext.register
+ * which persists the session and, if the backend reports
+ * `emailVerified === false`, stashes the email so this screen can
+ * redirect to VerifyEmail.
+ */
+
+import React, { useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
-  Alert,
-  Image,
-  ActivityIndicator,
-  TouchableOpacity,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Button } from '../components/Button';
-import { registerUser } from '../services/auth.service';
-import { useAuth } from '../hooks/useAuth';
-import { isValidEmail } from '../utils/helpers';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTheme } from '../context/ThemeContext';
-export const RegisterScreen = ({ navigation }) => {
-  const { login } = useAuth();
-  const [displayName, setDisplayName] = useState('');
+import { Ionicons } from '@expo/vector-icons';
+
+import fieldGuide from '../theme/fieldGuide';
+import {
+  DisplayTitle,
+  EditorialButton,
+  FloatingLabelInput,
+  MonoMeta,
+  TopBar,
+} from '../components/fieldguide';
+
+import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../components/ToastProvider';
+import { isValidEmail } from '../utils/helpers';
+
+// Phase-2 placeholder. Real value will come from a user-count endpoint
+// in a future phase.
+const ISSUE_NUMBER = '029';
+
+function CheckBox({ checked, onToggle }) {
+  return (
+    <Pressable
+      onPress={onToggle}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      hitSlop={8}
+      style={({ pressed }) => [
+        styles.checkBox,
+        checked
+          ? { backgroundColor: fieldGuide.ember, borderColor: fieldGuide.ember }
+          : { borderColor: fieldGuide.inkLine2 },
+        { opacity: pressed ? 0.85 : 1 },
+      ]}
+    >
+      {checked ? <Ionicons name="checkmark" size={12} color="#FFF8F1" /> : null}
+    </Pressable>
+  );
+}
+
+function RegisterScreen({ navigation }) {
+  const { register, pendingVerificationEmail } = useAuth();
+  const toast = useToast();
+
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const { theme } = useTheme();
-  const handleRegister = async () => {
-    // Validation
-    if (!displayName.trim()) {
-      Alert.alert('Error', 'Please enter your name');
-      return;
-    }
+  const [homeCity, setHomeCity] = useState('');
+  const [agreed, setAgreed] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-    if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email');
-      return;
-    }
+  const showError = (msg) => toast?.show?.(msg, { variant: 'error' });
+  const showInfo = (msg) => toast?.show?.(msg, { variant: 'info' });
 
+  const allFilled = useMemo(
+    () =>
+      name.trim().length > 0 &&
+      email.trim().length > 0 &&
+      password.length > 0 &&
+      homeCity.trim().length > 0,
+    [name, email, password, homeCity],
+  );
+
+  const canSubmit = allFilled && agreed && !busy;
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
     if (!isValidEmail(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      showError('Please enter a valid email address.');
       return;
     }
-
-    if (!password) {
-      Alert.alert('Error', 'Please enter a password');
-      return;
-    }
-
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      showError('Password must be at least 6 characters.');
       return;
     }
 
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+    setBusy(true);
+    const { error } = await register({
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      password,
+      homeCity: homeCity.trim(),
+    });
+    setBusy(false);
+
+    if (error) {
+      showError(error);
       return;
     }
 
-    setLoading(true);
-    try {
-      const result = await registerUser({
-        name: displayName.trim(),
-        email: email.trim().toLowerCase(),
-        password,
-      });
-
-      if (result.user && result.accessToken) {
-        // Update auth context
-        await login(email.trim().toLowerCase(), password);
-        Alert.alert('Success', 'Account created successfully!');
-        navigation.navigate('Home');
-      } else {
-        Alert.alert('Error', result.message || 'Registration failed');
-      }
-    } catch (error) {
-      Alert.alert(
-        'Registration Failed',
-        error.message || 'An error occurred during registration'
-      );
-    } finally {
-      setLoading(false);
+    // If the backend says the email needs verification, jump there.
+    // Otherwise AppNavigator picks up the new user automatically and
+    // switches stacks.
+    if (pendingVerificationEmail) {
+      navigation.replace('VerifyEmail');
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
-        style={[styles.keyboardView, { backgroundColor: theme.background }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={[styles.scrollContent, { backgroundColor: theme.background }]}
-          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.content, { backgroundColor: theme.background }]}>
-            <View style={styles.logoContainer}>
-              <Ionicons name="location" size={64} color={theme.primary} />
+          <TopBar
+            transparent
+            left="back"
+            onLeftPress={() => navigation.goBack()}
+            style={styles.topbar}
+          />
+
+          <View style={styles.body}>
+            <View style={styles.head}>
+              <MonoMeta size="eyebrow" style={styles.eyebrow}>
+                {`NEW READER · NO. ${ISSUE_NUMBER}`}
+              </MonoMeta>
+              <DisplayTitle size="lg" italic="field guide.">
+                Start your field guide.
+              </DisplayTitle>
+              <Text style={styles.lede}>
+                A few quick details and you're collecting spots.
+              </Text>
             </View>
-            <Text style={[styles.title, { color: theme.text }]}>Create Account</Text>
-            <Text style={[styles.subtitle, { color: theme.text }]}>
-              Join VibeSpot and discover amazing spots
-            </Text>
 
-            <View style={[styles.form, { backgroundColor: theme.background }]}>
-              <View style={[styles.inputContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                <Ionicons name="person-outline" size={20} color={theme.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, {color: theme.text }]}
-                  placeholder="Full Name"
-                  placeholderTextColor={theme.textMuted}
-                  value={displayName}
-                  onChangeText={setDisplayName}
-                  autoCapitalize="words"
-                  autoComplete="name"
-                />
-              </View>
-
-              <View style={[styles.inputContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                <Ionicons name="mail-outline" size={20} color={theme.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, {color: theme.text }]}
-                  placeholder="Email"
-                  placeholderTextColor={theme.textMuted}  
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  autoCorrect={false}
-                />
-              </View>
-
-              <View style={[styles.inputContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                <Ionicons name="lock-closed-outline" size={20} color={theme.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, {color: theme.text }]}
-                  placeholder="Password"
-                  placeholderTextColor={theme.textMuted}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  autoComplete="password-new"
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeIcon}
-                >
-                  <Ionicons
-                    name={showPassword ? 'eye-outline' : 'eye-off-outline'}
-                    size={20}
-                    color={theme.textMuted}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <View style={[styles.inputContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                <Ionicons name="lock-closed-outline" size={20} color={theme.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, {color: theme.text }]}
-                  placeholder="Confirm Password"
-                  placeholderTextColor={theme.textMuted}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showConfirmPassword}
-                  autoCapitalize="none"
-                  autoComplete="password-new"
-                />
-                <TouchableOpacity
-                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                  style={styles.eyeIcon}
-                >
-                  <Ionicons
-                    name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
-                    size={20}
-                    color={theme.textMuted}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <Button
-                title={loading ? 'Creating Account...' : 'Sign Up'}
-                onPress={handleRegister}
-                loading={loading}
-                style={[styles.button, { backgroundColor: theme.primary }]}
-                disabled={loading}
+            <View style={styles.form}>
+              <FloatingLabelInput
+                label="Name"
+                value={name}
+                onChangeText={setName}
+                placeholder="What should we call you"
+                autoCapitalize="words"
+                autoComplete="name"
+                returnKeyType="next"
               />
-
-              <View style={styles.footer}>
-                <Text style={[styles.footerText, { color: theme.text }]}>Already have an account? </Text>
-                <Text
-                  style={[styles.footerLink, { color: theme.text }]}
-                  onPress={() => navigation.navigate('Login')}
-                >
-                  Sign In
-                </Text>
-              </View>
+              <FloatingLabelInput
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@somewhere.co"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                autoCorrect={false}
+                returnKeyType="next"
+              />
+              <FloatingLabelInput
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Make it a good one"
+                secureTextEntry
+                autoCapitalize="none"
+                autoComplete="password-new"
+                returnKeyType="next"
+              />
+              <FloatingLabelInput
+                label="Home City"
+                value={homeCity}
+                onChangeText={setHomeCity}
+                placeholder="So we can show you nearby spots"
+                autoCapitalize="words"
+                returnKeyType="done"
+                onSubmitEditing={handleSubmit}
+              />
             </View>
+
+            <Pressable
+              onPress={() => setAgreed((a) => !a)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: agreed }}
+              hitSlop={6}
+              style={styles.termsRow}
+            >
+              <CheckBox checked={agreed} onToggle={() => setAgreed((a) => !a)} />
+              <Text style={styles.termsText}>
+                I agree to the{' '}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => showInfo('Reader\'s Pact — coming soon.')}
+                >
+                  Reader's Pact
+                </Text>
+                {' '}and{' '}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => showInfo('Privacy — coming soon.')}
+                >
+                  Privacy
+                </Text>
+                . No spam, no selling data — promise.
+              </Text>
+            </Pressable>
+
+            <View style={styles.actions}>
+              <EditorialButton
+                variant="primary"
+                block
+                disabled={!canSubmit}
+                loading={busy}
+                onPress={handleSubmit}
+              >
+                Create my guide
+              </EditorialButton>
+            </View>
+
+            <Pressable
+              onPress={() => navigation.navigate('SignIn')}
+              accessibilityRole="link"
+              hitSlop={8}
+              style={styles.footerLinkWrap}
+            >
+              <Text style={styles.footerText}>
+                Already a reader?  <Text style={styles.footerEmber}>Sign in</Text>
+              </Text>
+            </Pressable>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
-};
+}
+
+export default RegisterScreen;
 
 const styles = StyleSheet.create({
-  container: {
+  safe: {
     flex: 1,
-    // backgroundColor: '#fff',
+    backgroundColor: fieldGuide.ink,
   },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollContent: {
+  flex: { flex: 1 },
+  scroll: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingVertical: 24,
+    paddingBottom: 12,
   },
-  content: {
-    padding: 24,
+  topbar: {
+    marginBottom: 0,
   },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
+  body: {
+    flex: 1,
+    paddingHorizontal: 22,
+    paddingTop: 16,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: '800',
-    // color: '#1A1A1A',
-    marginBottom: 8,
-    textAlign: 'center',
+  head: {
+    marginBottom: 28,
   },
-  subtitle: {
-    fontSize: 16,
-    // color: '#666',
-    marginBottom: 32,
-    textAlign: 'center',
+  eyebrow: {
+    marginBottom: 14,
+  },
+  lede: {
+    marginTop: 12,
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 13.5,
+    lineHeight: 21,
+    color: fieldGuide.creamSoft,
+    maxWidth: 320,
   },
   form: {
-    width: '100%',
+    flexDirection: 'column',
+    gap: 20,
   },
-  inputContainer: {
+  termsRow: {
+    marginTop: 18,
     flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  checkBox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginRight: 10,
+    marginTop: 1,
     alignItems: 'center',
-    // backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    // borderColor: '#E0E0E0',
-  },
-  inputIcon: {
-    marginLeft: 16,
-  },
-  input: {
-    flex: 1,
-    padding: 16,
-    fontSize: 16,
-    // color: '#333',
-  },
-  eyeIcon: {
-    padding: 16,
-  },
-  button: {
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  footer: {
-    flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 24,
+  },
+  termsText: {
+    flex: 1,
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 12,
+    lineHeight: 18.6,
+    color: fieldGuide.creamSoft,
+  },
+  termsLink: {
+    color: fieldGuide.ember,
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 11,
+    letterSpacing: fieldGuide.tracking.widest(11),
+    textTransform: 'uppercase',
+  },
+  actions: {
+    marginTop: 22,
+  },
+  footerLinkWrap: {
+    marginTop: 'auto',
+    paddingTop: 18,
+    alignItems: 'center',
   },
   footerText: {
-    fontSize: 14,
-    // color: '#666',
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 13,
+    color: fieldGuide.creamSoft,
+    includeFontPadding: false,
   },
-  footerLink: {
-    fontSize: 14,
-    // color: '#6C5CE7',
-    fontWeight: '700',
+  footerEmber: {
+    color: fieldGuide.ember,
+    fontFamily: fieldGuide.fonts.sansMedium,
   },
 });

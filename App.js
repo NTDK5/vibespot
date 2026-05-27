@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "./src/context/ThemeContext";
 import { ToastProvider } from "./src/components/ToastProvider";
 import { AppStatusProvider } from './src/context/AppStatusContext';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFieldGuideFonts } from "./src/theme/fonts";
 
 // Keep the native splash visible while the Field Guide fonts resolve.
@@ -47,16 +48,18 @@ export default function App() {
     <>
     <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <ThemeProvider>
-          <ToastProvider>
-            <AppStatusProvider>
-              <StatusBar style="light" />
-              <AppNavigator />
-            </AppStatusProvider>
-          </ToastProvider>
-        </ThemeProvider>
-      </AuthProvider>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <ThemeProvider>
+            <ToastProvider>
+              <AppStatusProvider>
+                <StatusBar style="light" />
+                <AppNavigator />
+              </AppStatusProvider>
+            </ToastProvider>
+          </ThemeProvider>
+        </AuthProvider>
+      </SafeAreaProvider>
       </QueryClientProvider>
       </GestureHandlerRootView>
     </>

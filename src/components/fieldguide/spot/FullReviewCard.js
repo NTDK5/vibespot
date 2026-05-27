@@ -29,6 +29,7 @@ import fieldGuide from '../../../theme/fieldGuide';
 import MonoMeta from '../primitives/MonoMeta';
 import Pill from '../chrome/Pill';
 import RatingDots from './RatingDots';
+import { getDisplayableReviewPhotos } from '../../../utils/reviewPhotos';
 
 const AVATAR_PALETTE = [
   { bg: fieldGuide.emberSoft, color: fieldGuide.ink },
@@ -96,7 +97,7 @@ export default function FullReviewCard({
   // a numeric rating in, FullReviewCard will pick it up automatically.
   const rating = typeof review?.rating === 'number' ? review.rating : 5;
   const scoreLabel = `${rating.toFixed(1)}`;
-  const photos = Array.isArray(review?.photos) ? review.photos.filter(Boolean) : [];
+  const photos = getDisplayableReviewPhotos(review);
   const tags = Array.isArray(review?.tags) ? review.tags.filter(Boolean) : [];
   const name = review?.user?.displayName || review?.user?.name || 'Reader';
   const palette = avatarColors(review?.user?.id || name);
