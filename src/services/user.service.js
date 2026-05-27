@@ -27,6 +27,9 @@ export const updateMe = async (payload) => {
   }
 };
 
+// Alias for the Phase 5 state rewrite naming.
+export const updateProfile = updateMe;
+
 export const getMyReviews = async () => {
   try {
     const response = await api.get('/user/me/reviews');

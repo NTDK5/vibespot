@@ -4,6 +4,7 @@ import { BASE_URL } from "./api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { logger } from "../utils/logger";
 import { showToast } from "../utils/toastBus";
+import { networkEvents } from "../utils/networkEvents";
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -86,6 +87,11 @@ api.interceptors.response.use(
       }
     }
 
+    // Offline / connection lost after retries.
+    if (!error.response) {
+      networkEvents.setOffline(true);
+    }
+
     const normalized = normalizeApiError(error);
 
     // Log structured frontend error (no stack trace)
@@ -102,9 +108,14 @@ api.interceptors.response.use(
       },
     });
 
-    // Toast user-triggered errors (4xx excluding 401 which is handled above)
+    // Toast user-triggered errors (4xx excluding 401 which is handled above).
     if (normalized.status && normalized.status >= 400 && normalized.status < 500 && normalized.status !== 401) {
       showToast(normalized.message, { variant: "error" });
+    }
+
+    // Server errors — curator voice.
+    if (normalized.status && normalized.status >= 500) {
+      showToast("Return to sender · try again", { variant: "error" });
     }
 
     error.normalized = normalized;

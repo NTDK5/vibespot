@@ -45,6 +45,7 @@ import {
   DisplayTitle,
   DuotoneVibe,
   IndexStamp,
+  LoadingScreen,
   MonoMeta,
   Rule,
   SectionHead,
@@ -353,6 +354,7 @@ export const HomeScreen = ({ navigation }) => {
   const [weeklyChampion, setWeeklyChampion] = useState(null);
   const [stats, setStats] = useState({ nearbyCount: 0, visitedSpots: 0, savedSpots: 0 });
   const [refreshing, setRefreshing] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -471,11 +473,23 @@ export const HomeScreen = ({ navigation }) => {
   }, []);
 
   useEffect(() => {
-    loadSpots();
-    loadWeeklyRanks();
-    loadEditorsPicks();
-    loadWeeklyChampion();
-    loadStats();
+    let cancelled = false;
+    (async () => {
+      try {
+        await Promise.allSettled([
+          loadSpots(),
+          loadWeeklyRanks(),
+          loadEditorsPicks(),
+          loadWeeklyChampion(),
+          loadStats(),
+        ]);
+      } finally {
+        if (!cancelled) setInitialLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [loadSpots, loadWeeklyRanks, loadEditorsPicks, loadWeeklyChampion, loadStats]);
 
   useEffect(() => {
@@ -624,6 +638,16 @@ export const HomeScreen = ({ navigation }) => {
   const showWithinWalking = !!location && nearbySpots.length > 0;
 
   /* ── render ─────────────────────────────────────────────────── */
+
+  if (initialLoading && spots.length === 0) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <View style={{ height: 400, overflow: 'hidden' }}>
+          <LoadingScreen style={{ height: 400, flex: 0 }} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>

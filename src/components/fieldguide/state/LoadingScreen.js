@@ -9,7 +9,7 @@
  * Props:
  *   message?: string             default "Reading the room…"
  *   skeleton?: boolean           default true
- *   style?: ViewStyle
+ *   style?: ViewStyle            pass { height: 400, flex: 0 } for inline use
  */
 
 import React from 'react';
@@ -22,11 +22,7 @@ function Skeleton() {
   return (
     <View style={skel.row} pointerEvents="none">
       {[0, 1, 2].map((i) => (
-        <View key={i} style={skel.card}>
-          <View style={skel.img} />
-          <View style={skel.line1} />
-          <View style={skel.line2} />
-        </View>
+        <View key={i} style={skel.card} />
       ))}
     </View>
   );
@@ -81,34 +77,17 @@ const styles = StyleSheet.create({
 const skel = StyleSheet.create({
   row: {
     position: 'absolute',
-    top: 40,
+    top: 48,
     left: 22,
     right: 22,
     flexDirection: 'row',
+    gap: 14,
     opacity: 0.35,
   },
   card: {
-    width: 130,
-    marginRight: 14,
-  },
-  img: {
-    width: '100%',
-    aspectRatio: 3 / 4,
-    borderRadius: fieldGuide.radius.lg,
-    backgroundColor: fieldGuide.inkElev,
-  },
-  line1: {
-    marginTop: 10,
-    height: 12,
-    width: '70%',
-    borderRadius: 2,
-    backgroundColor: fieldGuide.inkElev,
-  },
-  line2: {
-    marginTop: 6,
-    height: 8,
-    width: '50%',
-    borderRadius: 2,
+    flex: 1,
+    aspectRatio: 16 / 10,
+    borderRadius: fieldGuide.radius.md,
     backgroundColor: fieldGuide.inkElev,
   },
 });

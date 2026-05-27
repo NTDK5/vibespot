@@ -292,7 +292,8 @@ export const CollectionsScreen = ({ navigation }) => {
       return (
         <View style={styles.emptyPad}>
           <EmptyState
-            title="No pockets yet."
+            pageName="COLLECTIONS"
+            title="Nothing tucked away yet"
             italic="yet."
             body="A collection holds a few spots that belong together — rainy-day cafés, places you save for visitors, the quiet ones for working."
             cta={{

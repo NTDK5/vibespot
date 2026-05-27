@@ -48,6 +48,7 @@ import {
   SpotPhoto,
 } from '../components/fieldguide';
 
+import EmptyState from '../components/fieldguide/state/EmptyState';
 import { useAuth } from '../hooks/useAuth';
 import { useLocation } from '../hooks/useLocation';
 
@@ -689,12 +690,12 @@ export const ExploreScreen = ({ navigation, route }) => {
               <Text style={styles.emptyTitle}>Reading the room…</Text>
             </View>
           ) : (
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyTitle}>Nothing matches yet.</Text>
-              <Text style={styles.emptyBody}>
-                Try a different filter, or clear the search.
-              </Text>
-            </View>
+            <EmptyState
+              pageName="EXPLORE"
+              title="No matches in the index"
+              italic="index"
+              body="Try a different mood, or clear your search."
+            />
           )
         }
       />
