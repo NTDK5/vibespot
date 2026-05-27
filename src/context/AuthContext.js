@@ -1,12 +1,25 @@
 import { createContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { loginUser, googleLoginUser } from "../services/auth.service";
+import {
+  loginUser,
+  googleLoginUser,
+  registerUser,
+  requestPasswordReset,
+  verifyEmailCode,
+  resendVerificationCode,
+} from "../services/auth.service";
 import api from "../config/axios";
+import { normalizeAuthError } from "../utils/authErrors";
 
 export const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true); // Start with true to check auth state
+
+  // When the backend says emailVerified=false after register/login, we
+  // stash the email here so VerifyEmailScreen can pick it up without
+  // passing it through navigation params.
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState(null);
 
   // Check for existing session on mount
   useEffect(() => {
@@ -68,6 +81,12 @@ export const AuthProvider = ({ children }) => {
         }
 
         setUser(data.user);
+        // If the backend ever returns emailVerified=false on login,
+        // keep the user logged in but flag the email so the navigator
+        // can route through VerifyEmail.
+        if (data.user.emailVerified === false) {
+          setPendingVerificationEmail(email);
+        }
         console.log("Login success: ", data);
         return { user: data.user, error: null };
       } else {
@@ -115,6 +134,102 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  /**
+   * Email + password registration. Mirrors the persistence path of
+   * `login` so the user is auto-signed-in on success. If the backend
+   * returns `user.emailVerified === false` we stash the email in
+   * `pendingVerificationEmail` so VerifyEmailScreen can pick it up.
+   */
+  const register = async ({ name, email, password, homeCity }) => {
+    setLoading(true);
+    try {
+      const data = await registerUser({ name, email, password, homeCity });
+
+      if (data.accessToken && data.user) {
+        await AsyncStorage.setItem("token", data.accessToken);
+        await AsyncStorage.setItem("user", JSON.stringify(data.user));
+        if (data.refreshToken) {
+          await AsyncStorage.setItem("refreshToken", data.refreshToken);
+        }
+        setUser(data.user);
+
+        if (data.user.emailVerified === false) {
+          setPendingVerificationEmail(email);
+        }
+        return { user: data.user, error: null };
+      }
+      throw new Error("Invalid register response");
+    } catch (err) {
+      return {
+        user: null,
+        error:
+          err?.response?.data?.message ||
+          err?.message ||
+          "Registration failed",
+      };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Ask the backend to email a password-reset link. Returns
+   * `{ ok, error }` so screens can surface failures via Toast without
+   * crashing — the helpers may target endpoints that don't exist yet.
+   */
+  const requestReset = async (email) => {
+    try {
+      await requestPasswordReset(email);
+      return { ok: true, error: null };
+    } catch (err) {
+      return {
+        ok: false,
+        error: normalizeAuthError(err, "Could not send reset link"),
+      };
+    }
+  };
+
+  const verifyEmail = async (code) => {
+    if (!pendingVerificationEmail) {
+      return { ok: false, error: "No pending email" };
+    }
+    try {
+      const data = await verifyEmailCode(pendingVerificationEmail, code);
+      setPendingVerificationEmail(null);
+      if (data?.user) {
+        setUser(data.user);
+        await AsyncStorage.setItem("user", JSON.stringify(data.user));
+      } else if (user) {
+        // Best-effort local flag flip if the backend doesn't echo the
+        // full user object back.
+        const next = { ...user, emailVerified: true };
+        setUser(next);
+        await AsyncStorage.setItem("user", JSON.stringify(next));
+      }
+      return { ok: true, error: null };
+    } catch (err) {
+      return {
+        ok: false,
+        error: normalizeAuthError(err, "Verification failed"),
+      };
+    }
+  };
+
+  const resendVerification = async () => {
+    if (!pendingVerificationEmail) {
+      return { ok: false, error: "No pending email" };
+    }
+    try {
+      await resendVerificationCode(pendingVerificationEmail);
+      return { ok: true, error: null };
+    } catch (err) {
+      return {
+        ok: false,
+        error: normalizeAuthError(err, "Could not resend"),
+      };
+    }
+  };
+
   const logout = async () => {
     setLoading(true);
     try {
@@ -128,6 +243,7 @@ export const AuthProvider = ({ children }) => {
 
       // Clear local storage
       await clearAuth();
+      setPendingVerificationEmail(null);
 
       return { success: true, error: null };
     } catch (error) {
@@ -144,9 +260,32 @@ export const AuthProvider = ({ children }) => {
 
   const isSuperAdmin = user?.role === "superadmin";
 
+  const updateLocalUser = async (patch) => {
+    if (!user) return;
+    const next = { ...user, ...patch };
+    setUser(next);
+    await AsyncStorage.setItem("user", JSON.stringify(next));
+  };
+
   return (
     <AuthContext.Provider
-      value={{ user, login, logout, loginWithGoogle, loading, isSuperAdmin }}
+      value={{
+        // existing keys — DO NOT rename, screens depend on them
+        user,
+        login,
+        logout,
+        loginWithGoogle,
+        loading,
+        isSuperAdmin,
+        updateLocalUser,
+        // new in Phase 2
+        register,
+        requestReset,
+        verifyEmail,
+        resendVerification,
+        pendingVerificationEmail,
+        setPendingVerificationEmail,
+      }}
     >
       {children}
     </AuthContext.Provider>

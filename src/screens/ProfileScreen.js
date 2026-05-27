@@ -1,69 +1,171 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+/**
+ * ProfileScreen — Phase 5 / design 19.
+ *
+ * Identity, stats, achievement seals, and tabbed activity feed.
+ * Settings, password, and sign-out live on SettingsScreen.
+ */
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  TextInput,
-  Image,
-  ActivityIndicator,
-  Modal,
-  RefreshControl,
   Animated,
+  Image,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Button } from '../components/Button';
+
+import MonoMeta from '../components/fieldguide/primitives/MonoMeta';
+import EditorialButton from '../components/fieldguide/form/EditorialButton';
+import Segmented from '../components/fieldguide/chrome/Segmented';
+import EmptyState from '../components/fieldguide/state/EmptyState';
+import AchievementSeal from '../components/fieldguide/profile/AchievementSeal';
+import ReviewRow from '../components/fieldguide/spot/ReviewRow';
+import { XPBadgeCelebration } from '../components/ui/XPBadgeCelebration';
+import fieldGuide from '../theme/fieldGuide';
 import { useAuth } from '../hooks/useAuth';
-import { signOutUser, changePassword } from '../services/auth.service';
-import { getSavedSpots, unsaveSpot } from '../services/savedSpots.service';
-import { getSpotById } from '../services/spots.service';
+import { useUserProgression } from '../hooks/useUserProgression';
+import { useBadgeProgress } from '../hooks/useBadgeProgress';
+import { getSavedSpots } from '../services/savedSpots.service';
 import { getVisitedSpots } from '../services/visitedSpots.service';
 import { getUserCollections } from '../services/collections.service';
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTheme } from '../context/ThemeContext';
-import { Switch, Dimensions } from 'react-native';
-import { Directions } from 'react-native-gesture-handler';
-import { useUserProgression } from '../hooks/useUserProgression';
-import { Platform } from 'react-native';
-import { useBadgeProgress } from "../hooks/useBadgeProgress";
-import { logger } from "../utils/logger";
-import { showToast } from "../utils/toastBus";
-import { XPBadgeCelebration } from "../components/ui/XPBadgeCelebration";
-const { width } = Dimensions.get("window");
+import { getMyReviews } from '../services/user.service';
+import { initialFor } from '../utils/spotHelpers';
+import { logger } from '../utils/logger';
+
+function usernameFromUser(user) {
+  if (user?.username) return user.username;
+  const email = user?.email || '';
+  const prefix = email.split('@')[0];
+  return prefix || 'reader';
+}
+
+function readerNumberFromUser(user) {
+  if (user?.readerNumber != null) {
+    return String(user.readerNumber).padStart(3, '0');
+  }
+  const raw = String(user?.id || '');
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length >= 2) return digits.slice(-3).padStart(3, '0');
+  return '001';
+}
+
+function formatVisitDate(input) {
+  if (!input) return '';
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function StatCell({ number, label, trend }) {
+  return (
+    <View style={styles.statCell}>
+      <Text style={styles.statNumber}>{String(number ?? '—')}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+      {trend ? <Text style={styles.statTrend}>{trend}</Text> : null}
+    </View>
+  );
+}
+
+function ProfileInlineEmpty({ title }) {
+  return (
+    <View style={styles.inlineEmpty}>
+      <Text style={styles.inlineEmptyTitle}>{title}</Text>
+    </View>
+  );
+}
+
+function ActivityRow({ icon, iconBg, title, meta, preview, onPress }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      style={({ pressed }) => [
+        styles.activityRow,
+        pressed && onPress ? { opacity: 0.85 } : null,
+      ]}
+    >
+      <View style={[styles.activityIcon, iconBg && { backgroundColor: iconBg }]}>
+        <Ionicons name={icon} size={16} color={fieldGuide.cream} />
+      </View>
+      <View style={styles.activityBody}>
+        <Text style={styles.activityTitle} numberOfLines={2}>
+          {title}
+        </Text>
+        {meta ? <MonoMeta size="spot">{meta}</MonoMeta> : null}
+        {preview ? (
+          <Text style={styles.activityPreview} numberOfLines={2}>
+            {preview}
+          </Text>
+        ) : null}
+      </View>
+      {onPress ? (
+        <Ionicons name="chevron-forward" size={16} color={fieldGuide.creamMute} />
+      ) : null}
+    </Pressable>
+  );
+}
+
+function SavedSpotRow({ spot, onPress }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.savedRow,
+        { opacity: pressed ? 0.85 : 1 },
+      ]}
+    >
+      <View style={styles.savedDot} />
+      <View style={styles.savedBody}>
+        <Text style={styles.savedTitle} numberOfLines={1}>
+          {spot?.title || 'Untitled spot'}
+        </Text>
+        <MonoMeta size="spot">
+          {spot?.category ? String(spot.category).toUpperCase() : 'SPOT'}
+        </MonoMeta>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={fieldGuide.creamMute} />
+    </Pressable>
+  );
+}
+
 export const ProfileScreen = ({ navigation }) => {
-  const { user, isSuperAdmin, logout } = useAuth();
-  const { theme, toggleTheme, isDark } = useTheme();
+  const { user, isSuperAdmin } = useAuth();
+  const [tab, setTab] = useState(0);
   const [savedSpots, setSavedSpots] = useState([]);
   const [visitedSpots, setVisitedSpots] = useState([]);
   const [myCollections, setMyCollections] = useState([]);
-  const [loadingSpots, setLoadingSpots] = useState(false);
-  const [loadingVisitedSpots, setLoadingVisitedSpots] = useState(false);
-  const [loadingCollections, setLoadingCollections] = useState(false);
+  const [myReviews, setMyReviews] = useState([]);
+  const [reviewsError, setReviewsError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  });
-  const [changingPassword, setChangingPassword] = useState(false);
+
   const {
     data: progression,
     isLoading: loadingProgression,
+    refetch: refetchProgression,
   } = useUserProgression();
 
-  const unlockedBadges = useMemo(() => {
+  const badges = useMemo(() => {
     const all = Array.isArray(progression?.badges) ? progression.badges : [];
-    return all.filter((b) => b.unlocked);
+    return all.length ? all : [];
   }, [progression]);
+
+  const unlockedBadges = useMemo(
+    () => badges.filter((b) => b.unlocked),
+    [badges],
+  );
 
   const hasOnlyEntryBadge = useMemo(() => {
     if (!unlockedBadges.length) return false;
     if (unlockedBadges.length !== 1) return false;
-    return unlockedBadges[0]?.name === "Welcome Explorer";
+    return unlockedBadges[0]?.name === 'Welcome Explorer';
   }, [unlockedBadges]);
 
   const { data: badgeProgress, isLoading: loadingBadgeProgress } = useBadgeProgress({
@@ -72,88 +174,100 @@ export const ProfileScreen = ({ navigation }) => {
 
   const progressAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    const pct = typeof badgeProgress?.percentage === "number" ? badgeProgress.percentage : 0;
+    const pct =
+      typeof badgeProgress?.percentage === 'number'
+        ? badgeProgress.percentage
+        : 0;
     Animated.timing(progressAnim, {
       toValue: Math.max(0, Math.min(100, pct)),
       duration: 650,
       useNativeDriver: false,
     }).start();
   }, [badgeProgress, progressAnim]);
+
   const [lastBadgeId, setLastBadgeId] = useState(null);
   const [showBadgeCelebration, setShowBadgeCelebration] = useState(false);
 
-  // Show XPBadgeCelebration when a new badge is unlocked
   useEffect(() => {
-    if (progression?.newestBadge?.id && progression.newestBadge.id !== lastBadgeId) {
+    if (
+      progression?.newestBadge?.id &&
+      progression.newestBadge.id !== lastBadgeId
+    ) {
       setShowBadgeCelebration(true);
       setLastBadgeId(progression.newestBadge.id);
     }
   }, [progression, lastBadgeId]);
+
+  const loadSavedSpots = useCallback(async () => {
+    try {
+      const spots = await getSavedSpots();
+      if (!spots?.error) {
+        setSavedSpots(Array.isArray(spots) ? spots : []);
+      }
+    } catch (error) {
+      logger.error('Profile.loadSaved', error);
+    }
+  }, []);
+
+  const loadVisitedSpots = useCallback(async () => {
+    try {
+      const spots = await getVisitedSpots();
+      if (!spots?.error) {
+        setVisitedSpots(Array.isArray(spots) ? spots : []);
+      }
+    } catch (error) {
+      logger.error('Profile.loadVisited', error);
+    }
+  }, []);
+
+  const loadMyCollections = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const collections = await getUserCollections(user.id);
+      if (!collections?.error) {
+        setMyCollections(Array.isArray(collections) ? collections : []);
+      }
+    } catch (error) {
+      logger.error('Profile.loadCollections', error);
+    }
+  }, [user?.id]);
+
+  const loadMyReviews = useCallback(async () => {
+    try {
+      const data = await getMyReviews();
+      if (data?.error) {
+        setReviewsError(true);
+        setMyReviews([]);
+        return;
+      }
+      setReviewsError(false);
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.reviews)
+          ? data.reviews
+          : [];
+      setMyReviews(list);
+    } catch (error) {
+      setReviewsError(true);
+      setMyReviews([]);
+      logger.error('Profile.loadReviews', error);
+    }
+  }, []);
 
   useEffect(() => {
     if (user) {
       loadSavedSpots();
       loadVisitedSpots();
       loadMyCollections();
+      loadMyReviews();
     }
-  }, [user]);
-
-  const loadSavedSpots = async () => {
-    setLoadingSpots(true);
-    try {
-      const spots = await getSavedSpots();
-      if (!spots.error) {
-        setSavedSpots(Array.isArray(spots) ? spots : []);
-      }
-    } catch (error) {
-      logger.error({
-        service: "profile",
-        action: "load_saved_spots_error",
-        message: "Error loading saved spots",
-        metadata: { error: error?.message || String(error) },
-      });
-    } finally {
-      setLoadingSpots(false);
-    }
-  };
-
-  const loadVisitedSpots = async () => {
-    setLoadingVisitedSpots(true);
-    try {
-      const spots = await getVisitedSpots();
-      if (!spots.error) {
-        setVisitedSpots(Array.isArray(spots) ? spots : []);
-      }
-    } catch (error) {
-      logger.error({
-        service: "profile",
-        action: "load_visited_spots_error",
-        message: "Error loading visited spots",
-        metadata: { error: error?.message || String(error) },
-      });
-    } finally {
-      setLoadingVisitedSpots(false);
-    }
-  };
-
-  const loadMyCollections = async () => {
-    setLoadingCollections(true);
-    try {
-      const collections = await getUserCollections(user.id);
-      if (!collections.error) {
-        setMyCollections(Array.isArray(collections) ? collections : []);
-      }
-    } catch (error) {
-      logger.error({
-        service: "profile",
-        action: "load_collections_error",
-        message: "Error loading collections",
-        metadata: { error: error?.message || String(error) },
-      });
-    } finally {
-      setLoadingCollections(false);
-    }
-  };
+  }, [
+    user,
+    loadSavedSpots,
+    loadVisitedSpots,
+    loadMyCollections,
+    loadMyReviews,
+  ]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -162,528 +276,355 @@ export const ProfileScreen = ({ navigation }) => {
         loadSavedSpots(),
         loadVisitedSpots(),
         loadMyCollections(),
+        loadMyReviews(),
+        refetchProgression(),
       ]);
     } finally {
       setRefreshing(false);
     }
   };
 
-  const handleSignOut = async () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            const result = await logout();
-            if (result.error) {
-              Alert.alert('Error', result.error);
-            }
-            // Navigation will automatically redirect to login due to user state change
-          },
-        },
-      ]
-    );
-  };
+  const reviewCount = useMemo(() => {
+    if (typeof progression?.stats?.reviews === 'number') {
+      return progression.stats.reviews;
+    }
+    if (typeof progression?.reviewCount === 'number') {
+      return progression.reviewCount;
+    }
+    if (!reviewsError && myReviews.length) return myReviews.length;
+    return null;
+  }, [progression, reviewsError, myReviews.length]);
 
-  const handleChangePassword = async () => {
-    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
+  const visitedTrend =
+    typeof progression?.stats?.visitedThisMonth === 'number' &&
+    progression.stats.visitedThisMonth > 0
+      ? `↑ ${progression.stats.visitedThisMonth} this month`
+      : null;
+
+  const savedTrend =
+    typeof progression?.stats?.savedThisMonth === 'number' &&
+    progression.stats.savedThisMonth > 0
+      ? `↑ ${progression.stats.savedThisMonth} this month`
+      : null;
+
+  const reviewTrend =
+    typeof progression?.stats?.reviewsThisMonth === 'number' &&
+    progression.stats.reviewsThisMonth > 0
+      ? `↑ ${progression.stats.reviewsThisMonth} this month`
+      : null;
+
+  const activityItems = useMemo(() => {
+    const items = [];
+
+    visitedSpots.slice(0, 5).forEach((entry) => {
+      const spot = entry?.spot || entry;
+      const spotId = spot?.id || entry?.spotId;
+      const when = formatVisitDate(entry?.visitedAt || entry?.createdAt);
+      items.push({
+        id: `visit-${spotId || entry?.id}`,
+        sortAt: new Date(entry?.visitedAt || entry?.createdAt || 0).getTime(),
+        icon: 'footsteps-outline',
+        title: spot?.title || 'Visited spot',
+        meta: when ? `Visited · ${when}` : 'Visited',
+        preview: spot?.address || null,
+        onPress: spotId
+          ? () => navigation.navigate('SpotDetail', { spotId })
+          : undefined,
+      });
+    });
+
+    [...myCollections]
+      .sort(
+        (a, b) =>
+          new Date(b?.updatedAt || b?.createdAt || 0) -
+          new Date(a?.updatedAt || a?.createdAt || 0),
+      )
+      .slice(0, 3)
+      .forEach((col) => {
+        items.push({
+          id: `col-${col.id}`,
+          sortAt: new Date(col?.updatedAt || col?.createdAt || 0).getTime(),
+          icon: 'albums-outline',
+          iconBg: fieldGuide.moss,
+          title: col.title || 'Untitled collection',
+          meta: `Collection · ${col.spotCount || 0} spots`,
+          preview: col.description || null,
+          onPress: () =>
+            navigation.navigate('CollectionDetail', {
+              collectionId: col.id,
+            }),
+        });
+      });
+
+    if (Array.isArray(progression?.recentEvents)) {
+      progression.recentEvents.forEach((ev, i) => {
+        items.push({
+          id: `ev-${ev.id || i}`,
+          sortAt: new Date(ev?.createdAt || 0).getTime(),
+          icon: 'sparkles-outline',
+          title: ev.title || ev.message || 'Activity',
+          meta: ev.meta || '',
+          preview: ev.preview || null,
+          onPress: ev.spotId
+            ? () =>
+                navigation.navigate('SpotDetail', { spotId: ev.spotId })
+            : undefined,
+        });
+      });
     }
 
-    if (passwordData.newPassword.length < 6) {
-      Alert.alert('Error', 'New password must be at least 6 characters');
-      return;
-    }
+    return items.sort((a, b) => (b.sortAt || 0) - (a.sortAt || 0));
+  }, [visitedSpots, myCollections, progression, navigation]);
 
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      Alert.alert('Error', 'New passwords do not match');
-      return;
-    }
+  const displayName = user?.name || 'Reader';
+  const handle = `@${usernameFromUser(user)} · ${user?.homeCity || '—'}`;
+  const isEditor =
+    isSuperAdmin || user?.role === 'admin' || user?.role === 'superadmin';
+  const rolePill = isEditor
+    ? 'VERIFIED CONTRIBUTOR'
+    : `READER · NO. ${readerNumberFromUser(user)}`;
+  const bio =
+    user?.bio?.trim() ||
+    'Nothing written yet — tell readers who you are.';
 
-    setChangingPassword(true);
-    try {
-      await changePassword(passwordData.currentPassword, passwordData.newPassword);
-      Alert.alert('Success', 'Password changed successfully');
-      setShowPasswordModal(false);
-      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to change password');
-    } finally {
-      setChangingPassword(false);
-    }
-  };
+  const sealBadges =
+    badges.length > 0
+      ? badges
+      : [{ id: 'placeholder', name: 'Welcome Explorer', unlocked: false }];
 
-  const handleUnsaveSpot = async (spotId) => {
-    Alert.alert(
-      'Remove Saved Spot',
-      'Are you sure you want to remove this spot from your saved list?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            const result = await unsaveSpot(spotId);
-            if (!result.error) {
-              loadSavedSpots();
-            } else {
-              Alert.alert('Error', result.error);
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const displayName = user?.name || 'User';
-  const renderItem = (label, icon, onPress, admin = false) => (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
-      <View style={styles.settingsRow}>
-        <View style={styles.settingsLeft}>
-          <View
-            style={[
-              styles.iconPill,
-              { backgroundColor: admin ? "#007AFF20" : "#007A8C15" },
-            ]}
-          >
-            <Ionicons name={icon} size={18} color={admin ? "#007AFF" : theme.primary} />
-          </View>
-  
-          <Text style={[styles.settingsText, { color: theme.text }]}>
-            {label}
-          </Text>
-        </View>
-  
-        <Ionicons name="chevron-forward" size={18} color={theme.textSubtle} />
-      </View>
-    </TouchableOpacity>
-  );
-  
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <SafeAreaView edges={['top']} style={styles.safe}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} 
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={fieldGuide.ember}
           />
         }
-        style={styles.content}
+        contentContainerStyle={styles.scroll}
       >
-        <LinearGradient
-          colors={["#007A8C", "#0FA4B8"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+        <View style={styles.topbar}>
+          <MonoMeta size="kicker">YOUR FIELD GUIDE</MonoMeta>
+          <Pressable
+            onPress={() => navigation.navigate('Settings')}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
+            style={({ pressed }) => [
+              styles.gearBtn,
+              { opacity: pressed ? 0.85 : 1 },
+            ]}
+          >
+            <Ionicons
+              name="settings-outline"
+              size={18}
+              color={fieldGuide.cream}
+            />
+          </Pressable>
+        </View>
 
-          style={styles.header}
-        >
-          <View style={styles.avatarContainer}>
-            {user?.profileImage ? (
-              <Image source={{ uri: user.profileImage }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={48} color="#6C5CE7" />
-              </View>
-            )}
-          </View>
-          <Text style={styles.name}>{displayName}</Text>
-          <Text style={styles.email}>{user?.email}</Text>
-          <View style={[styles.roleBadge, isSuperAdmin && styles.superAdminBadge]}>
-            <Text style={styles.roleText}>
-              {isSuperAdmin ? 'Superadmin' : 'User'}
-            </Text>
-          </View>
-        </LinearGradient>
-
-        {/* Level & XP Progress */}
-        <View style={[styles.section, { backgroundColor: theme.surface }]}>
-          <View style={[styles.sectionHeader, { borderBottomColor: theme.border }]}>
-            <View>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>Your Level</Text>
-              <Text style={[styles.sectionCount, { color: theme.textMuted }]}>
-                {loadingProgression || !progression
-                  ? 'Loading progression...'
-                  : `Level ${progression.level} • ${progression.xp} XP`}
-              </Text>
-            </View>
-          </View>
-          {loadingProgression || !progression ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={theme.primary} />
-            </View>
-          ) : (
-            <View style={styles.progressContainer}>
-              <View style={[styles.progressBar, { backgroundColor: theme.surfaceAlt || '#E5E7EB' }]}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    {
-                      backgroundColor: theme.primary,
-                      width: `${Math.min(
-                        (progression.xp / progression.nextLevelXp) * 100,
-                        100
-                      )}%`,
-                    },
-                  ]}
+        <View style={styles.idCard}>
+          <View style={styles.idRow}>
+            <View style={styles.avatarRing}>
+              {user?.profileImage ? (
+                <Image
+                  source={{ uri: user.profileImage }}
+                  style={styles.avatar}
                 />
-              </View>
-              <Text style={[styles.progressLabel, { color: theme.textMuted }]}>
-                {progression.xp} / {progression.nextLevelXp} XP to Level {progression.level + 1}
-              </Text>
-              {progression.newestBadge && (
-                <View style={styles.newBadgePill}>
-                  <Ionicons name="sparkles-outline" size={16} color={theme.primary} />
-                  <Text style={[styles.newBadgeText, { color: theme.primary }]}>
-                    New: {progression.newestBadge.name}
+              ) : (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarInitial}>
+                    {initialFor(displayName)}
                   </Text>
                 </View>
               )}
             </View>
-          )}
-        </View>
-
-        {/* Badges */}
-        <View style={[styles.section, { backgroundColor: theme.surface }]}>
-          <View style={[styles.sectionHeader, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Badges</Text>
-          </View>
-          {loadingProgression || !progression ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={theme.primary} />
-            </View>
-          ) : unlockedBadges.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="ribbon-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>No badges yet</Text>
-              <Text style={styles.emptySubtext}>
-                Explore new spots, react with vibes, and grow your collections to unlock badges.
-              </Text>
-            </View>
-          ) : hasOnlyEntryBadge ? (
-            <View style={{ padding: 16, gap: 12 }}>
-              <View style={[styles.badgeItem, { width: "100%", borderColor: theme.primary, backgroundColor: theme.primarySoft || '#E0F2FE' }]}>
-                <View style={styles.badgeIconWrap}>
-                  <Text style={styles.badgeIconText}>{unlockedBadges[0].icon || '🧭'}</Text>
-                </View>
-                <Text style={[styles.badgeName, { color: theme.text }]} numberOfLines={1}>
-                  {unlockedBadges[0].name}
-                </Text>
-                <Text style={[styles.badgeDescription, { color: theme.textMuted }]} numberOfLines={2}>
-                  {unlockedBadges[0].description}
-                </Text>
+            <View style={styles.idInfo}>
+              <Text style={styles.displayName}>{displayName}</Text>
+              <MonoMeta size="spot" style={styles.handle}>
+                {handle}
+              </MonoMeta>
+              <View style={styles.rolePill}>
+                <Text style={styles.rolePillText}>{rolePill}</Text>
               </View>
-
-              {loadingBadgeProgress || !badgeProgress || badgeProgress?.error ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color={theme.primary} />
-                </View>
-              ) : badgeProgress.next_badge ? (
-                <View style={{ gap: 8 }}>
-                  <Text style={[styles.progressLabel, { color: theme.textMuted }]}>
-                    Next badge: {badgeProgress.next_badge.name} ({badgeProgress.current_value}/{badgeProgress.required_value})
-                  </Text>
-                  <View style={[styles.progressBar, { backgroundColor: theme.surfaceAlt || '#E5E7EB' }]}>
-                    <Animated.View
-                      style={[
-                        styles.progressFill,
-                        {
-                          backgroundColor: theme.primary,
-                          width: progressAnim.interpolate({
-                            inputRange: [0, 100],
-                            outputRange: ["0%", "100%"],
-                          }),
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
-              ) : null}
             </View>
-          ) : (
-            <View style={styles.badgesGrid}>
-              {unlockedBadges.map((badge) => {
-                const unlocked = badge.unlocked;
-                const isNewest = progression.newestBadge?.id === badge.id;
-                return (
-                  <View
-                    key={badge.id}
-                    style={[
-                      styles.badgeItem,
-                      {
-                        borderColor: unlocked ? theme.primary : theme.border,
-                        backgroundColor: unlocked ? theme.primarySoft || '#E0F2FE' : theme.surfaceAlt || '#F3F4F6',
-                        opacity: unlocked ? 1 : 0.6,
-                      },
-                    ]}
-                  >
-                    <View style={styles.badgeIconWrap}>
-                      <Text style={styles.badgeIconText}>{badge.icon || '🏅'}</Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.badgeName,
-                        { color: unlocked ? theme.text : theme.textMuted },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {badge.name}
-                    </Text>
-                    <Text
-                      style={[styles.badgeDescription, { color: theme.textMuted }]}
-                      numberOfLines={2}
-                    >
-                      {badge.description}
-                    </Text>
-                    <View style={styles.badgeFooterRow}>
-                      <Text style={[styles.badgeStatus, { color: unlocked ? '#16A34A' : theme.textMuted }]}>
-                        {unlocked ? 'Unlocked' : 'Locked'}
-                      </Text>
-                      {isNewest && (
-                        <View style={styles.newChip}>
-                          <Text style={styles.newChipText}>New</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          )}
+          </View>
+          <Text style={styles.bio}>{bio}</Text>
+          <EditorialButton
+            variant="ghost"
+            block
+            onPress={() => navigation.navigate('EditProfile')}
+            style={styles.editBtn}
+          >
+            Edit profile
+          </EditorialButton>
         </View>
 
-        {/* Menu Items */}
-        <View style={[styles.settingsCard, { backgroundColor: theme.surface }]}>
-  {/* Dark Mode */}
-  <View style={styles.settingsRow}>
-    <View style={[styles.settingsLeft]}>
-      <View style={[styles.iconPill, { backgroundColor: "#007A8C20" }]}>
-        <Ionicons name={isDark ? "moon" : "sunny"} size={18} color="#007A8C" />
-      </View>
-      <Text style={[styles.settingsText, { color: theme.text }]}>Dark Mode</Text>
-    </View>
+        <View style={styles.statsRow}>
+          <StatCell
+            number={visitedSpots.length}
+            label="VISITED"
+            trend={visitedTrend}
+          />
+          <View style={styles.statDivider} />
+          <StatCell
+            number={reviewCount ?? '—'}
+            label="REVIEWS"
+            trend={reviewTrend}
+          />
+          <View style={styles.statDivider} />
+          <StatCell
+            number={savedSpots.length}
+            label="SAVED"
+            trend={savedTrend}
+          />
+        </View>
 
-    <Switch
-      trackColor={{ false: "#ccc", true: "#007A8C" }}
-      thumbColor="#fff"
-      onValueChange={toggleTheme}
-      value={isDark}
-    />
-  </View>
-
-  {renderItem("Home", "home-outline", () => navigation.navigate("Home"))}
-  {renderItem("Explore", "search-outline", () => navigation.navigate("Explore"))}
-  {renderItem("Map View", "map-outline", () => navigation.navigate("Map"))}
-  {renderItem("Change Password", "lock-closed-outline", () =>
-    setShowPasswordModal(true)
-  )}
-
-  {isSuperAdmin &&
-    renderItem("Add Spot", "add-circle-outline", () =>
-      navigation.navigate("AddSpot"),
-      true
-    )}
-</View>
-
-        {/* Saved Spots */}
-        <View style={[styles.section, { backgroundColor: theme.surface }]}>
-          <View style={[styles.sectionHeader, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Saved Spots</Text>
-            <Text style={[styles.sectionCount, { color: theme.textMuted }]}>({savedSpots.length})</Text>
-          </View>
-
-          {loadingSpots ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#6C5CE7" />
-            </View>
-          ) : savedSpots.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="bookmark-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>No saved spots yet</Text>
-              <Text style={styles.emptySubtext}>Save spots to view them here</Text>
-            </View>
-          ) : (
-            <View style={styles.spotsList}>
-              {savedSpots.map((spot) => (
-                <TouchableOpacity
-                  key={spot.id}
-                  style={styles.spotCard}
-                  onPress={() => navigation.navigate('SpotDetail', { spotId: spot.id })}
-                >
-                  <Image
-                    source={{ uri: spot.images?.[0] || spot.thumbnail }}
-                    style={styles.spotImage}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.spotInfo}>
-                    <Text style={styles.spotTitle} numberOfLines={1}>
-                      {spot.title}
-                    </Text>
-                    <Text style={styles.spotCategory} numberOfLines={1}>
-                      {spot.category?.replace('_', ' ')}
-                    </Text>
-                    <View style={styles.spotMeta}>
-                      <View style={styles.spotRating}>
-                        <Ionicons name="star" size={14} color="#FFD700" />
-                        <Text style={styles.spotRatingText}>
-                          {spot.ratingAvg?.toFixed(1) || '0.0'}
-                        </Text>
-                      </View>
-                      <Text style={styles.spotPrice}>{spot.priceRange?.toUpperCase()}</Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.unsaveButton}
-                    onPress={() => handleUnsaveSpot(spot.id)}
-                  >
-                    <Ionicons name="bookmark" size={20} color="#ff9900" />
-                  </TouchableOpacity>
-                </TouchableOpacity>
+        <View style={styles.achSection}>
+          <Text style={styles.achTitle}>Achievement seals</Text>
+          {loadingProgression ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.sealScroll}
+            >
+              {[0, 1, 2].map((i) => (
+                <View key={i} style={styles.sealSkeleton} />
               ))}
-            </View>
-          )}
-        </View>
-
-
-
-        {/* Visited Spots */}
-        <View style={[styles.section, { backgroundColor: theme.surface }]}>
-          <View style={[styles.sectionHeader, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Visited Spots</Text>
-            <Text style={[styles.sectionCount, { color: theme.textMuted }]}>({visitedSpots.length})</Text>
-          </View>
-
-          {loadingVisitedSpots ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#6C5CE7" />
-            </View>
-          ) : visitedSpots.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="checkmark-circle-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>No visited spots yet</Text>
-              <Text style={styles.emptySubtext}>Mark spots as visited to see them here</Text>
-            </View>
-          ) : (
-            <View style={styles.spotsList}>
-              {visitedSpots.map((spot) => (
-                <TouchableOpacity
-                  key={spot.id}
-                  style={styles.spotCard}
-                  onPress={() => navigation.navigate('SpotDetail', { spotId: spot.id })}
-                >
-                  <Image
-                    source={{ uri: spot.images?.[0] || spot.thumbnail }}
-                    style={styles.spotImage}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.spotInfo}>
-                    <Text style={[styles.spotTitle, { color: theme.text }]} numberOfLines={1}>
-                      {spot.title}
-                    </Text>
-                    <Text style={[styles.spotCategory, { color: theme.textMuted }]} numberOfLines={1}>
-                      {spot.category?.replace('_', ' ')}
-                    </Text>
-                    <View style={styles.spotMeta}>
-                      <View style={styles.spotRating}>
-                        <Ionicons name="star" size={14} color="#FFD700" />
-                        <Text style={styles.spotRatingText}>
-                          {spot.ratingAvg?.toFixed(1) || '0.0'}
-                        </Text>
-                      </View>
-                      <View style={styles.visitedBadge}>
-                        <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
-                        <Text style={styles.visitedBadgeText}>Visited</Text>
-                      </View>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* My Collections */}
-        <View style={[styles.section, { backgroundColor: theme.surface }]}>
-          <View style={[styles.sectionHeader, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>My Collections</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Collections')}>
-              <Text style={[styles.seeAll, { color: theme.primary }]}>See All</Text>
-            </TouchableOpacity>
-          </View>
-
-          {loadingCollections ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#6C5CE7" />
-            </View>
-          ) : myCollections.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="albums-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>No collections yet</Text>
-              <Text style={styles.emptySubtext}>Create collections to organize your favorite spots</Text>
-              <TouchableOpacity
-                style={styles.createCollectionButton}
-                onPress={() => navigation.navigate('Collections')}
-              >
-                <Text style={styles.createCollectionButtonText}>Create Collection</Text>
-              </TouchableOpacity>
-            </View>
+            </ScrollView>
           ) : (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.collectionsList}
+              contentContainerStyle={styles.sealScroll}
             >
-              {myCollections.slice(0, 5).map((collection) => {
-                const coverImage =
-                  collection.coverImage ||
-                  collection.spots?.[0]?.spot?.thumbnail ||
-                  collection.spots?.[0]?.spot?.images?.[0];
-                return (
-                  <TouchableOpacity
-                    key={collection.id}
-                    style={styles.collectionCard}
-                    onPress={() =>
-                      navigation.navigate('CollectionDetail', {
-                        collectionId: collection.id,
-                      })
-                    }
-                  >
-                    <Image
-                      source={{ uri: coverImage }}
-                      style={styles.collectionImage}
-                      resizeMode="cover"
-                    />
-                    <LinearGradient
-                      colors={['transparent', 'rgba(0,0,0,0.8)']}
-                      style={styles.collectionGradient}
-                    />
-                    <View style={styles.collectionInfo}>
-                      <Text style={styles.collectionTitle} numberOfLines={2}>
-                        {collection.title}
-                      </Text>
-                      <Text style={styles.collectionCount}>
-                        {collection.spotCount || 0} spots
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+              {sealBadges.map((badge) => (
+                <AchievementSeal key={badge.id || badge.name} badge={badge} />
+              ))}
             </ScrollView>
           )}
+
+          {hasOnlyEntryBadge && !loadingProgression ? (
+            loadingBadgeProgress || !badgeProgress || badgeProgress?.error ? (
+              <MonoMeta size="spot" style={styles.nextBadgeHint}>
+                Unlock your next seal by exploring…
+              </MonoMeta>
+            ) : badgeProgress.next_badge ? (
+              <View style={styles.badgeProgressWrap}>
+                <MonoMeta size="spot">
+                  {`Next: ${badgeProgress.next_badge.name} (${badgeProgress.current_value}/${badgeProgress.required_value})`}
+                </MonoMeta>
+                <View style={styles.progressTrack}>
+                  <Animated.View
+                    style={[
+                      styles.progressFill,
+                      {
+                        width: progressAnim.interpolate({
+                          inputRange: [0, 100],
+                          outputRange: ['0%', '100%'],
+                        }),
+                      },
+                    ]}
+                  />
+                </View>
+              </View>
+            ) : null
+          ) : null}
         </View>
 
-        {/* Sign Out */}
-        <View style={[styles.section, {backgroundColor: theme.surfaceAlt}]}>
-          <Button
-            title="Sign Out"
-            onPress={handleSignOut}
-            variant="danger"
-            style={styles.signOutButton}
+        <View style={styles.segWrap}>
+          <Segmented
+            items={['Activity', 'Reviews', 'Saved']}
+            value={tab}
+            onChange={setTab}
           />
         </View>
+
+        {tab === 0 ? (
+          <View style={styles.tabPanel}>
+            {activityItems.length === 0 ? (
+              <ProfileInlineEmpty title="Your trail starts empty." />
+            ) : (
+              activityItems.map((item) => (
+                <ActivityRow
+                  key={item.id}
+                  icon={item.icon}
+                  iconBg={item.iconBg}
+                  title={item.title}
+                  meta={item.meta}
+                  preview={item.preview}
+                  onPress={item.onPress}
+                />
+              ))
+            )}
+          </View>
+        ) : null}
+
+        {tab === 1 ? (
+          <View style={styles.tabPanel}>
+            {reviewsError || myReviews.length === 0 ? (
+              <EmptyState
+                title="No reviews stamped yet."
+                italic="yet."
+                body="When you leave a note on a spot, it shows up here for your readers."
+                cta={{
+                  label: 'Explore the field',
+                  onPress: () =>
+                    navigation.navigate('MainTabs', { screen: 'Explore' }),
+                }}
+                style={styles.tabEmpty}
+              />
+            ) : (
+              myReviews.map((review) => (
+                <ReviewRow
+                  key={review.id}
+                  review={review}
+                  onPress={
+                    review.spotId
+                      ? () =>
+                          navigation.navigate('SpotDetail', {
+                            spotId: review.spotId,
+                          })
+                      : undefined
+                  }
+                  style={styles.reviewRow}
+                />
+              ))
+            )}
+          </View>
+        ) : null}
+
+        {tab === 2 ? (
+          <View style={styles.tabPanel}>
+            {savedSpots.length === 0 ? (
+              <ProfileInlineEmpty title="Nothing in your pocket yet." />
+            ) : (
+              <>
+                {savedSpots.slice(0, 10).map((spot) => (
+                  <SavedSpotRow
+                    key={spot.id}
+                    spot={spot}
+                    onPress={() =>
+                      navigation.navigate('SpotDetail', { spotId: spot.id })
+                    }
+                  />
+                ))}
+                <Pressable
+                  onPress={() =>
+                    navigation.navigate('MainTabs', { screen: 'Collections' })
+                  }
+                  style={styles.seeAll}
+                >
+                  <MonoMeta size="eyebrow" color={fieldGuide.ember}>
+                    See all →
+                  </MonoMeta>
+                </Pressable>
+              </>
+            )}
+          </View>
+        ) : null}
       </ScrollView>
 
       <XPBadgeCelebration
@@ -695,513 +636,270 @@ export const ProfileScreen = ({ navigation }) => {
         message={progression?.newestBadge?.description}
         durationMs={2500}
       />
-
-      {/* Password Change Modal */}
-      <Modal
-        visible={showPasswordModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowPasswordModal(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Change Password</Text>
-              <TouchableOpacity onPress={() => setShowPasswordModal(false)}>
-                <Ionicons name="close" size={24} color="#333" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalBody}>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Current Password"
-                secureTextEntry
-                value={passwordData.currentPassword}
-                onChangeText={(text) =>
-                  setPasswordData({ ...passwordData, currentPassword: text })
-                }
-              />
-              <TextInput
-                style={styles.modalInput}
-                placeholder="New Password"
-                secureTextEntry
-                value={passwordData.newPassword}
-                onChangeText={(text) =>
-                  setPasswordData({ ...passwordData, newPassword: text })
-                }
-              />
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Confirm New Password"
-                secureTextEntry
-                value={passwordData.confirmPassword}
-                onChangeText={(text) =>
-                  setPasswordData({ ...passwordData, confirmPassword: text })
-                }
-              />
-
-              <Button
-                title={changingPassword ? 'Changing...' : 'Change Password'}
-                onPress={handleChangePassword}
-                loading={changingPassword}
-                style={styles.modalButton}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView >
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safe: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: fieldGuide.ink,
   },
-
-  header: {
-    paddingVertical: 40,
-    paddingHorizontal: 20,
+  scroll: {
+    paddingBottom: 40,
+  },
+  topbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  gearBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  idCard: {
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    paddingBottom: 22,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
+  },
+  idRow: {
+    flexDirection: 'row',
+    gap: 18,
     alignItems: 'center',
   },
-  avatarContainer: {
-    marginBottom: 16,
+  avatarRing: {
+    padding: 6,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderStyle: 'dashed',
+    borderColor: fieldGuide.inkLine2,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 4,
-    borderColor: '#fff',
-  },
-  avatarPlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#fff',
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    backgroundColor: fieldGuide.emberSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 4,
-    borderColor: '#fff',
-  },
-  name: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  email: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-    marginBottom: 12,
-  },
-  roleBadge: {
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  superAdminBadge: {
-    backgroundColor: 'rgba(255,215,0,0.3)',
-  },
-  roleText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  section: {
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 16,
-    marginTop: 16,
-  
-    // iOS shadow
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-  
-    // Android elevation
-    elevation: 6,
-  
-    // prevents children from overflowing rounded corners
-    overflow: "hidden",
-  },
-  
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  settingsCard: {
-    borderRadius: 20,
-    paddingVertical: 6,
-    marginHorizontal: 16,
-    marginTop: 20,
-  
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  
-  settingsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  
-  settingsLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  
-  iconPill: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  
-  settingsText: {
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  
-  menuIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#6C5CE720',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  adminIcon: {
-    backgroundColor: '#007AFF20',
-  },
-  menuText: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '500',
-  },
-  adminMenuText: {
-    color: '#007AFF',
-    fontWeight: '600',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1A1A1A',
-  },
-  sectionCount: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    padding: 40,
-    alignItems: 'center',
-  },
-  emptyContainer: {
-    padding: 40,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 12,
-    fontWeight: '600',
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 4,
-  },
-  spotsList: {
-    padding: 16,
-  },
-  spotCard: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    marginBottom: 12,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  spotImage: {
-    width: 100,
-    height: 100,
+  avatarInitial: {
+    fontFamily: fieldGuide.fonts.serifMedium,
+    fontSize: 32,
+    color: fieldGuide.ink,
   },
-  spotInfo: {
+  idInfo: {
     flex: 1,
-    padding: 12,
-    justifyContent: 'space-between',
+    minWidth: 0,
   },
-  spotTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1A1A1A',
-    marginBottom: 4,
+  displayName: {
+    fontFamily: fieldGuide.fonts.serifMedium,
+    fontSize: 22,
+    color: fieldGuide.cream,
+    letterSpacing: -0.01,
   },
-  spotCategory: {
-    fontSize: 13,
-    color: '#666',
-    marginBottom: 8,
-    textTransform: 'capitalize',
+  handle: {
+    marginTop: 4,
+    color: fieldGuide.creamMute,
   },
-  spotMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  spotRating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  spotRatingText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#333',
-  },
-  spotPrice: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#666',
-  },
-  unsaveButton: {
-    padding: 12,
-    justifyContent: 'center',
-  },
-  signOutButton: {
-    margin: 16,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1A1A1A',
-  },
-  modalBody: {
-    gap: 16,
-  },
-  modalInput: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  modalButton: {
+  rolePill: {
+    alignSelf: 'flex-start',
     marginTop: 8,
-  },
-  visitedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E8F5E9',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
+    borderRadius: fieldGuide.radius.full,
+    backgroundColor: 'rgba(232,116,58,0.15)',
   },
-  visitedBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#4CAF50',
+  rolePillText: {
+    fontFamily: fieldGuide.fonts.monoMed,
+    fontSize: 9,
+    letterSpacing: fieldGuide.tracking.wider(9),
+    color: fieldGuide.ember,
+    textTransform: 'uppercase',
   },
-  seeAll: {
+  bio: {
+    marginTop: 14,
+    fontFamily: fieldGuide.fonts.serif,
+    fontStyle: 'italic',
     fontSize: 14,
-    color: '#6C5CE7',
-    fontWeight: '600',
+    lineHeight: 21,
+    color: fieldGuide.creamSoft,
   },
-  collectionsList: {
-    paddingHorizontal: 16,
+  editBtn: {
+    marginTop: 14,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
+  },
+  statCell: {
+    flex: 1,
+    paddingVertical: 20,
+    paddingHorizontal: 18,
+    alignItems: 'flex-start',
+  },
+  statDivider: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: fieldGuide.inkLine,
+  },
+  statNumber: {
+    fontFamily: fieldGuide.fonts.serifMedium,
+    fontSize: 32,
+    lineHeight: 34,
+    color: fieldGuide.cream,
+  },
+  statLabel: {
+    marginTop: 8,
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9,
+    letterSpacing: fieldGuide.tracking.wider(9),
+    textTransform: 'uppercase',
+    color: fieldGuide.creamMute,
+  },
+  statTrend: {
+    marginTop: 4,
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9,
+    color: fieldGuide.moss,
+    letterSpacing: fieldGuide.tracking.wide(9),
+  },
+  achSection: {
+    padding: 22,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
+  },
+  achTitle: {
+    fontFamily: fieldGuide.fonts.serifMedium,
+    fontSize: 18,
+    color: fieldGuide.cream,
+    marginBottom: 14,
+  },
+  sealScroll: {
     gap: 12,
+    paddingRight: 22,
   },
-  collectionCard: {
-    width: 200,
-    height: 240,
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: '#000',
-    marginRight: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+  sealSkeleton: {
+    width: 92,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: fieldGuide.inkLine,
+    opacity: 0.5,
   },
-  collectionImage: {
-    width: '100%',
-    height: '100%',
+  nextBadgeHint: {
+    marginTop: 14,
+    color: fieldGuide.creamMute,
   },
-  collectionGradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '60%',
-  },
-  collectionInfo: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-  },
-  collectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  collectionCount: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    fontWeight: '500',
-  },
-  createCollectionButton: {
-    marginTop: 16,
-    backgroundColor: '#007A8C',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 20,
-  },
-  createCollectionButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  progressContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 4,
+  badgeProgressWrap: {
+    marginTop: 14,
     gap: 8,
   },
-  progressBar: {
-    width: '100%',
-    height: 10,
-    borderRadius: 999,
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: fieldGuide.inkLine,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: 999,
+    backgroundColor: fieldGuide.ember,
   },
-  progressLabel: {
-    fontSize: 12,
-    fontWeight: '500',
+  segWrap: {
+    paddingHorizontal: 22,
+    paddingTop: 14,
+    paddingBottom: 0,
   },
-  newBadgePill: {
-    flexDirection: 'row',
+  tabPanel: {
+    paddingHorizontal: 22,
+    paddingVertical: 22,
+    gap: 4,
+  },
+  inlineEmpty: {
+    paddingVertical: 28,
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: 'rgba(22,163,74,0.08)',
-    marginTop: 4,
-    gap: 6,
   },
-  newBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
+  inlineEmptyTitle: {
+    fontFamily: fieldGuide.fonts.serif,
+    fontStyle: 'italic',
+    fontSize: 15,
+    color: fieldGuide.creamSoft,
+    textAlign: 'center',
   },
-  badgesGrid: {
+  activityRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'flex-start',
     gap: 12,
-    padding: 12,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
   },
-  badgeItem: {
-    width: (width - 16 * 2 - 12) / 2,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 10,
-  },
-  badgeIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.04)',
+  activityIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: fieldGuide.inkElev,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
   },
-  badgeIconText: {
-    fontSize: 18,
+  activityBody: {
+    flex: 1,
+    gap: 4,
   },
-  badgeName: {
+  activityTitle: {
+    fontFamily: fieldGuide.fonts.serifMedium,
+    fontSize: 14.5,
+    color: fieldGuide.cream,
+    lineHeight: 20,
+  },
+  activityPreview: {
+    fontFamily: fieldGuide.fonts.serif,
+    fontStyle: 'italic',
     fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 2,
+    color: fieldGuide.creamSoft,
+    lineHeight: 18,
   },
-  badgeDescription: {
-    fontSize: 11,
-    lineHeight: 14,
-    marginBottom: 4,
+  reviewRow: {
+    marginBottom: 12,
   },
-  badgeFooterRow: {
+  savedRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
   },
-  badgeStatus: {
-    fontSize: 11,
-    fontWeight: '600',
+  savedDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: fieldGuide.ember,
   },
-  newChip: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: '#F97316',
+  savedBody: {
+    flex: 1,
+    gap: 2,
   },
-  newChipText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#fff',
+  savedTitle: {
+    fontFamily: fieldGuide.fonts.serifMedium,
+    fontSize: 15,
+    color: fieldGuide.cream,
+  },
+  seeAll: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+  },
+  tabEmpty: {
+    paddingVertical: 8,
   },
 });
