@@ -40,6 +40,21 @@ const PREFERENCE_OPTIONS = [
   'Hidden alleys',
 ];
 
+function preferencesToSelection(value) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === 'object') {
+    if (Array.isArray(value.interests)) return value.interests;
+    if (Array.isArray(value.selected)) return value.selected;
+  }
+  return [];
+}
+
+function selectionToPreferences(selection) {
+  return {
+    interests: Array.isArray(selection) ? selection : [],
+  };
+}
+
 export const EditProfileScreen = ({ navigation }) => {
   const { user, updateLocalUser } = useAuth();
   const toast = useToast();
@@ -49,7 +64,7 @@ export const EditProfileScreen = ({ navigation }) => {
   const [homeCity, setHomeCity] = useState(user?.homeCity || '');
   const [bio, setBio] = useState(user?.bio || '');
   const [preferences, setPreferences] = useState(
-    Array.isArray(user?.preferences) ? user.preferences : [],
+    preferencesToSelection(user?.preferences),
   );
   const [avatarUri, setAvatarUri] = useState(user?.profileImage || null);
   const [saving, setSaving] = useState(false);
@@ -61,7 +76,7 @@ export const EditProfileScreen = ({ navigation }) => {
       if (local.bio != null) setBio(local.bio);
       if (local.homeCity != null) setHomeCity(local.homeCity);
       if (local.username != null) setUsername(local.username);
-      if (local.preferences) setPreferences(local.preferences);
+      if (local.preferences) setPreferences(preferencesToSelection(local.preferences));
       if (local.profileImage) setAvatarUri(local.profileImage);
     }
 
@@ -71,9 +86,7 @@ export const EditProfileScreen = ({ navigation }) => {
     setUsername(remote.username || username);
     setHomeCity(remote.homeCity || '');
     setBio(remote.bio || '');
-    if (Array.isArray(remote.preferences)) {
-      setPreferences(remote.preferences);
-    }
+    setPreferences(preferencesToSelection(remote.preferences));
     if (remote.profileImage) setAvatarUri(remote.profileImage);
   }, [user?.id, username]);
 
@@ -107,7 +120,7 @@ export const EditProfileScreen = ({ navigation }) => {
       username: username.trim() || undefined,
       homeCity: homeCity.trim() || undefined,
       bio: bio.trim() || undefined,
-      preferences,
+      preferences: selectionToPreferences(preferences),
       profileImage: avatarUri || undefined,
     };
 

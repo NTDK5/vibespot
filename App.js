@@ -1,18 +1,19 @@
 import React, { useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { AuthProvider } from './src/context/AuthContext';
-import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { QueryClientProvider } from "@tanstack/react-query";
-
-import { AppNavigator } from "./src/navigation/AppNavigator";
-import { AuthProvider } from "./src/context/AuthContext";
-import { ThemeProvider } from "./src/context/ThemeContext";
-import { ToastProvider } from "./src/components/ToastProvider";
+import { ThemeProvider } from './src/context/ThemeContext';
+import { ToastProvider } from './src/components/ToastProvider';
 import { AppStatusProvider } from './src/context/AppStatusContext';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useFieldGuideFonts } from "./src/theme/fonts";
+import { useFieldGuideFonts } from './src/theme/fonts';
+
+// ... rest unchanged ...
+
 
 // Keep the native splash visible while the Field Guide fonts resolve.
 // Wrapped in catch() because hot-reload can race the call and reject.
@@ -49,21 +50,22 @@ export default function App() {
 
   return (
     <>
-    <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
-    <QueryClientProvider client={queryClient}>
-      <SafeAreaProvider>
-        <AuthProvider>
-          <ThemeProvider>
-            <ToastProvider>
-              <AppStatusProvider>
-                <StatusBar style="light" />
-                <AppNavigator />
-              </AppStatusProvider>
-            </ToastProvider>
-          </ThemeProvider>
-        </AuthProvider>
-      </SafeAreaProvider>
-      </QueryClientProvider>
-    </GestureHandlerRootView>
+      <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
+        <QueryClientProvider client={queryClient}>
+          <SafeAreaProvider>
+            <AuthProvider>
+              <ThemeProvider>
+                <ToastProvider>
+                  <AppStatusProvider>
+                    <StatusBar style="light" />
+                    <AppNavigator />
+                  </AppStatusProvider>
+                </ToastProvider>
+              </ThemeProvider>
+            </AuthProvider>
+          </SafeAreaProvider>
+        </QueryClientProvider>
+      </GestureHandlerRootView>
+    </>
   );
 }

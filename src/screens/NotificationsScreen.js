@@ -367,9 +367,8 @@ const styles = StyleSheet.create({
     color: fieldGuide.cream,
   },
   notifEm: {
-    fontFamily: fieldGuide.fonts.serif,
-    fontStyle: 'italic',
-    color: fieldGuide.creamSoft,
+    fontFamily: fieldGuide.fonts.sans,
+    color: fieldGuide.emberSoft,
   },
   when: {
     marginTop: 4,

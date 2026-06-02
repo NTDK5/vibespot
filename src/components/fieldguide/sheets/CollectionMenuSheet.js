@@ -47,6 +47,7 @@ export default function CollectionMenuSheet({
   onEdit,
   onShare,
   onDelete,
+  isOwner = true,
 }) {
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
@@ -153,12 +154,14 @@ export default function CollectionMenuSheet({
           </View>
 
           <View style={styles.rows}>
-            <Row
-              icon="brush-outline"
-              label="Edit cover"
-              hint="Mosaic, vibe swatches, glyph"
-              onPress={handleEdit}
-            />
+            {isOwner ? (
+              <Row
+                icon="brush-outline"
+                label="Edit cover"
+                hint="Mosaic, vibe swatches, glyph"
+                onPress={handleEdit}
+              />
+            ) : null}
             <Row
               icon="share-outline"
               label="Share"
@@ -166,13 +169,15 @@ export default function CollectionMenuSheet({
               onPress={handleShare}
               muted
             />
-            <Row
-              icon="trash-outline"
-              label="Delete collection"
-              hint="The spots stay in your library"
-              onPress={handleDelete}
-              danger
-            />
+            {isOwner ? (
+              <Row
+                icon="trash-outline"
+                label="Delete collection"
+                hint="The spots stay in your library"
+                onPress={handleDelete}
+                danger
+              />
+            ) : null}
           </View>
         </Animated.View>
       </View>

@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import MonoMeta from '../components/fieldguide/primitives/MonoMeta';
 import EditorialButton from '../components/fieldguide/form/EditorialButton';
@@ -37,11 +38,13 @@ import { getMyReviews } from '../services/user.service';
 import { initialFor } from '../utils/spotHelpers';
 import { logger } from '../utils/logger';
 
+const SEEN_SEALS_KEY = 'fena.seenSealIds';
+
 function usernameFromUser(user) {
   if (user?.username) return user.username;
   const email = user?.email || '';
   const prefix = email.split('@')[0];
-  return prefix || 'reader';
+  return prefix || 'explorer';
 }
 
 function readerNumberFromUser(user) {
@@ -62,6 +65,11 @@ function formatVisitDate(input) {
     month: 'short',
     day: 'numeric',
   });
+}
+
+function toNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 function StatCell({ number, label, trend }) {
@@ -171,6 +179,58 @@ export const ProfileScreen = ({ navigation }) => {
   const { data: badgeProgress, isLoading: loadingBadgeProgress } = useBadgeProgress({
     enabled: !!hasOnlyEntryBadge,
   });
+
+  // Contextual seals: only surface the strip on first login ever, or when a
+  // new seal has been unlocked since the user last looked. Seen ids persist in
+  // AsyncStorage so a default Profile open keeps the strip hidden.
+  const unlockedSealIds = useMemo(
+    () =>
+      unlockedBadges
+        .map((b) => String(b?.id ?? b?.name ?? ''))
+        .filter(Boolean),
+    [unlockedBadges],
+  );
+  const seenSealsRef = useRef(null);
+  const [seenLoaded, setSeenLoaded] = useState(false);
+  const [revealSeals, setRevealSeals] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      let parsed = null;
+      try {
+        const raw = await AsyncStorage.getItem(SEEN_SEALS_KEY);
+        if (raw != null) {
+          const arr = JSON.parse(raw);
+          parsed = Array.isArray(arr) ? arr.map(String) : [];
+        }
+      } catch (error) {
+        parsed = null;
+      }
+      if (!active) return;
+      seenSealsRef.current = parsed; // null === key never written (first login)
+      setSeenLoaded(true);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (loadingProgression || !seenLoaded) return;
+    const seen = seenSealsRef.current;
+    const firstLogin = seen == null;
+    const seenSet = new Set(Array.isArray(seen) ? seen : []);
+    const newSeals = unlockedSealIds.filter((id) => !seenSet.has(id));
+    if (!firstLogin && newSeals.length === 0) return;
+
+    setRevealSeals(true);
+    const union = Array.from(
+      new Set([...(Array.isArray(seen) ? seen : []), ...unlockedSealIds]),
+    );
+    seenSealsRef.current = union;
+    AsyncStorage.setItem(SEEN_SEALS_KEY, JSON.stringify(union)).catch(() => {});
+  }, [loadingProgression, seenLoaded, unlockedSealIds]);
 
   const progressAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -291,8 +351,8 @@ export const ProfileScreen = ({ navigation }) => {
     if (typeof progression?.reviewCount === 'number') {
       return progression.reviewCount;
     }
-    if (!reviewsError && myReviews.length) return myReviews.length;
-    return null;
+    if (!reviewsError) return myReviews.length;
+    return 0;
   }, [progression, reviewsError, myReviews.length]);
 
   const visitedTrend =
@@ -312,6 +372,28 @@ export const ProfileScreen = ({ navigation }) => {
     progression.stats.reviewsThisMonth > 0
       ? `↑ ${progression.stats.reviewsThisMonth} this month`
       : null;
+
+  const xpValue = toNumber(
+    progression?.xp ??
+      progression?.currentXp ??
+      progression?.stats?.xp,
+    0,
+  );
+  const levelValue = Math.max(
+    1,
+    toNumber(progression?.level ?? progression?.currentLevel, 1),
+  );
+  const nextLevelXp = Math.max(
+    xpValue + 1,
+    toNumber(progression?.nextLevelXp ?? progression?.xpToNextLevel, levelValue * 100),
+  );
+  const prevLevelXp = Math.max(
+    0,
+    toNumber(progression?.prevLevelXp ?? progression?.levelStartXp, (levelValue - 1) * 100),
+  );
+  const xpSpan = Math.max(1, nextLevelXp - prevLevelXp);
+  const xpIntoLevel = Math.max(0, Math.min(xpSpan, xpValue - prevLevelXp));
+  const xpPercent = Math.round((xpIntoLevel / xpSpan) * 100);
 
   const activityItems = useMemo(() => {
     const items = [];
@@ -376,16 +458,16 @@ export const ProfileScreen = ({ navigation }) => {
     return items.sort((a, b) => (b.sortAt || 0) - (a.sortAt || 0));
   }, [visitedSpots, myCollections, progression, navigation]);
 
-  const displayName = user?.name || 'Reader';
+  const displayName = user?.name || 'Explorer';
   const handle = `@${usernameFromUser(user)} · ${user?.homeCity || '—'}`;
   const isEditor =
     isSuperAdmin || user?.role === 'admin' || user?.role === 'superadmin';
   const rolePill = isEditor
     ? 'VERIFIED CONTRIBUTOR'
-    : `READER · NO. ${readerNumberFromUser(user)}`;
+    : `EXPLORER · NO. ${readerNumberFromUser(user)}`;
   const bio =
     user?.bio?.trim() ||
-    'Nothing written yet — tell readers who you are.';
+    'Nothing written yet — tell explorers who you are.';
 
   const sealBadges =
     badges.length > 0
@@ -470,7 +552,7 @@ export const ProfileScreen = ({ navigation }) => {
           />
           <View style={styles.statDivider} />
           <StatCell
-            number={reviewCount ?? '—'}
+            number={reviewCount}
             label="REVIEWS"
             trend={reviewTrend}
           />
@@ -483,7 +565,31 @@ export const ProfileScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.achSection}>
-          <Text style={styles.achTitle}>Achievement seals</Text>
+          <View style={styles.achHeaderRow}>
+            <Text style={styles.achTitle}>Achievement seals</Text>
+            {!revealSeals && !loadingProgression && unlockedBadges.length > 0 ? (
+              <Pressable
+                onPress={() => setRevealSeals(true)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Show ${unlockedBadges.length} seals`}
+              >
+                <MonoMeta size="spot" style={styles.sealsToggle}>
+                  {`SEALS (${unlockedBadges.length})`}
+                </MonoMeta>
+              </Pressable>
+            ) : null}
+          </View>
+          <View style={styles.xpWrap}>
+            <View style={styles.xpHeader}>
+              <MonoMeta size="spot">{`Level ${levelValue}`}</MonoMeta>
+              <MonoMeta size="spot">{`${xpValue} / ${nextLevelXp} XP`}</MonoMeta>
+            </View>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${xpPercent}%` }]} />
+            </View>
+          </View>
+
           {loadingProgression ? (
             <ScrollView
               horizontal
@@ -494,43 +600,45 @@ export const ProfileScreen = ({ navigation }) => {
                 <View key={i} style={styles.sealSkeleton} />
               ))}
             </ScrollView>
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.sealScroll}
-            >
-              {sealBadges.map((badge) => (
-                <AchievementSeal key={badge.id || badge.name} badge={badge} />
-              ))}
-            </ScrollView>
-          )}
+          ) : revealSeals ? (
+            <>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.sealScroll}
+              >
+                {sealBadges.map((badge) => (
+                  <AchievementSeal key={badge.id || badge.name} badge={badge} />
+                ))}
+              </ScrollView>
 
-          {hasOnlyEntryBadge && !loadingProgression ? (
-            loadingBadgeProgress || !badgeProgress || badgeProgress?.error ? (
-              <MonoMeta size="spot" style={styles.nextBadgeHint}>
-                Unlock your next seal by exploring…
-              </MonoMeta>
-            ) : badgeProgress.next_badge ? (
-              <View style={styles.badgeProgressWrap}>
-                <MonoMeta size="spot">
-                  {`Next: ${badgeProgress.next_badge.name} (${badgeProgress.current_value}/${badgeProgress.required_value})`}
-                </MonoMeta>
-                <View style={styles.progressTrack}>
-                  <Animated.View
-                    style={[
-                      styles.progressFill,
-                      {
-                        width: progressAnim.interpolate({
-                          inputRange: [0, 100],
-                          outputRange: ['0%', '100%'],
-                        }),
-                      },
-                    ]}
-                  />
-                </View>
-              </View>
-            ) : null
+              {hasOnlyEntryBadge ? (
+                loadingBadgeProgress || !badgeProgress || badgeProgress?.error ? (
+                  <MonoMeta size="spot" style={styles.nextBadgeHint}>
+                    Unlock your next seal by exploring…
+                  </MonoMeta>
+                ) : badgeProgress.next_badge ? (
+                  <View style={styles.badgeProgressWrap}>
+                    <MonoMeta size="spot">
+                      {`Next: ${badgeProgress.next_badge.name} (${badgeProgress.current_value}/${badgeProgress.required_value})`}
+                    </MonoMeta>
+                    <View style={styles.progressTrack}>
+                      <Animated.View
+                        style={[
+                          styles.progressFill,
+                          {
+                            width: progressAnim.interpolate({
+                              inputRange: [0, 100],
+                              outputRange: ['0%', '100%'],
+                            }),
+                          },
+                        ]}
+                      />
+                    </View>
+                  </View>
+                ) : null
+              ) : null}
+            </>
           ) : null}
         </View>
 
@@ -568,7 +676,7 @@ export const ProfileScreen = ({ navigation }) => {
               <EmptyState
                 title="No reviews stamped yet."
                 italic="yet."
-                body="When you leave a note on a spot, it shows up here for your readers."
+                body="When you leave a note on a spot, it shows up here for fellow explorers."
                 cta={{
                   label: 'Explore the field',
                   onPress: () =>
@@ -728,8 +836,7 @@ const styles = StyleSheet.create({
   },
   bio: {
     marginTop: 14,
-    fontFamily: fieldGuide.fonts.serif,
-    fontStyle: 'italic',
+    fontFamily: fieldGuide.fonts.sans,
     fontSize: 14,
     lineHeight: 21,
     color: fieldGuide.creamSoft,
@@ -778,11 +885,28 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: fieldGuide.inkLine,
   },
+  achHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
   achTitle: {
     fontFamily: fieldGuide.fonts.serifMedium,
     fontSize: 18,
     color: fieldGuide.cream,
+  },
+  sealsToggle: {
+    color: fieldGuide.ember,
+  },
+  xpWrap: {
     marginBottom: 14,
+    gap: 8,
+  },
+  xpHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   sealScroll: {
     gap: 12,
@@ -828,8 +952,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   inlineEmptyTitle: {
-    fontFamily: fieldGuide.fonts.serif,
-    fontStyle: 'italic',
+    fontFamily: fieldGuide.fonts.sans,
     fontSize: 15,
     color: fieldGuide.creamSoft,
     textAlign: 'center',
@@ -863,8 +986,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   activityPreview: {
-    fontFamily: fieldGuide.fonts.serif,
-    fontStyle: 'italic',
+    fontFamily: fieldGuide.fonts.sans,
     fontSize: 13,
     color: fieldGuide.creamSoft,
     lineHeight: 18,

@@ -74,19 +74,22 @@ export const fieldGuide = Object.freeze({
     mono30: (fs) =>  0.30 * fs,   // labels on hero
   }),
 
-  // font families — keys MUST match the faces loaded in src/theme/fonts.js
+  // Wayfinding stack — legacy serif* keys alias to Syne for minimal diff
   fonts: Object.freeze({
-    serif:        'Fraunces_400Regular',
-    serifItalic:  'Fraunces_400Regular_Italic',
-    serifMedium:  'Fraunces_500Medium',
-    serifLight:   'Fraunces_300Light',
-    serifBold:    'Fraunces_700Bold',
-    sans:         'Inter_400Regular',
-    sansMedium:   'Inter_500Medium',
-    sansSemi:     'Inter_600SemiBold',
-    sansBold:     'Inter_700Bold',
+    display:      'Syne_700Bold',
+    displayHeavy: 'Syne_800ExtraBold',
+    serif:        'Syne_700Bold',
+    serifItalic:  'Syne_700Bold',
+    serifMedium:  'Syne_700Bold',
+    serifLight:   'Syne_700Bold',
+    serifBold:    'Syne_800ExtraBold',
+    sans:         'DMSans_400Regular',
+    sansMedium:   'DMSans_500Medium',
+    sansSemi:     'DMSans_600SemiBold',
+    sansBold:     'DMSans_700Bold',
     mono:         'JetBrainsMono_400Regular',
     monoMed:      'JetBrainsMono_500Medium',
+    ethiopic:     'NotoSerifEthiopic_600SemiBold',
   }),
 });
 
@@ -97,11 +100,11 @@ export const fieldGuide = Object.freeze({
 export const fgType = Object.freeze({
   eyebrow:   { fontFamily: 'JetBrainsMono_400Regular', fontSize: 10,  letterSpacing: 2.2,  textTransform: 'uppercase', color: fieldGuide.creamMute },
   kicker:    { fontFamily: 'JetBrainsMono_500Medium',  fontSize: 9,   letterSpacing: 2.52, textTransform: 'uppercase', color: fieldGuide.ember },
-  displayLg: { fontFamily: 'Fraunces_400Regular',      fontSize: 36,  letterSpacing: -0.72, color: fieldGuide.cream, lineHeight: 38 },
-  displayMd: { fontFamily: 'Fraunces_500Medium',       fontSize: 22,  letterSpacing: -0.22, color: fieldGuide.cream },
-  spotName:  { fontFamily: 'Fraunces_500Medium',       fontSize: 22,  letterSpacing: -0.22, color: fieldGuide.cream, lineHeight: 25 },
-  body:      { fontFamily: 'Inter_400Regular',         fontSize: 15,  lineHeight: 21,       color: fieldGuide.creamSoft },
-  blurb:     { fontFamily: 'Inter_400Regular',         fontSize: 13,  lineHeight: 18,       color: fieldGuide.creamSoft },
+  displayLg: { fontFamily: 'Syne_800ExtraBold',        fontSize: 36,  letterSpacing: -0.72, color: fieldGuide.cream, lineHeight: 42 },
+  displayMd: { fontFamily: 'Syne_700Bold',             fontSize: 22,  letterSpacing: -0.22, color: fieldGuide.cream, lineHeight: 28 },
+  spotName:  { fontFamily: 'Syne_700Bold',             fontSize: 22,  letterSpacing: -0.22, color: fieldGuide.cream, lineHeight: 27 },
+  body:      { fontFamily: 'DMSans_400Regular',        fontSize: 15,  lineHeight: 22,       color: fieldGuide.creamSoft },
+  blurb:     { fontFamily: 'DMSans_400Regular',      fontSize: 13,  lineHeight: 19,       color: fieldGuide.creamSoft },
   meta:      { fontFamily: 'JetBrainsMono_400Regular', fontSize: 9.5, letterSpacing: 1.9,   textTransform: 'uppercase', color: fieldGuide.creamMute },
   monoSm:    { fontFamily: 'JetBrainsMono_400Regular', fontSize: 8.5, letterSpacing: 1.53,  textTransform: 'uppercase' },
 });

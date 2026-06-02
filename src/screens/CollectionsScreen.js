@@ -77,6 +77,36 @@ function safeArray(maybe) {
   return [];
 }
 
+function mergeCollectionsMineFirst(mine, pub) {
+  const seen = new Set();
+  const merged = [];
+
+  for (const c of mine) {
+    const id = c?.id;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    merged.push({ ...c, isMine: true });
+  }
+
+  for (const c of pub) {
+    const id = c?.id;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    merged.push({ ...c, isMine: false });
+  }
+
+  return merged;
+}
+
+function isCollectionOwner(collection, currentUserId) {
+  if (!collection || !currentUserId) return false;
+  return (
+    collection.isMine === true ||
+    collection.userId === currentUserId ||
+    collection.user?.id === currentUserId
+  );
+}
+
 function unwrapSavedRow(row) {
   // savedSpots endpoint sometimes returns join rows shaped { spot: {...} }.
   return row?.spot && row?.spot?.id ? row.spot : row;
@@ -91,18 +121,24 @@ function totalSpotCount(collections) {
 }
 
 async function fetchCollections(userId) {
-  // Try per-user first; fall back to /collections?userId= if empty/error.
-  const primary = await getUserCollections(userId);
-  const fromPrimary = safeArray(primary);
-  if (!primary?.error && fromPrimary.length) return fromPrimary;
+  const [mineRes, publicRes] = await Promise.all([
+    userId ? getUserCollections(userId) : Promise.resolve([]),
+    getAllCollections({ isPublic: true, sortBy: 'popular', limit: 100 }),
+  ]);
 
-  const fallback = await getAllCollections({ userId, sortBy: 'recent', limit: 50 });
-  if (fallback?.error) {
-    // Surface the most specific error we have so the UI can react.
-    const err = new Error(primary?.error || fallback.error);
-    throw err;
+  const mineErr = mineRes?.error;
+  const publicErr = publicRes?.error;
+
+  if (mineErr) logger.error('CollectionsScreen.getUserCollections', mineErr);
+  if (publicErr) logger.error('CollectionsScreen.getAllCollections.public', publicErr);
+
+  if (mineErr && publicErr) {
+    throw new Error(mineErr || publicErr || 'Failed to fetch collections');
   }
-  return safeArray(fallback);
+
+  const mine = mineErr ? [] : safeArray(mineRes);
+  const pub = publicErr ? [] : safeArray(publicRes);
+  return mergeCollectionsMineFirst(mine, pub);
 }
 
 /* ─────────────────────────────────────────────────────────────────── */
@@ -254,6 +290,7 @@ export const CollectionsScreen = ({ navigation }) => {
   const closeMenu = () => setMenuFor(null);
 
   const handleEdit = (id) => {
+    if (!menuFor || !isCollectionOwner(menuFor, userId)) return;
     navigation.navigate('CreateCollection', { id, mode: 'edit' });
   };
 
@@ -262,6 +299,7 @@ export const CollectionsScreen = ({ navigation }) => {
   };
 
   const handleDelete = async (id) => {
+    if (!menuFor || !isCollectionOwner(menuFor, userId)) return;
     // Optimistic removal — pop from cache, roll back on error.
     const snapshot = collections;
     queryClient.setQueryData(
@@ -314,8 +352,17 @@ export const CollectionsScreen = ({ navigation }) => {
             onPress={() =>
               navigation.navigate('CollectionDetail', { id: item.id })
             }
-            onLongPress={() => openMenu(item)}
-            onMenuPress={() => openMenu(item)}
+            onLongPress={
+              isCollectionOwner(item, userId)
+                ? () => openMenu(item)
+                : undefined
+            }
+            onMenuPress={
+              isCollectionOwner(item, userId)
+                ? () => openMenu(item)
+                : undefined
+            }
+            canShowMenu={isCollectionOwner(item, userId)}
           />
         )}
         contentContainerStyle={styles.listContent}
@@ -425,6 +472,7 @@ export const CollectionsScreen = ({ navigation }) => {
       <CollectionMenuSheet
         visible={!!menuFor}
         collection={menuFor}
+        isOwner={isCollectionOwner(menuFor, userId)}
         onClose={closeMenu}
         onEdit={handleEdit}
         onShare={handleShare}

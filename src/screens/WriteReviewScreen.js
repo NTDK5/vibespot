@@ -8,7 +8,7 @@
  *               > 0 AND text.length >= 30)
  *   place-card  thumb + spot title + mono meta (NO. XX · CAT · DISTR)
  *   rate        5 round star buttons + rate-result word
- *   words       bare serif textarea (placeholder italic) + char count
+ *   words       bare DM Sans textarea + char count
  *   photos      h-scroll of 80×80 tiles + two dashed add tiles
  *   tags        wrap of toggleable Pills (from vibes.service or static
  *               fallback)
@@ -703,13 +703,13 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   rateNumSmall: {
-    fontFamily: fieldGuide.fonts.serif,
+    fontFamily: fieldGuide.fonts.display,
     fontSize: 14,
     color: fieldGuide.creamMute,
   },
   rateWord: {
     marginTop: 4,
-    fontFamily: fieldGuide.fonts.serifItalic,
+    fontFamily: fieldGuide.fonts.sansMedium,
     fontSize: 14,
     color: fieldGuide.emberSoft,
   },
@@ -731,7 +731,7 @@ const styles = StyleSheet.create({
   textarea: {
     width: '100%',
     minHeight: 120,
-    fontFamily: fieldGuide.fonts.serif,
+    fontFamily: fieldGuide.fonts.sans,
     fontSize: 17,
     lineHeight: 26,
     color: fieldGuide.cream,

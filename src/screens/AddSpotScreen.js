@@ -55,7 +55,7 @@ const STEPS = [
   {
     kicker: 'Step 01 · Basics',
     title: 'Start with the story',
-    subtitle: 'Give readers a name and enough detail to know why they should go.',
+    subtitle: 'Give explorers a name and enough detail to know why they should go.',
   },
   {
     kicker: 'Step 02 · Category & price',
@@ -75,7 +75,7 @@ const STEPS = [
   },
   {
     kicker: 'Step 05 · Contact & social',
-    title: 'How do readers reach them?',
+    title: 'How do explorers reach them?',
     subtitle: 'All optional. Only add what you would trust on a printed map.',
   },
   {

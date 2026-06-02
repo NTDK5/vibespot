@@ -156,7 +156,7 @@ export default function CompassDial({
               y={l.y}
               fill={ringColor}
               fillOpacity={0.7}
-              fontFamily={fieldGuide.fonts.serifItalic}
+              fontFamily={fieldGuide.fonts.mono}
               fontSize={14}
               textAnchor="middle"
             >

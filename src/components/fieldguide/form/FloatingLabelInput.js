@@ -1,5 +1,5 @@
 /**
- * FloatingLabelInput — mono label above a serif text input with a
+ * FloatingLabelInput — mono label above a DM Sans text input with a
  * hairline underline that switches to ember on focus and rose on error.
  *
  * CSS ref: .field / .field-label / .field input (css_app.css L362-400)
@@ -10,7 +10,7 @@
  *   label: string
  *   value: string
  *   onChangeText: (v: string) => void
- *   placeholder?: string             italic + faint, per CSS
+ *   placeholder?: string             faint mono-style hint
  *   error?: string                   rose underline + rose mono caption
  *   multiline?: boolean
  *   keyboardType?, autoCapitalize?, secureTextEntry?, autoCorrect?,
@@ -73,11 +73,6 @@ export default function FloatingLabelInput({
           multiline ? styles.multiline : null,
           {
             borderBottomColor: underlineColor,
-            // Italic placeholders: RN doesn't expose a placeholder-specific
-            // font style, so we render the input itself with the serif
-            // family. When empty + unfocused we swap to italic to mimic
-            // the CSS placeholder rule.
-            fontStyle: !value && !focused && placeholder ? 'italic' : 'normal',
           },
           inputStyle,
         ]}
@@ -98,7 +93,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 0,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    fontFamily: fieldGuide.fonts.serif,
+    fontFamily: fieldGuide.fonts.sans,
     fontSize: 18,
     color: fieldGuide.cream,
     width: '100%',

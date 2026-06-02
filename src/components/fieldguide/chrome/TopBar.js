@@ -6,7 +6,7 @@
  * `transparent` is set).
  *
  * Props:
- *   title?: string                                Fraunces 500 / 22 / -0.01em
+ *   title?: string                                Syne 700 / 22 / -0.01em
  *   left?: 'back' | 'close' | ReactNode           icon button
  *   right?: ReactNode | ReactNode[]               one or more icon buttons
  *   transparent?: boolean                         no background / hero overlay

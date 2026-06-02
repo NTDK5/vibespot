@@ -132,14 +132,6 @@ function priceSymbol(spot) {
   return null;
 }
 
-function splitTitle(title) {
-  if (!title || typeof title !== 'string') return [title || '', ''];
-  const t = title.trim();
-  if (t.length <= 12 || !t.includes(' ')) return [t, ''];
-  const last = t.lastIndexOf(' ');
-  return [t.slice(0, last), t.slice(last + 1)];
-}
-
 function spotImages(spot) {
   const imgs = Array.isArray(spot?.images) ? spot.images.filter(Boolean) : [];
   if (imgs.length) return imgs;
@@ -156,6 +148,14 @@ function topVibesString(vibes) {
     .map((v) => String(v?.name || v?.label || v?.id || '').toUpperCase())
     .filter(Boolean)
     .join(' · ');
+}
+
+function pickSocialField(spot, keys = []) {
+  for (const key of keys) {
+    const value = spot?.[key];
+    if (value != null && String(value).trim() !== '') return String(value).trim();
+  }
+  return null;
 }
 
 /* ─────────────────────────────────────────────────────────────────── */
@@ -387,7 +387,10 @@ export const SpotDetailScreen = ({ navigation, route }) => {
     setVisitBusy(true);
     setVisited(true);
     try {
-      const result = await markSpotAsVisited(spotId);
+      const result = await markSpotAsVisited(spotId, {
+        lat: userLocation?.latitude,
+        lng: userLocation?.longitude,
+      });
       if (result?.error) throw new Error(result.error);
       toast.show("Stamped · you've been here.", { variant: 'success' });
     } catch (err) {
@@ -451,14 +454,20 @@ export const SpotDetailScreen = ({ navigation, route }) => {
   const idxLabel = `NO. ${zeroPad(indexForSpot(spot, 0), 3)}`;
   const status = openStatus(spot);
   const price = priceSymbol(spot);
-  const [titleLead, titleTail] = splitTitle(spot.title);
   const vibe = vibeForCategory(spot.category);
   const todayKey = DAY_KEYS[new Date().getDay()];
   const vibeSummary = topVibesString(spotVibes);
-  const avgRating = Number(spot.averageRating ?? spot.rating ?? 0);
+  const avgRating = Number(spot.ratingAvg ?? spot.averageRating ?? spot.rating ?? 0);
+  const reviewsTotalFromMeta = Number(reviewsPayload?.meta?.total ?? 0);
   const reviewCount = Number(
-    spot.reviewCount ?? spot.commentCount ?? reviews.length ?? 0,
+    spot.ratingCount ??
+      spot.reviewCount ??
+      spot.commentCount ??
+      reviewsTotalFromMeta ??
+      reviews.length ??
+      0,
   );
+  const bestTimeValue = spot.bestTime || spot.best_visit_time || null;
 
   /* ── render ─────────────────────────────────────────────────────── */
   return (
@@ -509,21 +518,6 @@ export const SpotDetailScreen = ({ navigation, route }) => {
             style={StyleSheet.absoluteFill}
             pointerEvents="none"
           />
-
-          {/* hero-meta */}
-          <View
-            style={[
-              styles.heroMeta,
-              { top: insets.top + 16 },
-            ]}
-            pointerEvents="none"
-          >
-            <Text style={styles.heroMetaText}>
-              {[idxLabel, spot.championWeek != null ? `CHAMPION WEEK ${spot.championWeek}` : null]
-                .filter(Boolean)
-                .join(' · ')}
-            </Text>
-          </View>
 
           {/* nav-top */}
           <View
@@ -595,11 +589,13 @@ export const SpotDetailScreen = ({ navigation, route }) => {
               : ''}
           </Text>
           <DisplayTitle
-            size="xl"
+            size="lg"
             weight="400"
+            numberOfLines={2}
+            adjustsFontSizeToFit
             style={{ marginTop: 8 }}
           >
-            {titleTail ? `${titleLead}\n${titleTail}` : titleLead}
+            {spot.title}
           </DisplayTitle>
           <View style={styles.titleMeta}>
             <Text style={styles.titleMetaStrong}>
@@ -637,24 +633,24 @@ export const SpotDetailScreen = ({ navigation, route }) => {
         </View>
 
         {/* RATING ROW */}
-        <View style={styles.ratingRow}>
-          <View>
-            <Text style={styles.ratingBig}>
-              {avgRating > 0 ? avgRating.toFixed(1) : '—'}
-              <Text style={styles.ratingSmall}>/5</Text>
-            </Text>
-            <MonoMeta size="spot" style={{ marginTop: 4 }}>
-              {`FROM ${reviewCount} REVIEW${reviewCount === 1 ? '' : 'S'}`}
-            </MonoMeta>
-          </View>
-          <View style={styles.ratingRight}>
-            <RatingDots value={avgRating || 0} showNumber={false} size="md" />
-            {vibeSummary ? (
-              <MonoMeta size="spot" style={styles.vibeLine}>
-                {vibeSummary}
+        <View style={styles.ratingBlock}>
+          <View style={styles.ratingRow}>
+            <View style={styles.ratingLeft}>
+              <Text style={styles.ratingBig}>
+                {(avgRating > 0 ? avgRating : 0).toFixed(1)}
+                <Text style={styles.ratingSmall}>/5</Text>
+              </Text>
+              <MonoMeta size="spot" style={{ marginTop: 4 }}>
+                {`FROM ${reviewCount} REVIEW${reviewCount === 1 ? '' : 'S'}`}
               </MonoMeta>
-            ) : null}
+            </View>
+            <RatingDots value={avgRating || 0} showNumber={false} size="md" />
           </View>
+          {vibeSummary ? (
+            <MonoMeta size="spot" style={styles.vibeLine}>
+              {vibeSummary}
+            </MonoMeta>
+          ) : null}
         </View>
 
         {/* ACTIONS */}
@@ -702,6 +698,11 @@ export const SpotDetailScreen = ({ navigation, route }) => {
         <View style={styles.section}>
           <MonoMeta size="eyebrow">Hours · This week</MonoMeta>
           <Text style={styles.sectionTitle}>When to come</Text>
+          {bestTimeValue ? (
+            <Text style={styles.bestTimeNote}>{`Best time: ${bestTimeValue}`}</Text>
+          ) : (
+            <Text style={styles.bestTimeNoteMuted}>No best-time note yet.</Text>
+          )}
           {spot.hours ? (
             <View style={{ marginTop: 14 }}>
               <HourBarChart hours={spot.hours} today={todayKey} />
@@ -762,7 +763,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
               <EmptyState
                 title="Be the first to leave a stamp."
                 italic="first"
-                body="A short, honest note helps the next reader figure out if this is their kind of place."
+                body="A short, honest note helps the next explorer figure out if this is their kind of place."
                 cta={{
                   label: 'Write a review',
                   onPress: () => navigation.navigate('WriteReview', { spotId }),
@@ -935,6 +936,13 @@ function StoryBlock({ description }) {
 /* ─────────────────────────────────────────────────────────────────── */
 
 function ContactList({ spot, onOpen, onMaps }) {
+  const website = pickSocialField(spot, ['website', 'websiteUrl', 'siteUrl']);
+  const instagram = pickSocialField(spot, ['instagram', 'instagramUrl', 'ig']);
+  const facebook = pickSocialField(spot, ['facebook', 'facebookUrl']);
+  const twitter = pickSocialField(spot, ['twitter', 'twitterUrl', 'x', 'xUrl']);
+  const phone = pickSocialField(spot, ['phone', 'ownerPhone']);
+  const email = pickSocialField(spot, ['email', 'ownerContact']);
+
   const rows = [
     spot.address && {
       icon: 'location-outline',
@@ -942,55 +950,55 @@ function ContactList({ spot, onOpen, onMaps }) {
       value: spot.address,
       onPress: onMaps,
     },
-    spot.website && {
+    website && {
       icon: 'globe-outline',
       label: 'Website',
-      value: String(spot.website).replace(/^https?:\/\//, ''),
+      value: String(website).replace(/^https?:\/\//, ''),
       onPress: () =>
         onOpen(
-          spot.website.startsWith('http')
-            ? spot.website
-            : `https://${spot.website}`,
+          website.startsWith('http')
+            ? website
+            : `https://${website}`,
         ),
     },
-    spot.instagram && {
+    instagram && {
       icon: 'logo-instagram',
       label: 'Instagram',
-      value: spot.instagram.startsWith('@')
-        ? spot.instagram
-        : `@${spot.instagram}`,
+      value: instagram.startsWith('@')
+        ? instagram
+        : `@${instagram}`,
       onPress: () =>
         onOpen(
-          `https://instagram.com/${String(spot.instagram).replace('@', '')}`,
+          `https://instagram.com/${String(instagram).replace('@', '')}`,
         ),
     },
-    spot.facebook && {
+    facebook && {
       icon: 'logo-facebook',
       label: 'Facebook',
-      value: spot.facebook,
+      value: facebook,
       onPress: () =>
-        onOpen(`https://facebook.com/${String(spot.facebook).replace('@', '')}`),
+        onOpen(`https://facebook.com/${String(facebook).replace('@', '')}`),
     },
-    spot.twitter && {
+    twitter && {
       icon: 'logo-twitter',
       label: 'Twitter',
-      value: spot.twitter.startsWith('@')
-        ? spot.twitter
-        : `@${spot.twitter}`,
+      value: twitter.startsWith('@')
+        ? twitter
+        : `@${twitter}`,
       onPress: () =>
-        onOpen(`https://twitter.com/${String(spot.twitter).replace('@', '')}`),
+        onOpen(`https://twitter.com/${String(twitter).replace('@', '')}`),
     },
-    spot.phone && {
+    phone && {
       icon: 'call-outline',
       label: 'Phone',
-      value: spot.phone,
-      onPress: () => onOpen(`tel:${String(spot.phone).replace(/\s+/g, '')}`),
+      value: phone,
+      onPress: () => onOpen(`tel:${String(phone).replace(/\s+/g, '')}`),
     },
-    spot.email && {
+    email && {
       icon: 'mail-outline',
       label: 'Email',
-      value: spot.email,
-      onPress: () => onOpen(`mailto:${spot.email}`),
+      value: email,
+      onPress: () => onOpen(`mailto:${email}`),
     },
   ].filter(Boolean);
 
@@ -1045,20 +1053,6 @@ const styles = StyleSheet.create({
   heroImage: {
     width: '100%',
     height: '100%',
-  },
-  heroMeta: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 9,
-  },
-  heroMetaText: {
-    fontFamily: fieldGuide.fonts.mono,
-    fontSize: 9.5,
-    letterSpacing: fieldGuide.tracking.widest(9.5),
-    color: 'rgba(244,239,230,0.7)',
-    textTransform: 'uppercase',
   },
   navTop: {
     position: 'absolute',
@@ -1167,36 +1161,39 @@ const styles = StyleSheet.create({
   },
 
   /* rating row */
-  ratingRow: {
+  ratingBlock: {
     marginTop: 18,
     paddingHorizontal: 22,
     paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: fieldGuide.inkLine,
   },
+  ratingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  ratingLeft: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
   ratingBig: {
-    fontFamily: fieldGuide.fonts.serifMedium,
+    fontFamily: fieldGuide.fonts.displayHeavy,
     fontSize: 36,
-    lineHeight: 36,
+    lineHeight: 42,
     color: fieldGuide.cream,
     letterSpacing: -0.02 * 36,
     includeFontPadding: false,
   },
   ratingSmall: {
-    fontFamily: fieldGuide.fonts.serif,
+    fontFamily: fieldGuide.fonts.display,
     fontSize: 14,
     color: fieldGuide.creamMute,
   },
-  ratingRight: {
-    alignItems: 'flex-end',
-    gap: 6,
-  },
   vibeLine: {
-    marginTop: 2,
+    marginTop: 12,
+    lineHeight: 16,
   },
 
   /* actions */
@@ -1266,6 +1263,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: fieldGuide.creamMute,
     lineHeight: 22,
+  },
+  bestTimeNote: {
+    marginTop: 10,
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 13.5,
+    color: fieldGuide.creamSoft,
+    lineHeight: 20,
+  },
+  bestTimeNoteMuted: {
+    marginTop: 10,
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 13,
+    color: fieldGuide.creamMute,
+    lineHeight: 19,
   },
 
   /* location */

@@ -15,9 +15,14 @@ export const getVisitedSpots = async () => {
 // ----------------------------
 // Mark Spot as Visited
 // ----------------------------
-export const markSpotAsVisited = async (spotId) => {
+export const markSpotAsVisited = async (spotId, coords = null) => {
   try {
-    const response = await api.post("/user/me/visited-spots", { spotId });
+    const payload = {
+      spotId,
+      lat: coords?.lat,
+      lng: coords?.lng,
+    };
+    const response = await api.post("/user/me/visited-spots", payload);
     return response.data;
   } catch (err) {
     return { error: err.response?.data?.message || "Failed to mark spot as visited" };

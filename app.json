@@ -25,6 +25,7 @@
         "foregroundImage": "./assets/adaptive-icon-foreground.png",
         "backgroundColor": "#14161D"
       },
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.fena.app",
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",

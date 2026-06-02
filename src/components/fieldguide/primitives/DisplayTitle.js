@@ -1,17 +1,18 @@
 /**
- * DisplayTitle — Fraunces serif title with an optional italicized
- * emphasis span (the "Evening, *Oliver.*" construction).
+ * DisplayTitle — Syne display headline with optional ember accent span.
  *
- * CSS ref: .greeting / .display / .spot-name (L107-114, L497-503) and
- * the heroic title block in screens/13-spot-detail.html L81-85.
+ * Replaces the former Fraunces serif + italic emphasis pattern.
+ * Emphasis is rendered in emberSoft at normal weight, not serif italic.
  *
  * Props:
  *   children: string                       full title text
- *   italic?: string                        substring to render italic
+ *   italic?: string                        substring to accent (ember color)
  *   size?: 'sm'|'md'|'lg'|'xl'|'hero'      14 / 22 / 28 / 36 / 42
- *   weight?: '300'|'400'|'500'|'700'       maps to Fraunces variant
+ *   weight?: '300'|'400'|'500'|'700'       maps to Syne 700; 700 → Syne 800
  *   color?: string                         default cream
  *   italicColor?: string                   default emberSoft
+ *   numberOfLines?: number                 clamp lines (wrap rather than grow)
+ *   adjustsFontSizeToFit?: boolean         shrink to fit numberOfLines
  *   style?: TextStyle
  */
 
@@ -20,14 +21,16 @@ import { StyleSheet, Text } from 'react-native';
 import fieldGuide from '../../../theme/fieldGuide';
 
 const SIZE_FS = { sm: 14, md: 22, lg: 28, xl: 36, hero: 42 };
-// 1.05 line-height per .greeting / .body h3 in css_app.css
-const SIZE_LH = { sm: 18, md: 26, lg: 32, xl: 38, hero: 44 };
+// Syne is a tall geometric face: descenders (g, p, y, j, q) sit lower
+// than Fraunces did, so line-heights run ~1.3× the font size and the
+// base style keeps a touch of bottom padding to stop Android clipping.
+const SIZE_LH = { sm: 20, md: 30, lg: 38, xl: 48, hero: 56 };
 
 const WEIGHT_FAMILY = {
-  '300': fieldGuide.fonts.serifLight,
-  '400': fieldGuide.fonts.serif,
-  '500': fieldGuide.fonts.serifMedium,
-  '700': fieldGuide.fonts.serifBold,
+  '300': fieldGuide.fonts.display,
+  '400': fieldGuide.fonts.display,
+  '500': fieldGuide.fonts.display,
+  '700': fieldGuide.fonts.displayHeavy,
 };
 
 export default function DisplayTitle({
@@ -37,6 +40,8 @@ export default function DisplayTitle({
   weight = '400',
   color,
   italicColor,
+  numberOfLines,
+  adjustsFontSizeToFit,
   style,
 }) {
   const fs = SIZE_FS[size] || SIZE_FS.lg;
@@ -55,23 +60,36 @@ export default function DisplayTitle({
     color: fill,
   };
 
+  const extraProps = {
+    ...(numberOfLines ? { numberOfLines } : null),
+    ...(adjustsFontSizeToFit ? { adjustsFontSizeToFit, minimumFontScale: 0.7 } : null),
+  };
+
   if (!italic || typeof children !== 'string') {
-    return <Text style={[styles.base, baseStyle, style]}>{children}</Text>;
+    return (
+      <Text style={[styles.base, baseStyle, style]} {...extraProps}>
+        {children}
+      </Text>
+    );
   }
 
   const text = children;
   const idx = text.indexOf(italic);
   if (idx === -1) {
-    return <Text style={[styles.base, baseStyle, style]}>{text}</Text>;
+    return (
+      <Text style={[styles.base, baseStyle, style]} {...extraProps}>
+        {text}
+      </Text>
+    );
   }
   const prefix = text.slice(0, idx);
   const middle = text.slice(idx, idx + italic.length);
   const suffix = text.slice(idx + italic.length);
 
   return (
-    <Text style={[styles.base, baseStyle, style]}>
+    <Text style={[styles.base, baseStyle, style]} {...extraProps}>
       {prefix}
-      <Text style={{ fontFamily: fieldGuide.fonts.serifItalic, color: emFill }}>
+      <Text style={{ fontFamily: family, color: emFill, fontStyle: 'normal' }}>
         {middle}
       </Text>
       {suffix}
@@ -81,6 +99,7 @@ export default function DisplayTitle({
 
 const styles = StyleSheet.create({
   base: {
-    includeFontPadding: false,
+    includeFontPadding: true,
+    paddingBottom: 2,
   },
 });

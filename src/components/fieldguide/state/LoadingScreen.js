@@ -2,7 +2,7 @@
  * LoadingScreen — full-screen ink "reading the room" loader.
  *
  * Source: screens/24-loading.html. Centered CompassDial that both
- * spins and breathes; a Fraunces italic message below. A faint
+ * spins and breathes; a DM Sans message below. A faint
  * skeleton row of `SpotCard`-shaped placeholders sits behind the
  * dial to hint "the page is on its way."
  *
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   },
   msg: {
     marginTop: 22,
-    fontFamily: fieldGuide.fonts.serifItalic,
+    fontFamily: fieldGuide.fonts.sans,
     fontSize: 18,
     color: fieldGuide.cream,
     textAlign: 'center',

@@ -8,17 +8,16 @@
 
 import React, { useState } from 'react';
 import {
-  KeyboardAvoidingView,
   Linking,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
+import AuthKeyboardScroll, {
+  useAuthFieldScroll,
+} from '../components/auth/AuthKeyboardScroll';
 import fieldGuide from '../theme/fieldGuide';
 import {
   DisplayTitle,
@@ -34,14 +33,19 @@ import { isValidEmail } from '../utils/helpers';
 
 import { BRAND } from '../brand/fena';
 
-function ForgotPasswordScreen({ navigation }) {
-  const { requestReset } = useAuth();
+function ForgotPasswordScreenForm({ navigation }) {
+  const { requestReset, resetPassword } = useAuth();
   const toast = useToast();
+  const { registerField, scrollToField } = useAuthFieldScroll();
 
+  // 'request' = enter email; 'reset' = enter code + new password
+  const [step, setStep] = useState('request');
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const submit = async () => {
+  const submitRequest = async () => {
     if (!email.trim()) {
       toast?.show?.('Drop your email above.', { variant: 'error' });
       return;
@@ -54,12 +58,40 @@ function ForgotPasswordScreen({ navigation }) {
     const { ok, error } = await requestReset(email.trim().toLowerCase());
     setBusy(false);
     if (ok) {
-      toast?.show?.('Check your inbox.', { variant: 'success' });
-      navigation.goBack();
+      toast?.show?.('Check your inbox for a 6-digit code.', { variant: 'success' });
+      setStep('reset');
     } else {
-      toast?.show?.(error || 'Could not send reset link.', { variant: 'error' });
+      toast?.show?.(error || 'Could not send reset code.', { variant: 'error' });
     }
   };
+
+  const submitReset = async () => {
+    if (code.trim().length !== 6) {
+      toast?.show?.('Enter the 6-digit code from your email.', { variant: 'error' });
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast?.show?.('Password must be at least 6 characters.', { variant: 'error' });
+      return;
+    }
+    setBusy(true);
+    const { ok, error } = await resetPassword(
+      email.trim().toLowerCase(),
+      code.trim(),
+      newPassword,
+    );
+    setBusy(false);
+    if (ok) {
+      toast?.show?.('Password updated. Sign in with your new password.', {
+        variant: 'success',
+      });
+      navigation.navigate('SignIn');
+    } else {
+      toast?.show?.(error || 'Could not reset password.', { variant: 'error' });
+    }
+  };
+
+  const submit = step === 'request' ? submitRequest : submitReset;
 
   const openMail = () => {
     Linking.openURL(`mailto:${BRAND.supportEmail}`).catch(() => {
@@ -68,48 +100,77 @@ function ForgotPasswordScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <TopBar
-            transparent
-            left="back"
-            onLeftPress={() => navigation.goBack()}
-          />
+    <>
+      <TopBar
+        transparent
+        left="back"
+        onLeftPress={() => navigation.goBack()}
+      />
 
-          <View style={styles.body}>
+      <View style={styles.body}>
             <View style={styles.head}>
               <MonoMeta size="eyebrow" style={styles.eyebrow}>
                 Reset
               </MonoMeta>
-              <DisplayTitle size="lg">Lost your way back in?</DisplayTitle>
+              <DisplayTitle size="lg">
+                {step === 'request' ? 'Lost your way back in?' : 'Set a new password.'}
+              </DisplayTitle>
               <Text style={styles.lede}>
-                Drop your email. We'll send you a one-time link to set a new
-                password.
+                {step === 'request'
+                  ? "Drop your email. We'll send you a one-time code to set a new password."
+                  : `Enter the 6-digit code we sent to ${email.trim().toLowerCase()} and choose a new password.`}
               </Text>
             </View>
 
-            <View style={styles.form}>
-              <FloatingLabelInput
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-                placeholder="you@somewhere.co"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                autoCorrect={false}
-                returnKeyType="send"
-                onSubmitEditing={submit}
-              />
-            </View>
+            {step === 'request' ? (
+              <View style={styles.form}>
+                <View ref={registerField('email')} collapsable={false}>
+                  <FloatingLabelInput
+                    label="Email"
+                    value={email}
+                    onChangeText={setEmail}
+                    onFocus={scrollToField('email')}
+                    placeholder="you@somewhere.co"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    autoCorrect={false}
+                    returnKeyType="send"
+                    onSubmitEditing={submit}
+                  />
+                </View>
+              </View>
+            ) : (
+              <View style={styles.form}>
+                <View ref={registerField('code')} collapsable={false}>
+                  <FloatingLabelInput
+                    label="6-digit code"
+                    value={code}
+                    onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 6))}
+                    onFocus={scrollToField('code')}
+                    placeholder="123456"
+                    keyboardType="number-pad"
+                    autoComplete="one-time-code"
+                    textContentType="oneTimeCode"
+                    returnKeyType="next"
+                  />
+                </View>
+                <View ref={registerField('newPassword')} collapsable={false}>
+                  <FloatingLabelInput
+                    label="New password"
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    onFocus={scrollToField('newPassword')}
+                    placeholder="Make it a good one"
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoComplete="password-new"
+                    returnKeyType="send"
+                    onSubmitEditing={submit}
+                  />
+                </View>
+              </View>
+            )}
 
             <View style={styles.actions}>
               <EditorialButton
@@ -118,8 +179,17 @@ function ForgotPasswordScreen({ navigation }) {
                 loading={busy}
                 onPress={submit}
               >
-                Send reset link
+                {step === 'request' ? 'Send reset code' : 'Update password'}
               </EditorialButton>
+              {step === 'reset' ? (
+                <EditorialButton
+                  variant="ghost"
+                  block
+                  onPress={() => setStep('request')}
+                >
+                  Use a different email
+                </EditorialButton>
+              ) : null}
             </View>
 
             <View style={styles.helpCard}>
@@ -143,24 +213,22 @@ function ForgotPasswordScreen({ navigation }) {
                 </View>
               </View>
             </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </View>
+    </>
+  );
+}
+
+function ForgotPasswordScreen({ navigation }) {
+  return (
+    <AuthKeyboardScroll>
+      <ForgotPasswordScreenForm navigation={navigation} />
+    </AuthKeyboardScroll>
   );
 }
 
 export default ForgotPasswordScreen;
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: fieldGuide.ink,
-  },
-  flex: { flex: 1 },
-  scroll: {
-    flexGrow: 1,
-  },
   body: {
     flex: 1,
     paddingHorizontal: 22,
@@ -186,6 +254,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     marginBottom: 24,
+    gap: 12,
   },
   helpCard: {
     marginTop: 'auto',

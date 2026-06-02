@@ -58,7 +58,7 @@ const PAGES = [
   },
   {
     vibe: 'park',
-    kicker: 'The Reader',
+    kicker: 'The Explorer',
     title: 'Made for the kind',
     italic: "of day you'd want to spend.",
     body:
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   indexBig: {
-    fontFamily: fieldGuide.fonts.serifLight,
+    fontFamily: fieldGuide.fonts.displayHeavy,
     fontSize: 120,
     lineHeight: Math.round(120 * 0.85),
     letterSpacing: -0.04 * 120,

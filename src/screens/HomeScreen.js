@@ -36,7 +36,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets as useSafeAreaInsetsHook } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import fieldGuide from '../theme/fieldGuide';
@@ -71,7 +71,6 @@ import { CATEGORIES } from '../utils/constants';
 import { logger } from '../utils/logger';
 import {
   formatShortDate,
-  formatVolumeIssue,
 } from '../utils/issueDate';
 import { distanceKmFromUser, formatMiles } from '../utils/geo';
 
@@ -128,14 +127,24 @@ function getDailyLine(date = new Date()) {
 }
 
 function getFirstName(user) {
-  if (!user?.name || typeof user.name !== 'string') return 'reader';
+  if (!user?.name || typeof user.name !== 'string') return 'explorer';
   const first = user.name.trim().split(/\s+/)[0];
-  return first || 'reader';
+  return first || 'explorer';
 }
 
 function prettyCategory(category) {
   if (!category) return '';
   return String(category).replace(/_/g, ' ');
+}
+
+function pickImageUri(value) {
+  if (!value) return null;
+  if (typeof value === 'string') return value.trim() || null;
+  if (typeof value === 'object') {
+    const candidate = value.uri || value.url || value.secure_url || value.src;
+    if (typeof candidate === 'string') return candidate.trim() || null;
+  }
+  return null;
 }
 
 // Defensive accessor for trending rows. The /weeklyspotrank endpoint
@@ -340,7 +349,10 @@ function ChampionSkeleton() {
 
 export const HomeScreen = ({ navigation }) => {
   const { user } = useAuth();
-  const insets = useSafeAreaInsets();
+  const insets =
+    typeof useSafeAreaInsetsHook === 'function'
+      ? useSafeAreaInsetsHook()
+      : { top: 0, bottom: 0, left: 0, right: 0 };
   const { location } = useLocation();
 
   // Warm the personalized-spots cache so downstream screens (Explore,
@@ -380,10 +392,13 @@ export const HomeScreen = ({ navigation }) => {
     }
   }, []);
 
-  const loadNearby = useCallback(async () => {
-    if (!location) return;
+  const locationLat = location?.latitude ?? null;
+  const locationLng = location?.longitude ?? null;
+
+  const loadNearby = useCallback(async (lat, lng) => {
+    if (lat == null || lng == null) return;
     try {
-      const result = await getNearbySpots(location.latitude, location.longitude, 5000);
+      const result = await getNearbySpots(lat, lng, 5000);
       if (Array.isArray(result)) setNearbySpots(result);
     } catch (error) {
       logger.error({
@@ -393,7 +408,7 @@ export const HomeScreen = ({ navigation }) => {
         metadata: { error: error?.message || String(error) },
       });
     }
-  }, [location]);
+  }, []);
 
   const loadWeeklyRanks = useCallback(async () => {
     try {
@@ -493,8 +508,10 @@ export const HomeScreen = ({ navigation }) => {
   }, [loadSpots, loadWeeklyRanks, loadEditorsPicks, loadWeeklyChampion, loadStats]);
 
   useEffect(() => {
-    if (location) loadNearby();
-  }, [location, loadNearby]);
+    if (locationLat != null && locationLng != null) {
+      loadNearby(locationLat, locationLng);
+    }
+  }, [locationLat, locationLng, loadNearby]);
 
   useEffect(() => {
     setStats((s) => ({ ...s, nearbyCount: nearbySpots.length }));
@@ -509,12 +526,23 @@ export const HomeScreen = ({ navigation }) => {
         loadEditorsPicks(),
         loadWeeklyChampion(),
         loadStats(),
-        location ? loadNearby() : Promise.resolve(),
+        locationLat != null && locationLng != null
+          ? loadNearby(locationLat, locationLng)
+          : Promise.resolve(),
       ]);
     } finally {
       setRefreshing(false);
     }
-  }, [loadSpots, loadWeeklyRanks, loadEditorsPicks, loadWeeklyChampion, loadStats, loadNearby, location]);
+  }, [
+    loadSpots,
+    loadWeeklyRanks,
+    loadEditorsPicks,
+    loadWeeklyChampion,
+    loadStats,
+    loadNearby,
+    locationLat,
+    locationLng,
+  ]);
 
   /* ── derived ─────────────────────────────────────────────────── */
 
@@ -522,7 +550,6 @@ export const HomeScreen = ({ navigation }) => {
   const homeCity = user?.homeCity || 'Lisbon';
   const timeGreeting = useMemo(() => getTimeGreeting(), []);
   const editorialLine = useMemo(() => getDailyLine(), []);
-  const issueLine = useMemo(() => formatVolumeIssue(), []);
   const { dayName, dayNum, monShort } = useMemo(() => formatShortDate(), []);
 
   const greetingText = `${timeGreeting}, ${userFirstName}.\n${editorialLine}`;
@@ -552,6 +579,17 @@ export const HomeScreen = ({ navigation }) => {
   const championProps = useMemo(() => {
     if (!weeklyChampion) return null;
     const distanceKm = distanceKmFromUser(location, weeklyChampion);
+    const championImages = [];
+    const pushImage = (value) => {
+      const uri = pickImageUri(value);
+      if (uri) championImages.push(uri);
+    };
+    pushImage(weeklyChampion.thumbnail);
+    pushImage(weeklyChampion.image);
+    pushImage(weeklyChampion.coverImage);
+    if (Array.isArray(weeklyChampion.images)) {
+      weeklyChampion.images.forEach(pushImage);
+    }
     return {
       id: weeklyChampion.id,
       title: weeklyChampion.title || weeklyChampion.name || 'This week\'s champion',
@@ -570,6 +608,7 @@ export const HomeScreen = ({ navigation }) => {
         weeklyChampion.city ||
         undefined,
       distance: distanceKm != null ? formatMiles(distanceKm) : undefined,
+      images: [...new Set(championImages)],
     };
   }, [weeklyChampion, location]);
 
@@ -690,7 +729,6 @@ export const HomeScreen = ({ navigation }) => {
               </Text>
             </View>
             <View style={styles.mastVolWrap}>
-              <Text style={styles.mastVolText}>{issueLine}</Text>
               <Text style={styles.mastVolText}>
                 {`${dayName} · ${dayNum} ${monShort}`}
               </Text>
@@ -908,9 +946,9 @@ const styles = StyleSheet.create({
   statNumber: {
     fontFamily: fieldGuide.fonts.serifMedium,
     fontSize: 26,
-    lineHeight: 28,
+    lineHeight: 32,
     color: fieldGuide.cream,
-    includeFontPadding: false,
+    includeFontPadding: true,
   },
   statIndicator: {
     marginLeft: 4,
@@ -969,11 +1007,11 @@ const styles = StyleSheet.create({
   trendNumber: {
     width: 36,
     textAlign: 'center',
-    fontFamily: fieldGuide.fonts.serifLight,
+    fontFamily: fieldGuide.fonts.displayHeavy,
     fontSize: 36,
-    lineHeight: 36,
+    lineHeight: 43,
     letterSpacing: -0.03 * 36,
-    includeFontPadding: false,
+    includeFontPadding: true,
   },
   trendThumb: {
     width: 72,
@@ -1063,10 +1101,10 @@ const styles = StyleSheet.create({
   moodName: {
     fontFamily: fieldGuide.fonts.serifMedium,
     fontSize: 17,
-    lineHeight: 20,
+    lineHeight: 23,
     letterSpacing: -0.01 * 17,
     color: fieldGuide.cream,
-    includeFontPadding: false,
+    includeFontPadding: true,
   },
   moodCount: {
     marginTop: 2,

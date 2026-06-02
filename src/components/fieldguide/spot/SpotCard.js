@@ -33,7 +33,7 @@ const VARIANT = {
   feature: { width: '100%', aspect: '4/5',   titleSize: 22, fullWidth: true  },
   // 'similar' — 150-wide card used on Spot Detail's "If you liked this"
   // h-scroll (screens/13-spot-detail.html L314-329). Smaller title
-  // (Fraunces 14), same 4/5 photo as the feature card.
+  // (Syne 14), same 4/5 photo as the feature card.
   similar: { width: 150,    aspect: '4/5',   titleSize: 14, fullWidth: false },
 };
 

@@ -10,7 +10,7 @@ export const MOCK_NOTIFICATIONS = [
     id: 'mock-champion',
     type: 'champion',
     unread: true,
-    body: '*Carmine Café* is this week\'s Champion — and you saved it three weeks before it ranked. **Early reader badge unlocked.**',
+    body: '*Carmine Café* is this week\'s Champion — and you saved it three weeks before it ranked. **Early explorer badge unlocked.**',
     createdAt: new Date(Date.now() - 3600000).toISOString(),
     vibe: 'cafe',
   },
@@ -40,7 +40,7 @@ export const MOCK_NOTIFICATIONS = [
     id: 'mock-helpful',
     type: 'review',
     unread: false,
-    body: '**14 readers** found your review of *Carmine Café* helpful.',
+    body: '**14 explorers** found your review of *Carmine Café* helpful.',
     createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
   },
   {

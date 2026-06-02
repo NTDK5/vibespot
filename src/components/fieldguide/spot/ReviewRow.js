@@ -83,7 +83,7 @@ export default function ReviewRow({ review, onPress, style }) {
   // fall back when the field arrives in a future API version.
   const rating = typeof review?.rating === 'number' ? review.rating : 5;
   const text = review?.text || review?.content || '';
-  const name = review?.user?.displayName || review?.user?.name || 'Reader';
+  const name = review?.user?.displayName || review?.user?.name || 'Explorer';
   const when = timeAgo(review?.createdAt || review?.timestamp);
   const place = locationLabel(review?.user);
   const meta = [when, place].filter(Boolean).join(' · ');
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
   },
   body: {
-    fontFamily: fieldGuide.fonts.serifItalic,
+    fontFamily: fieldGuide.fonts.sans,
     fontSize: 13.5,
     lineHeight: 21,
     color: fieldGuide.creamSoft,

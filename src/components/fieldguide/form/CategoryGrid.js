@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   count: {
-    fontFamily: fieldGuide.fonts.serifItalic,
+    fontFamily: fieldGuide.fonts.sans,
     fontSize: 11,
     color: fieldGuide.creamMute,
     includeFontPadding: false,

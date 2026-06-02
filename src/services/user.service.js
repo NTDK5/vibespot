@@ -3,10 +3,20 @@ import api from '../config/axios';
 
 export const profileStorageKey = (userId) => `fena.userProfile.${userId}`;
 
+function normalizePreferences(value) {
+  if (value == null) return {};
+  if (Array.isArray(value)) return { interests: value };
+  if (typeof value === 'object') return value;
+  return {};
+}
+
 export const getMe = async () => {
   try {
     const response = await api.get('/user/me');
-    return response.data;
+    return {
+      ...response.data,
+      preferences: normalizePreferences(response.data?.preferences),
+    };
   } catch (err) {
     return {
       error: err.response?.data?.message || 'Failed to fetch profile',
@@ -17,8 +27,15 @@ export const getMe = async () => {
 
 export const updateMe = async (payload) => {
   try {
-    const response = await api.put('/user/me', payload);
-    return response.data;
+    const normalizedPayload = {
+      ...payload,
+      preferences: normalizePreferences(payload?.preferences),
+    };
+    const response = await api.put('/user/me', normalizedPayload);
+    return {
+      ...response.data,
+      preferences: normalizePreferences(response.data?.preferences ?? normalizedPayload.preferences),
+    };
   } catch (err) {
     return {
       error: err.response?.data?.message || 'Failed to update profile',

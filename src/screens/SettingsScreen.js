@@ -264,9 +264,9 @@ export const SettingsScreen = ({ navigation }) => {
           <>
             <SettingRow
               icon="document-text-outline"
-              title="The Reader's Pact"
+              title="Community Guidelines"
               onPress={() =>
-                toast.show('Reader pact — coming to the web edition.', {
+                toast.show('Community Guidelines — coming soon.', {
                   variant: 'info',
                 })
               }
@@ -324,7 +324,7 @@ export const SettingsScreen = ({ navigation }) => {
 
         <View style={styles.versionFooter}>
           <Text style={styles.wm}>{`${BRAND.name}.`}</Text>
-          <MonoMeta size="kicker">{`VOL. 04 · ${BRAND.name} EDITION`}</MonoMeta>
+          <MonoMeta size="kicker">{`${BRAND.name} · v${appVersion}`}</MonoMeta>
           <MonoMeta size="tab" style={styles.taglineFooter}>
             {BRAND.tagline.toUpperCase()}
           </MonoMeta>

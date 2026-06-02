@@ -5,7 +5,7 @@
  * (css_app.css L591-608)
  *
  * Props:
- *   title: string                               Fraunces 500 / 20 / -0.01em
+ *   title: string                               Syne 700 / 20 / -0.01em
  *   cta?: { label: string, onPress: () => void }   ember mono 10 caps
  *   style?: ViewStyle
  */

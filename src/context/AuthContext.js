@@ -5,6 +5,7 @@ import {
   googleLoginUser,
   registerUser,
   requestPasswordReset,
+  resetPassword as resetPasswordRequest,
   verifyEmailCode,
   resendVerificationCode,
 } from "../services/auth.service";
@@ -233,6 +234,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const resetPassword = async (email, code, newPassword) => {
+    try {
+      await resetPasswordRequest(email, code, newPassword);
+      return { ok: true, error: null };
+    } catch (err) {
+      return {
+        ok: false,
+        error: normalizeAuthError(err, "Could not reset password"),
+      };
+    }
+  };
+
   const verifyEmail = async (code) => {
     if (!pendingVerificationEmail) {
       return { ok: false, error: "No pending email" };
@@ -315,6 +328,7 @@ export const AuthProvider = ({ children }) => {
         updateLocalUser,
         register,
         requestReset,
+        resetPassword,
         verifyEmail,
         resendVerification,
         pendingVerificationEmail,

@@ -99,7 +99,7 @@ export default function FullReviewCard({
   const scoreLabel = `${rating.toFixed(1)}`;
   const photos = getDisplayableReviewPhotos(review);
   const tags = Array.isArray(review?.tags) ? review.tags.filter(Boolean) : [];
-  const name = review?.user?.displayName || review?.user?.name || 'Reader';
+  const name = review?.user?.displayName || review?.user?.name || 'Explorer';
   const palette = avatarColors(review?.user?.id || name);
   const text = review?.text || review?.content || '';
   const when = timeAgo(review?.createdAt || review?.timestamp);
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   body: {
-    fontFamily: fieldGuide.fonts.serif,
+    fontFamily: fieldGuide.fonts.sans,
     fontSize: 14,
     lineHeight: 22,
     color: fieldGuide.creamSoft,

@@ -1,5 +1,5 @@
 /**
- * Dropcap — leading Fraunces capital that hangs alongside the first
+ * Dropcap — leading Syne capital that hangs alongside the first
  * line of body copy. RN has no float, so we lay the row out flex
  * and let the body Text wrap within a flex-1 column.
  *
@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   cap: {
-    fontFamily: fieldGuide.fonts.serif,
+    fontFamily: fieldGuide.fonts.displayHeavy,
     fontSize: CAP_SIZE,
     // 0.85 * 56 ≈ 48 (per spec: tight cap so the body lines next to
     // the letter sit on the same baseline).

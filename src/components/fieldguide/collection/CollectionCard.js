@@ -68,6 +68,13 @@ function deriveVibes(collection) {
   return list;
 }
 
+function deriveImages(collection) {
+  return (collection?.spots || [])
+    .slice(0, 4)
+    .map((s) => s?.thumbnail || s?.spot?.thumbnail || s?.images?.[0] || s?.spot?.images?.[0])
+    .filter(Boolean);
+}
+
 function citySummary(cities, spotCount) {
   if (!spotCount) return 'EMPTY';
   if (!cities.length) return null;
@@ -91,11 +98,13 @@ export default function CollectionCard({
   onPress,
   onLongPress,
   onMenuPress,
+  canShowMenu = true,
   style,
 }) {
   const spotCount = deriveSpotCount(collection);
   const cities = useMemo(() => deriveCities(collection), [collection]);
   const vibes = useMemo(() => deriveVibes(collection), [collection]);
+  const images = useMemo(() => deriveImages(collection), [collection]);
   const extra = Math.max(0, spotCount - 4);
   const cityLabel = citySummary(cities, spotCount);
   const priv = privacyTag(collection);
@@ -117,7 +126,7 @@ export default function CollectionCard({
         style,
       ]}
     >
-      <MosaicCover vibes={vibes} extraCount={extra} />
+      <MosaicCover vibes={vibes} images={images} extraCount={extra} />
 
       <View style={styles.body}>
         <View style={styles.bodyLeft}>
@@ -139,22 +148,24 @@ export default function CollectionCard({
           </View>
         </View>
 
-        <Pressable
-          onPress={onMenuPress || onLongPress}
-          accessibilityRole="button"
-          accessibilityLabel="Collection options"
-          hitSlop={10}
-          style={({ pressed }) => [
-            styles.kebab,
-            { opacity: pressed ? 0.7 : 1 },
-          ]}
-        >
-          <Ionicons
-            name="ellipsis-horizontal"
-            size={14}
-            color={fieldGuide.creamMute}
-          />
-        </Pressable>
+        {canShowMenu ? (
+          <Pressable
+            onPress={onMenuPress || onLongPress}
+            accessibilityRole="button"
+            accessibilityLabel="Collection options"
+            hitSlop={10}
+            style={({ pressed }) => [
+              styles.kebab,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Ionicons
+              name="ellipsis-horizontal"
+              size={14}
+              color={fieldGuide.creamMute}
+            />
+          </Pressable>
+        ) : null}
       </View>
     </Pressable>
   );

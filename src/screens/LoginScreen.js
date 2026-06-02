@@ -7,22 +7,18 @@
  * rebuilt with fieldguide components.
  */
 
-import React, { useEffect, useState } from 'react';
-import * as Google from 'expo-auth-session/providers/google';
-import { makeRedirectUri } from 'expo-auth-session';
+import React, { useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Path } from 'react-native-svg';
 
+import AuthKeyboardScroll, {
+  useAuthFieldScroll,
+} from '../components/auth/AuthKeyboardScroll';
 import fieldGuide from '../theme/fieldGuide';
 import {
   DisplayTitle,
@@ -33,45 +29,22 @@ import {
 } from '../components/fieldguide';
 
 import { BRAND } from '../brand/fena';
-import { FenaLogoLockup } from '../components/brand';
+import { FenaAuthBrandHeader } from '../components/brand';
+import GoogleIcon from '../components/GoogleIcon';
 import { useAuth } from '../hooks/useAuth';
+import { useGoogleAuth } from '../hooks/useGoogleAuth';
 import { useToast } from '../components/ToastProvider';
 import { isValidEmail } from '../utils/helpers';
 
-function GoogleG() {
-  return (
-    <Svg width={18} height={18} viewBox="0 0 24 24">
-      <Path
-        fill={fieldGuide.cream}
-        d="M21.35 11.1H12v3.9h5.42c-.24 1.3-1.7 3.8-5.42 3.8-3.27 0-5.93-2.7-5.93-6s2.66-6 5.93-6c1.86 0 3.1.79 3.81 1.47l2.6-2.5C16.86 4.13 14.65 3 12 3 6.92 3 2.8 7.12 2.8 12.2S6.92 21.4 12 21.4c6.94 0 11.5-4.86 11.5-11.7 0-.8-.08-1.4-.15-2z"
-      />
-    </Svg>
-  );
-}
-
-function LoginScreen({ navigation }) {
-  const { login, loginWithGoogle } = useAuth();
+function LoginScreenForm({ navigation }) {
+  const { login } = useAuth();
   const toast = useToast();
+  const { registerField, scrollToField } = useAuthFieldScroll();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [busyEmail, setBusyEmail] = useState(false);
-  const [busyGoogle, setBusyGoogle] = useState(false);
-
-  // Google Auth Request — preserved from the legacy LoginScreen.
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || 'YOUR_WEB_CLIENT_ID',
-    redirectUri: makeRedirectUri({ scheme: 'fena' }),
-  });
-
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      handleGoogleSignIn(id_token);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [response]);
 
   const showError = (msg) => {
     if (toast?.show) {
@@ -79,14 +52,9 @@ function LoginScreen({ navigation }) {
     }
   };
 
-  const handleGoogleSignIn = async (idToken) => {
-    setBusyGoogle(true);
-    const { error } = await loginWithGoogle(idToken);
-    setBusyGoogle(false);
-    if (error) {
-      showError(error);
-    }
-  };
+  const { request, busyGoogle, signInWithGoogle } = useGoogleAuth({
+    onError: showError,
+  });
 
   const handleEmailLogin = async () => {
     if (!email || !password) {
@@ -106,35 +74,25 @@ function LoginScreen({ navigation }) {
   const canGoBack = !!navigation.canGoBack && navigation.canGoBack();
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {canGoBack ? (
-            <TopBar
-              transparent
-              left="back"
-              onLeftPress={() => navigation.goBack()}
-              style={styles.topbar}
-            />
-          ) : (
-            <View style={styles.topbarSpacer} />
-          )}
+    <>
+      {canGoBack ? (
+        <TopBar
+          transparent
+          left="back"
+          onLeftPress={() => navigation.goBack()}
+          style={styles.topbar}
+        />
+      ) : (
+        <View style={styles.topbarSpacer} />
+      )}
 
-          <View style={styles.body}>
+      <View style={styles.body}>
             <View style={styles.logoWrap}>
-              <FenaLogoLockup width={240} />
+              <FenaAuthBrandHeader markWidth={132} />
             </View>
             <View style={styles.head}>
               <MonoMeta size="eyebrow" style={styles.eyebrow}>
-                Returning Reader
+                Returning Explorer
               </MonoMeta>
               <DisplayTitle size="xl" italic="back.">
                 Welcome back.
@@ -145,23 +103,27 @@ function LoginScreen({ navigation }) {
             </View>
 
             <View style={styles.form}>
-              <FloatingLabelInput
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-                placeholder="you@somewhere.co"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                autoCorrect={false}
-                returnKeyType="next"
-              />
+              <View ref={registerField('email')} collapsable={false}>
+                <FloatingLabelInput
+                  label="Email"
+                  value={email}
+                  onChangeText={setEmail}
+                  onFocus={scrollToField('email')}
+                  placeholder="you@somewhere.co"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                />
+              </View>
 
-              <View>
+              <View ref={registerField('password')} collapsable={false}>
                 <FloatingLabelInput
                   label="Password"
                   value={password}
                   onChangeText={setPassword}
+                  onFocus={scrollToField('password')}
                   placeholder="••••••••••"
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
@@ -220,8 +182,8 @@ function LoginScreen({ navigation }) {
               block
               loading={busyGoogle}
               disabled={!request}
-              onPress={() => promptAsync()}
-              leading={<GoogleG />}
+              onPress={signInWithGoogle}
+              leading={<GoogleIcon />}
               style={styles.googleBtn}
             >
               Continue with Google
@@ -238,26 +200,25 @@ function LoginScreen({ navigation }) {
                 <Text style={styles.footerEmber}>Start your guide</Text>
               </Text>
             </Pressable>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </View>
+    </>
+  );
+}
+
+function LoginScreen({ navigation }) {
+  return (
+    <AuthKeyboardScroll contentContainerStyle={styles.scroll}>
+      <LoginScreenForm navigation={navigation} />
+    </AuthKeyboardScroll>
   );
 }
 
 export default LoginScreen;
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: fieldGuide.ink,
-  },
-  flex: { flex: 1 },
   scroll: {
     flexGrow: 1,
-    justifyContent: 'center',
     paddingTop: 48,
-    paddingBottom: 32,
   },
   topbar: {
     marginBottom: 8,

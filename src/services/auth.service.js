@@ -91,6 +91,23 @@ export const requestPasswordReset = async (email) => {
 };
 
 /**
+ * Complete a password reset: send the emailed code + a new password.
+ * Calls POST /auth/reset-password.
+ */
+export const resetPassword = async (email, code, newPassword) => {
+  try {
+    const response = await api.post("/auth/reset-password", {
+      email,
+      code,
+      newPassword,
+    });
+    return response.data;
+  } catch (err) {
+    throw err;
+  }
+};
+
+/**
  * Verify the 6-digit code emailed to the user after registration.
  *
  * @status untested — backend endpoint may not be implemented yet.

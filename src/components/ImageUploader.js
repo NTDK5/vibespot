@@ -144,7 +144,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 8,
-    fontStyle: 'italic',
   },
 });
 

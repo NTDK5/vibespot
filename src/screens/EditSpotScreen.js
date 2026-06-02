@@ -253,7 +253,7 @@ export const EditSpotScreen = ({ route, navigation }) => {
   const handleDelete = () => {
     Alert.alert(
       'Remove this spot?',
-      'It will disappear from the field guide for all readers.',
+      'It will disappear from the field guide for all explorers.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -349,7 +349,7 @@ export const EditSpotScreen = ({ route, navigation }) => {
             </View>
             <Text style={styles.editorCopy}>
               You are editing as an <Text style={styles.editorBold}>editor</Text>.
-              Changes go live after save. Verified spots stay visible to readers.
+              Changes go live after save. Verified spots stay visible to explorers.
             </Text>
           </View>
 

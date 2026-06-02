@@ -14,6 +14,29 @@ A mobile app for discovering and reviewing amazing spots around you.
 - 📸 **Image Upload**: Multiple image support for spots and reviews
 - 🔄 **Offline Support**: Firestore local caching enabled
 
+## Environment variables
+
+Create a `.env` (Expo reads `EXPO_PUBLIC_*` vars at build time):
+
+```
+# API base URL (used by src/config/axios.js)
+EXPO_PUBLIC_API_URL=http://localhost:5000/api
+
+# Google OAuth (expo-auth-session). Web client ID is required; the
+# platform-specific IDs are optional but recommended for native builds.
+EXPO_PUBLIC_GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com         # web client id
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=xxxx.apps.googleusercontent.com     # optional
+EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=xxxx.apps.googleusercontent.com # optional
+```
+
+- The OAuth redirect uses the `fena` scheme (already set in `app.json` →
+  `expo.scheme`). Google sign-in is wired through the shared
+  `src/hooks/useGoogleAuth.js` hook and is available on **both** the Sign in and
+  Register screens.
+- Auth flows that hit the backend: register → email verification
+  (`VerifyEmailScreen`), and forgot password → reset (two-step
+  `ForgotPasswordScreen`). No secrets are committed.
+
 ## Project Structure
 
 ```

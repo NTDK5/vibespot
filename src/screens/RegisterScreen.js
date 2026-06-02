@@ -10,19 +10,20 @@
 
 import React, { useMemo, useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
+import AuthKeyboardScroll, {
+  useAuthFieldScroll,
+} from '../components/auth/AuthKeyboardScroll';
+
 import { BRAND } from '../brand/fena';
-import { FenaLogoLockup } from '../components/brand';
+import { FenaAuthBrandHeader } from '../components/brand';
+import GoogleIcon from '../components/GoogleIcon';
 import fieldGuide from '../theme/fieldGuide';
 import {
   DisplayTitle,
@@ -33,12 +34,9 @@ import {
 } from '../components/fieldguide';
 
 import { useAuth } from '../hooks/useAuth';
+import { useGoogleAuth } from '../hooks/useGoogleAuth';
 import { useToast } from '../components/ToastProvider';
 import { isValidEmail } from '../utils/helpers';
-
-// Phase-2 placeholder. Real value will come from a user-count endpoint
-// in a future phase.
-const ISSUE_NUMBER = '029';
 
 function CheckBox({ checked, onToggle }) {
   return (
@@ -60,9 +58,10 @@ function CheckBox({ checked, onToggle }) {
   );
 }
 
-function RegisterScreen({ navigation }) {
+function RegisterScreenForm({ navigation }) {
   const { register, pendingVerificationEmail } = useAuth();
   const toast = useToast();
+  const { registerField, scrollToField } = useAuthFieldScroll();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -73,6 +72,10 @@ function RegisterScreen({ navigation }) {
 
   const showError = (msg) => toast?.show?.(msg, { variant: 'error' });
   const showInfo = (msg) => toast?.show?.(msg, { variant: 'info' });
+
+  const { request: googleRequest, busyGoogle, signInWithGoogle } = useGoogleAuth({
+    onError: showError,
+  });
 
   const allFilled = useMemo(
     () =>
@@ -119,30 +122,21 @@ function RegisterScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <TopBar
-            transparent
-            left="back"
-            onLeftPress={() => navigation.goBack()}
-            style={styles.topbar}
-          />
+    <>
+      <TopBar
+        transparent
+        left="back"
+        onLeftPress={() => navigation.goBack()}
+        style={styles.topbar}
+      />
 
-          <View style={styles.body}>
+      <View style={styles.body}>
             <View style={styles.logoWrap}>
-              <FenaLogoLockup width={220} />
+              <FenaAuthBrandHeader markWidth={120} />
             </View>
             <View style={styles.head}>
               <MonoMeta size="eyebrow" style={styles.eyebrow}>
-                {`NEW READER · ${BRAND.name}`}
+                {`NEW EXPLORER · ${BRAND.name}`}
               </MonoMeta>
               <DisplayTitle size="lg" italic="field guide.">
                 Start your field guide.
@@ -153,45 +147,57 @@ function RegisterScreen({ navigation }) {
             </View>
 
             <View style={styles.form}>
-              <FloatingLabelInput
-                label="Name"
-                value={name}
-                onChangeText={setName}
-                placeholder="What should we call you"
-                autoCapitalize="words"
-                autoComplete="name"
-                returnKeyType="next"
-              />
-              <FloatingLabelInput
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-                placeholder="you@somewhere.co"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                autoCorrect={false}
-                returnKeyType="next"
-              />
-              <FloatingLabelInput
-                label="Password"
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Make it a good one"
-                secureTextEntry
-                autoCapitalize="none"
-                autoComplete="password-new"
-                returnKeyType="next"
-              />
-              <FloatingLabelInput
-                label="Home City"
-                value={homeCity}
-                onChangeText={setHomeCity}
-                placeholder="So we can show you nearby spots"
-                autoCapitalize="words"
-                returnKeyType="done"
-                onSubmitEditing={handleSubmit}
-              />
+              <View ref={registerField('name')} collapsable={false}>
+                <FloatingLabelInput
+                  label="Name"
+                  value={name}
+                  onChangeText={setName}
+                  onFocus={scrollToField('name')}
+                  placeholder="What should we call you"
+                  autoCapitalize="words"
+                  autoComplete="name"
+                  returnKeyType="next"
+                />
+              </View>
+              <View ref={registerField('email')} collapsable={false}>
+                <FloatingLabelInput
+                  label="Email"
+                  value={email}
+                  onChangeText={setEmail}
+                  onFocus={scrollToField('email')}
+                  placeholder="you@somewhere.co"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                />
+              </View>
+              <View ref={registerField('password')} collapsable={false}>
+                <FloatingLabelInput
+                  label="Password"
+                  value={password}
+                  onChangeText={setPassword}
+                  onFocus={scrollToField('password')}
+                  placeholder="Make it a good one"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoComplete="password-new"
+                  returnKeyType="next"
+                />
+              </View>
+              <View ref={registerField('homeCity')} collapsable={false}>
+                <FloatingLabelInput
+                  label="Home City"
+                  value={homeCity}
+                  onChangeText={setHomeCity}
+                  onFocus={scrollToField('homeCity')}
+                  placeholder="So we can show you nearby spots"
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                  onSubmitEditing={handleSubmit}
+                />
+              </View>
             </View>
 
             <Pressable
@@ -206,9 +212,9 @@ function RegisterScreen({ navigation }) {
                 I agree to the{' '}
                 <Text
                   style={styles.termsLink}
-                  onPress={() => showInfo('Reader\'s Pact — coming soon.')}
+                  onPress={() => showInfo('Community Guidelines — coming soon.')}
                 >
-                  Reader's Pact
+                  Community Guidelines
                 </Text>
                 {' '}and{' '}
                 <Text
@@ -233,6 +239,23 @@ function RegisterScreen({ navigation }) {
               </EditorialButton>
             </View>
 
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <MonoMeta size="tab" style={styles.dividerLabel}>OR</MonoMeta>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <EditorialButton
+              variant="ghost"
+              block
+              loading={busyGoogle}
+              disabled={!googleRequest}
+              onPress={signInWithGoogle}
+              leading={<GoogleIcon />}
+            >
+              Continue with Google
+            </EditorialButton>
+
             <Pressable
               onPress={() => navigation.navigate('SignIn')}
               accessibilityRole="link"
@@ -240,28 +263,25 @@ function RegisterScreen({ navigation }) {
               style={styles.footerLinkWrap}
             >
               <Text style={styles.footerText}>
-                Already a reader?  <Text style={styles.footerEmber}>Sign in</Text>
+                Already exploring?  <Text style={styles.footerEmber}>Sign in</Text>
               </Text>
             </Pressable>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </View>
+    </>
+  );
+}
+
+function RegisterScreen({ navigation }) {
+  return (
+    <AuthKeyboardScroll>
+      <RegisterScreenForm navigation={navigation} />
+    </AuthKeyboardScroll>
   );
 }
 
 export default RegisterScreen;
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: fieldGuide.ink,
-  },
-  flex: { flex: 1 },
-  scroll: {
-    flexGrow: 1,
-    paddingBottom: 12,
-  },
   topbar: {
     marginBottom: 0,
   },
@@ -323,6 +343,21 @@ const styles = StyleSheet.create({
   },
   actions: {
     marginTop: 22,
+    marginBottom: 18,
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  dividerLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: fieldGuide.inkLine,
+  },
+  dividerLabel: {
+    marginHorizontal: 12,
+    color: fieldGuide.creamMute,
   },
   footerLinkWrap: {
     marginTop: 'auto',

@@ -32,15 +32,17 @@
  */
 
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
 import fieldGuide from '../../../theme/fieldGuide';
 import DuotoneVibe from '../spot/DuotoneVibe';
 
-function Tile({ vibe, children, style }) {
+function Tile({ vibe, image, children, style }) {
   return (
     <View style={[styles.tile, style]}>
-      {vibe ? (
+      {image ? (
+        <Image source={{ uri: image }} style={styles.image} resizeMode="cover" />
+      ) : vibe ? (
         <DuotoneVibe vibe={vibe} />
       ) : (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: fieldGuide.inkElev }]} />
@@ -52,16 +54,20 @@ function Tile({ vibe, children, style }) {
 
 export default function MosaicCover({
   vibes = [],
+  images = [],
   extraCount = 0,
   aspectRatio = 16 / 9,
   gap = 2,
   radius = 0,
   style,
 }) {
-  // Pad to 5 so we don't have to gate every render with length checks.
-  const filled = [...vibes];
-  while (filled.length < 5) filled.push(null);
-  const [v0, v1, v2, v3, v4] = filled;
+  const sourceCount = Math.max(vibes.length, images.length);
+  const filledVibes = [...vibes];
+  const filledImages = [...images];
+  while (filledVibes.length < 5) filledVibes.push(null);
+  while (filledImages.length < 5) filledImages.push(null);
+  const [v0, v1, v2, v3, v4] = filledVibes;
+  const [i0, i1, i2, i3, i4] = filledImages;
 
   const hasOverlay = extraCount > 0;
 
@@ -79,30 +85,59 @@ export default function MosaicCover({
         style,
       ]}
     >
-      {/* Left "span 2" tile */}
-      <View style={{ flex: 2 }}>
-        <Tile vibe={v0} />
-      </View>
-
-      {/* Right 2×2 grid */}
-      <View style={{ flex: 2, gap }}>
-        <View style={[styles.rightRow, { gap }]}>
-          <View style={{ flex: 1 }}><Tile vibe={v1} /></View>
-          <View style={{ flex: 1 }}><Tile vibe={v2} /></View>
-        </View>
-        <View style={[styles.rightRow, { gap }]}>
-          <View style={{ flex: 1 }}><Tile vibe={v3} /></View>
+      {sourceCount <= 1 ? (
+        <Tile vibe={v0} image={i0} />
+      ) : sourceCount === 2 ? (
+        <>
           <View style={{ flex: 1 }}>
-            {hasOverlay ? (
-              <View style={[styles.tile, styles.overlay]}>
-                <Text style={styles.overlayText}>{`+${extraCount}`}</Text>
-              </View>
-            ) : (
-              <Tile vibe={v4} />
-            )}
+            <Tile vibe={v0} image={i0} />
           </View>
-        </View>
-      </View>
+          <View style={{ flex: 1 }}>
+            <Tile vibe={v1} image={i1} />
+          </View>
+        </>
+      ) : sourceCount === 3 ? (
+        <>
+          <View style={{ flex: 2 }}>
+            <Tile vibe={v0} image={i0} />
+          </View>
+          <View style={{ flex: 1, gap }}>
+            <View style={{ flex: 1 }}>
+              <Tile vibe={v1} image={i1} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Tile vibe={v2} image={i2} />
+            </View>
+          </View>
+        </>
+      ) : (
+        <>
+          {/* Left "span 2" tile */}
+          <View style={{ flex: 2 }}>
+            <Tile vibe={v0} image={i0} />
+          </View>
+
+          {/* Right 2×2 grid */}
+          <View style={{ flex: 2, gap }}>
+            <View style={[styles.rightRow, { gap }]}>
+              <View style={{ flex: 1 }}><Tile vibe={v1} image={i1} /></View>
+              <View style={{ flex: 1 }}><Tile vibe={v2} image={i2} /></View>
+            </View>
+            <View style={[styles.rightRow, { gap }]}>
+              <View style={{ flex: 1 }}><Tile vibe={v3} image={i3} /></View>
+              <View style={{ flex: 1 }}>
+                {hasOverlay ? (
+                  <View style={[styles.tile, styles.overlay]}>
+                    <Text style={styles.overlayText}>{`+${extraCount}`}</Text>
+                  </View>
+                ) : (
+                  <Tile vibe={v4} image={i4} />
+                )}
+              </View>
+            </View>
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -117,6 +152,9 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
     backgroundColor: fieldGuide.inkElev,
+  },
+  image: {
+    ...StyleSheet.absoluteFillObject,
   },
   overlay: {
     alignItems: 'center',

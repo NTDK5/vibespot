@@ -54,6 +54,7 @@ import {
 } from '../components/fieldguide';
 import fieldGuide from '../theme/fieldGuide';
 import { useToast } from '../components/ToastProvider';
+import { useAuth } from '../hooks/useAuth';
 import { logger } from '../utils/logger';
 import {
   deleteCollection,
@@ -126,6 +127,27 @@ function splitTitleForItalic(title) {
   };
 }
 
+function pickImageUri(value) {
+  if (!value) return null;
+  if (typeof value === 'string') return value.trim() || null;
+  if (typeof value === 'object') {
+    const candidate = value.uri || value.url || value.secure_url || value.src;
+    if (typeof candidate === 'string') return candidate.trim() || null;
+  }
+  return null;
+}
+
+function spotImageFor(item) {
+  return (
+    pickImageUri(item?.thumbnail) ||
+    pickImageUri(item?.image) ||
+    pickImageUri(item?.coverImage) ||
+    (Array.isArray(item?.images)
+      ? item.images.map(pickImageUri).find(Boolean)
+      : null)
+  );
+}
+
 /* ─────────────────────────────────────────────────────────────────── */
 /*  ROW                                                                */
 /* ─────────────────────────────────────────────────────────────────── */
@@ -195,7 +217,7 @@ function ItemRow({
         <View style={styles.thumb}>
           <DuotoneVibe
             vibe={vibe}
-            image={item?.thumbnail ? { uri: item.thumbnail } : undefined}
+            image={spotImageFor(item) ? { uri: spotImageFor(item) } : undefined}
           />
           <IndexStamp position="tl" style={styles.thumbStamp}>
             {noLabel}
@@ -251,6 +273,7 @@ export const CollectionDetailScreen = ({ navigation, route }) => {
   const id = route?.params?.id ?? route?.params?.collectionId;
   const insets = useSafeAreaInsets();
   const toast = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const query = useQuery({
@@ -304,9 +327,16 @@ export const CollectionDetailScreen = ({ navigation, route }) => {
     () => items.slice(0, 5).map((s) => vibeForCategory(s?.category)),
     [items],
   );
+  const heroImages = useMemo(
+    () => items.slice(0, 5).map((s) => spotImageFor(s)).filter(Boolean),
+    [items],
+  );
   const extra = Math.max(0, spotCount - 4);
   const priv = privacyLabel(collection);
   const { lead, tail } = splitTitleForItalic(collection?.title);
+  const isOwner =
+    !!user?.id &&
+    (collection?.userId === user.id || collection?.user?.id === user.id);
 
   /* ── reorder actions ─────────────────────────────────────────────── */
   const move = (from, to) => {
@@ -356,6 +386,7 @@ export const CollectionDetailScreen = ({ navigation, route }) => {
 
   /* ── remove a spot ───────────────────────────────────────────────── */
   const handleRemove = (spot) => {
+    if (!isOwner) return;
     if (!spot?.id) return;
     Alert.alert(
       'Remove from collection?',
@@ -428,10 +459,12 @@ export const CollectionDetailScreen = ({ navigation, route }) => {
   };
 
   const handleEdit = () => {
+    if (!isOwner) return;
     navigation.navigate('CreateCollection', { id, mode: 'edit' });
   };
 
   const handleDelete = async () => {
+    if (!isOwner) return;
     const result = await deleteCollection(id);
     if (result?.error) {
       toast.show('Could not delete the collection.', { variant: 'error' });
@@ -484,6 +517,7 @@ export const CollectionDetailScreen = ({ navigation, route }) => {
         <View style={styles.hero}>
           <MosaicCover
             vibes={heroVibes}
+            images={heroImages}
             extraCount={extra}
             aspectRatio={undefined}
             style={styles.heroMosaic}
@@ -540,17 +574,19 @@ export const CollectionDetailScreen = ({ navigation, route }) => {
           >
             Share
           </EditorialButton>
-          <Pressable
-            onPress={handleEdit}
-            accessibilityRole="button"
-            accessibilityLabel="Edit collection"
-            style={({ pressed }) => [
-              styles.ghostIconBtn,
-              { opacity: pressed ? 0.7 : 1 },
-            ]}
-          >
-            <Ionicons name="create-outline" size={16} color={fieldGuide.cream} />
-          </Pressable>
+          {isOwner ? (
+            <Pressable
+              onPress={handleEdit}
+              accessibilityRole="button"
+              accessibilityLabel="Edit collection"
+              style={({ pressed }) => [
+                styles.ghostIconBtn,
+                { opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Ionicons name="create-outline" size={16} color={fieldGuide.cream} />
+            </Pressable>
+          ) : null}
         </View>
 
         {/* LIST HEAD */}
@@ -560,20 +596,22 @@ export const CollectionDetailScreen = ({ navigation, route }) => {
             <Text style={styles.listHeadTitle}>
               {`${spotCount} ${spotCount === 1 ? 'spot' : 'spots'} in this pocket`}
             </Text>
-            <Pressable
-              onPress={reorderMode ? finishReorder : () => setReorderMode(true)}
-              hitSlop={8}
-              disabled={!spotCount}
-            >
-              <Text
-                style={[
-                  styles.reorderLink,
-                  !spotCount && { opacity: 0.35 },
-                ]}
+            {isOwner ? (
+              <Pressable
+                onPress={reorderMode ? finishReorder : () => setReorderMode(true)}
+                hitSlop={8}
+                disabled={!spotCount}
               >
-                {reorderMode ? 'Done ↗' : 'Reorder ↗'}
-              </Text>
-            </Pressable>
+                <Text
+                  style={[
+                    styles.reorderLink,
+                    !spotCount && { opacity: 0.35 },
+                  ]}
+                >
+                  {reorderMode ? 'Done ↗' : 'Reorder ↗'}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
@@ -594,7 +632,7 @@ export const CollectionDetailScreen = ({ navigation, route }) => {
                 item={item}
                 index={i}
                 total={items.length}
-                reorderMode={reorderMode}
+                reorderMode={reorderMode && isOwner}
                 onPress={() =>
                   navigation.push('SpotDetail', { spotId: item?.id })
                 }
@@ -627,17 +665,19 @@ export const CollectionDetailScreen = ({ navigation, route }) => {
             <Ionicons name="share-outline" size={16} color={fieldGuide.cream} />
           </IconSquare>
           <View style={{ width: 8 }} />
-          <IconSquare
-            onPress={() => setMenuOpen(true)}
-            accessibilityLabel="More"
-            size={38}
-          >
-            <Ionicons
-              name="ellipsis-horizontal"
-              size={16}
-              color={fieldGuide.cream}
-            />
-          </IconSquare>
+          {isOwner ? (
+            <IconSquare
+              onPress={() => setMenuOpen(true)}
+              accessibilityLabel="More"
+              size={38}
+            >
+              <Ionicons
+                name="ellipsis-horizontal"
+                size={16}
+                color={fieldGuide.cream}
+              />
+            </IconSquare>
+          ) : null}
         </View>
       </View>
 
@@ -645,6 +685,7 @@ export const CollectionDetailScreen = ({ navigation, route }) => {
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
         collection={collection}
+        isOwner={isOwner}
         onEdit={handleEdit}
         onShare={handleShare}
         onDelete={() => handleDelete()}
@@ -849,7 +890,7 @@ const styles = StyleSheet.create({
   },
   rowNote: {
     marginTop: 6,
-    fontFamily: fieldGuide.fonts.serifItalic,
+    fontFamily: fieldGuide.fonts.sans,
     fontSize: 12,
     lineHeight: 17,
     color: fieldGuide.creamMute,

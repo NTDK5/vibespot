@@ -181,7 +181,7 @@ export default function FieldGuidePreviewScreen({ navigation }) {
               <DisplayTitle size="md" italic="Oliver.">Evening, Oliver. The light's good.</DisplayTitle>
               <DisplayTitle size="lg" italic="quietly">A city, quietly catalogued.</DisplayTitle>
               <DisplayTitle size="xl" italic="grid.">Off the grid.</DisplayTitle>
-              <DisplayTitle size="hero" italic="issue 28">Vol. 04 · issue 28</DisplayTitle>
+              {/* <DisplayTitle size="hero" italic="issue 28">Vol. 04 · issue 28</DisplayTitle> */}
             </View>
           </Group>
 
@@ -426,11 +426,11 @@ export default function FieldGuidePreviewScreen({ navigation }) {
         <Section title="5 · Signature">
           <Group title="POSTMARK STAMP · 64 / 96 / 128">
             <View style={styles.rowGapWrap}>
-              <PostmarkStamp
+              {/* <PostmarkStamp
                 perimeterText="VOL. 04 · ISSUE 28 · "
                 size={64}
                 center={<Text style={styles.stampCenter}>04</Text>}
-              />
+              /> */}
               <PostmarkStamp
                 perimeterText="LISBON · FIELD GUIDE · "
                 size={96}

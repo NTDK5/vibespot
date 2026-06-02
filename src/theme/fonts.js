@@ -1,45 +1,40 @@
 /**
- * Thin wrapper around @expo-google-fonts so the rest of the app can
- * call `useFieldGuideFonts()` and get a `[loaded, error]` tuple back.
+ * Wayfinding type stack — Syne (display) + DM Sans (body/UI) +
+ * JetBrains Mono (metadata) + Noto Serif Ethiopic (brand Ge'ez only).
  *
- * Only the faces referenced by the Field Guide design system are
- * registered here — Fraunces 300/400/400_Italic/500/700,
- * Inter 400/500/600/700, JetBrains Mono 400/500. Keep this list in
- * sync with `fieldGuide.fonts` in `./fieldGuide.js`.
+ * Keep registered faces in sync with `fieldGuide.fonts` in `./fieldGuide.js`.
  */
 
 import { useFonts } from 'expo-font';
 import {
-  Fraunces_300Light,
-  Fraunces_400Regular,
-  Fraunces_400Regular_Italic,
-  Fraunces_500Medium,
-  Fraunces_700Bold,
-} from '@expo-google-fonts/fraunces';
+  Syne_700Bold,
+  Syne_800ExtraBold,
+} from '@expo-google-fonts/syne';
 import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from '@expo-google-fonts/inter';
+  DMSans_400Regular,
+  DMSans_500Medium,
+  DMSans_600SemiBold,
+  DMSans_700Bold,
+} from '@expo-google-fonts/dm-sans';
 import {
   JetBrainsMono_400Regular,
   JetBrainsMono_500Medium,
 } from '@expo-google-fonts/jetbrains-mono';
+import {
+  NotoSerifEthiopic_600SemiBold,
+} from '@expo-google-fonts/noto-serif-ethiopic';
 
 export function useFieldGuideFonts() {
   return useFonts({
-    Fraunces_300Light,
-    Fraunces_400Regular,
-    Fraunces_400Regular_Italic,
-    Fraunces_500Medium,
-    Fraunces_700Bold,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
+    Syne_700Bold,
+    Syne_800ExtraBold,
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_600SemiBold,
+    DMSans_700Bold,
     JetBrainsMono_400Regular,
     JetBrainsMono_500Medium,
+    NotoSerifEthiopic_600SemiBold,
   });
 }
 

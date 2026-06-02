@@ -3,7 +3,7 @@
  *
  * CSS ref: .champion-card / .label / .rank / .body and the version in
  * screens/07-home.html L84-136. Notable: aspect-ratio 4/5.4, giant
- * Fraunces 300 rank numeral with text-shadow, bottom gradient body
+ * Syne 800 rank numeral with text-shadow, bottom gradient body
  * (transparent → ink-deep@55% @ 50% → ink-deep@92% @ 100%).
  *
  * Props:
@@ -12,8 +12,8 @@
  *   style?: ViewStyle
  */
 
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -26,6 +26,16 @@ const TITLE_FS = 30;
 const BLURB_FS = 13.5;
 const META_FS = 10;
 
+function toImageUri(value) {
+  if (!value) return null;
+  if (typeof value === 'string') return value.trim() || null;
+  if (typeof value === 'object') {
+    const candidate = value.uri || value.url || value.secure_url || value.src;
+    if (typeof candidate === 'string') return candidate.trim() || null;
+  }
+  return null;
+}
+
 export default function ChampionCard({ spot, onPress, style }) {
   const {
     title = 'Champion',
@@ -36,6 +46,7 @@ export default function ChampionCard({ spot, onPress, style }) {
     category,
     district,
     distance,
+    images = [],
   } = spot || {};
 
   const rankLabel = typeof rank === 'number'
@@ -44,6 +55,69 @@ export default function ChampionCard({ spot, onPress, style }) {
 
   const labelText = `CHAMPION${weekNumber != null ? ` · WEEK ${weekNumber}` : ''}`;
   const metaParts = [category, district, distance].filter(Boolean);
+  const imageList = useMemo(() => {
+    const raw = Array.isArray(images) ? images : [];
+    return raw.map(toImageUri).filter(Boolean);
+  }, [images]);
+  const [index, setIndex] = useState(0);
+  const [cardWidth, setCardWidth] = useState(1);
+  const listRef = useRef(null);
+  const autoplayRef = useRef(null);
+  const resumeRef = useRef(null);
+
+  const clearAutoplay = () => {
+    if (autoplayRef.current) {
+      clearInterval(autoplayRef.current);
+      autoplayRef.current = null;
+    }
+  };
+
+  const clearResume = () => {
+    if (resumeRef.current) {
+      clearTimeout(resumeRef.current);
+      resumeRef.current = null;
+    }
+  };
+
+  const startAutoplay = () => {
+    clearAutoplay();
+    if (imageList.length <= 1) return;
+    autoplayRef.current = setInterval(() => {
+      setIndex((prev) => {
+        const next = (prev + 1) % imageList.length;
+        listRef.current?.scrollToIndex?.({ index: next, animated: true });
+        return next;
+      });
+    }, 3000);
+  };
+
+  useEffect(() => {
+    setIndex(0);
+    clearAutoplay();
+    clearResume();
+    startAutoplay();
+    return () => {
+      clearAutoplay();
+      clearResume();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageList.length]);
+
+  const pauseAndResume = () => {
+    clearAutoplay();
+    clearResume();
+    if (imageList.length <= 1) return;
+    resumeRef.current = setTimeout(() => {
+      startAutoplay();
+    }, 1800);
+  };
+
+  const onMomentumEnd = (event) => {
+    const x = event?.nativeEvent?.contentOffset?.x || 0;
+    const w = event?.nativeEvent?.layoutMeasurement?.width || 1;
+    const nextIndex = Math.max(0, Math.round(x / w));
+    setIndex(nextIndex);
+  };
 
   return (
     <Pressable
@@ -55,8 +129,38 @@ export default function ChampionCard({ spot, onPress, style }) {
         { opacity: pressed ? 0.96 : 1 },
         style,
       ]}
+      onLayout={(event) => {
+        const nextWidth = Math.round(event?.nativeEvent?.layout?.width || 0);
+        if (nextWidth > 0 && nextWidth !== cardWidth) {
+          setCardWidth(nextWidth);
+        }
+      }}
     >
-      <DuotoneVibe vibe={vibe} />
+      {imageList.length > 0 ? (
+        <FlatList
+          ref={listRef}
+          data={imageList}
+          keyExtractor={(uri, i) => `${uri}-${i}`}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          style={StyleSheet.absoluteFill}
+          onScrollBeginDrag={pauseAndResume}
+          onMomentumScrollEnd={onMomentumEnd}
+          getItemLayout={(_, i) => ({
+            length: cardWidth,
+            offset: cardWidth * i,
+            index: i,
+          })}
+          renderItem={({ item }) => (
+            <View style={[styles.slide, { width: cardWidth }]}>
+              <Image source={{ uri: item }} style={styles.bgImage} resizeMode="cover" />
+            </View>
+          )}
+        />
+      ) : (
+        <DuotoneVibe vibe={vibe} />
+      )}
 
       <BlurView tint="dark" intensity={24} style={styles.labelWrap}>
         <View style={styles.labelDot} />
@@ -95,6 +199,20 @@ export default function ChampionCard({ spot, onPress, style }) {
           </View>
         ) : null}
       </LinearGradient>
+
+      {imageList.length > 1 ? (
+        <View style={styles.dots}>
+          {imageList.map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                i === index ? styles.dotActive : null,
+              ]}
+            />
+          ))}
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -107,6 +225,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: fieldGuide.inkElev,
     position: 'relative',
+  },
+  bgImage: {
+    width: '100%',
+    height: '100%',
+  },
+  slide: {
+    height: '100%',
   },
   labelWrap: {
     position: 'absolute',
@@ -141,7 +266,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 16,
     right: 22,
-    fontFamily: fieldGuide.fonts.serifLight,
+    fontFamily: fieldGuide.fonts.displayHeavy,
     fontSize: RANK_FS,
     lineHeight: RANK_FS,
     letterSpacing: -0.04 * RANK_FS,
@@ -157,6 +282,23 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     padding: 22,
+  },
+  dots: {
+    position: 'absolute',
+    bottom: 14,
+    right: 16,
+    flexDirection: 'row',
+    gap: 5,
+    zIndex: 11,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(244,239,230,0.45)',
+  },
+  dotActive: {
+    backgroundColor: 'rgba(244,239,230,0.95)',
   },
   title: {
     fontFamily: fieldGuide.fonts.serifMedium,
