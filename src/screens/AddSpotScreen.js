@@ -33,9 +33,11 @@ import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../hooks/useAuth';
 import { useLocation } from '../hooks/useLocation';
 import { addSpot } from '../services/spots.service';
+import { createOwnerSpot, uploadOwnerSpotImages } from '../services/ownerSpots.service';
 import { uploadSpotImages } from '../services/upload';
 import { CATEGORIES } from '../utils/constants';
 import { prettyCategory } from '../utils/spotHelpers';
+import { hoursForApi } from '../utils/hoursHelpers';
 import { logger } from '../utils/logger';
 
 const TOTAL_STEPS = 6;
@@ -150,19 +152,8 @@ function buildTags(state) {
   return [...new Set(merged)];
 }
 
-function hoursForApi(hours) {
-  const out = {};
-  Object.keys(hours || {}).forEach((day) => {
-    const range = hours[day];
-    if (Array.isArray(range) && range.length >= 2) {
-      out[day] = [Math.floor(range[0]), Math.floor(range[1])];
-    }
-  });
-  return Object.keys(out).length ? out : undefined;
-}
-
 export const AddSpotScreen = ({ navigation }) => {
-  const { isSuperAdmin } = useAuth();
+  const { canAddSpot, isSpotOwner } = useAuth();
   const { location } = useLocation();
   const toast = useToast();
 
@@ -182,10 +173,10 @@ export const AddSpotScreen = ({ navigation }) => {
   const [draftLng, setDraftLng] = useState(defaultLng);
 
   useEffect(() => {
-    if (!isSuperAdmin) {
+    if (!canAddSpot) {
       navigation.replace('Home');
     }
-  }, [isSuperAdmin, navigation]);
+  }, [canAddSpot, navigation]);
 
   useEffect(() => {
     if (
@@ -287,13 +278,18 @@ export const AddSpotScreen = ({ navigation }) => {
         email: state.email.trim() || undefined,
       };
 
-      const { id: spotId, error: spotError } = await addSpot(spotData);
+      const createFn = isSpotOwner ? createOwnerSpot : addSpot;
+      const uploadFn = isSpotOwner ? uploadOwnerSpotImages : uploadSpotImages;
+
+      const result = await createFn(spotData);
+      const spotId = result?.id;
+      const spotError = result?.error;
       if (spotError || !spotId) {
         throw new Error(spotError || 'Spot ID missing');
       }
 
       if (state.images.length > 0) {
-        const uploadResult = await uploadSpotImages(spotId, state.images);
+        const uploadResult = await uploadFn(spotId, state.images);
         if (uploadResult?.error) {
           throw new Error(uploadResult.error);
         }

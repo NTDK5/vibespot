@@ -39,6 +39,9 @@ import FieldGuideTabBar from './FieldGuideTabBar';
 // Dev-only gallery of every Field Guide component. Reached via a long
 // press on the Profile tab (see listeners below) so it never pollutes
 // production builds.
+import BecomeSpotOwnerScreen from '../screens/BecomeSpotOwnerScreen';
+import MySpotsScreen from '../screens/MySpotsScreen';
+import SpotOwnerAnalyticsScreen from '../screens/SpotOwnerAnalyticsScreen';
 import FieldGuidePreviewScreen from '../components/fieldguide/preview/FieldGuidePreviewScreen';
 
 const Stack = createNativeStackNavigator();
@@ -62,7 +65,7 @@ const navigationTheme = {
  * Main Tab Navigator (for authenticated users)
  */
 const MainTabs = () => {
-  const { isSuperAdmin } = useAuth();
+  const { canAddSpot } = useAuth();
 
   return (
     <Tab.Navigator
@@ -77,7 +80,7 @@ const MainTabs = () => {
         component={CollectionsScreen}
         options={{ tabBarLabel: 'Collections' }}
       />
-      {isSuperAdmin && (
+      {canAddSpot && (
         <Tab.Screen
           name="AddSpot"
           component={AddSpotScreen}
@@ -140,6 +143,9 @@ export const AppNavigator = () => {
             <Stack.Screen name="MainTabs" component={MainTabs} />
             <Stack.Screen name="SpotDetail" component={SpotDetailsScreen} />
             <Stack.Screen name="EditSpot" component={EditSpotScreen} />
+            <Stack.Screen name="BecomeSpotOwner" component={BecomeSpotOwnerScreen} />
+            <Stack.Screen name="MySpots" component={MySpotsScreen} />
+            <Stack.Screen name="SpotOwnerAnalytics" component={SpotOwnerAnalyticsScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
             <Stack.Screen

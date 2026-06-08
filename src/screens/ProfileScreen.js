@@ -145,7 +145,13 @@ function SavedSpotRow({ spot, onPress }) {
 }
 
 export const ProfileScreen = ({ navigation }) => {
-  const { user, isSuperAdmin } = useAuth();
+  const {
+    user,
+    isSuperAdmin,
+    isSpotOwner,
+    isSpotOwnerPending,
+    canManageOwnSpots,
+  } = useAuth();
   const [tab, setTab] = useState(0);
   const [savedSpots, setSavedSpots] = useState([]);
   const [visitedSpots, setVisitedSpots] = useState([]);
@@ -544,6 +550,47 @@ export const ProfileScreen = ({ navigation }) => {
           </EditorialButton>
         </View>
 
+        {isSpotOwnerPending && !isSpotOwner ? (
+          <View style={styles.ownerBanner}>
+            <MonoMeta size="spot">APPLICATION UNDER REVIEW</MonoMeta>
+            <Text style={styles.ownerBannerText}>
+              We&apos;re reviewing your spot owner application. You&apos;ll hear from us soon.
+            </Text>
+          </View>
+        ) : null}
+
+        {canManageOwnSpots ? (
+          <View style={styles.ownerCard}>
+            <Text style={styles.ownerTitle}>Your venues</Text>
+            <Text style={styles.ownerSub}>
+              Manage listings, check review status, and see how explorers engage.
+            </Text>
+            <EditorialButton
+              variant="primary"
+              block
+              onPress={() => navigation.navigate('MySpots')}
+              style={{ marginTop: 12 }}
+            >
+              My spots
+            </EditorialButton>
+          </View>
+        ) : !isSpotOwner && !isSpotOwnerPending && !isSuperAdmin ? (
+          <View style={styles.ownerCard}>
+            <Text style={styles.ownerTitle}>List your spot on FENA</Text>
+            <Text style={styles.ownerSub}>
+              Run a café, gallery, or rooftop? Apply to add your venue to the field guide.
+            </Text>
+            <EditorialButton
+              variant="ghost"
+              block
+              onPress={() => navigation.navigate('BecomeSpotOwner')}
+              style={{ marginTop: 12 }}
+            >
+              Apply as spot owner
+            </EditorialButton>
+          </View>
+        ) : null}
+
         <View style={styles.statsRow}>
           <StatCell
             number={visitedSpots.length}
@@ -843,6 +890,41 @@ const styles = StyleSheet.create({
   },
   editBtn: {
     marginTop: 14,
+  },
+  ownerBanner: {
+    marginTop: 16,
+    marginHorizontal: 20,
+    padding: 14,
+    borderRadius: fieldGuide.radius.md,
+    borderWidth: 1,
+    borderColor: fieldGuide.emberSoft,
+    backgroundColor: 'rgba(232,180,58,0.08)',
+  },
+  ownerBannerText: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 19,
+    color: fieldGuide.creamSoft,
+  },
+  ownerCard: {
+    marginTop: 16,
+    marginHorizontal: 20,
+    padding: 16,
+    borderRadius: fieldGuide.radius.md,
+    borderWidth: 1,
+    borderColor: fieldGuide.inkLine,
+    backgroundColor: fieldGuide.inkElev,
+  },
+  ownerTitle: {
+    fontFamily: fieldGuide.fonts.serifMedium,
+    fontSize: 18,
+    color: fieldGuide.cream,
+  },
+  ownerSub: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 19,
+    color: fieldGuide.creamMute,
   },
   statsRow: {
     flexDirection: 'row',

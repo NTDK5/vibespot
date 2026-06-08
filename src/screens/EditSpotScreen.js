@@ -43,9 +43,15 @@ import {
   getSpotById,
   updateSpot,
 } from '../services/spots.service';
+import {
+  deleteOwnerSpot,
+  updateOwnerSpot,
+  uploadOwnerSpotImages,
+} from '../services/ownerSpots.service';
 import { uploadSpotImages } from '../services/upload';
 import { CATEGORIES } from '../utils/constants';
 import { indexNumberFor } from '../utils/spotHelpers';
+import { hoursForApi } from '../utils/hoursHelpers';
 import { logger } from '../utils/logger';
 
 const VIBE_OPTIONS = [
@@ -60,17 +66,6 @@ const VIBE_OPTIONS = [
   'CASH-ONLY',
 ];
 
-function hoursForApi(hours) {
-  const out = {};
-  Object.keys(hours || {}).forEach((day) => {
-    const range = hours[day];
-    if (Array.isArray(range) && range.length >= 2) {
-      out[day] = [Math.floor(range[0]), Math.floor(range[1])];
-    }
-  });
-  return Object.keys(out).length ? out : undefined;
-}
-
 function matchPriceValue(spot) {
   const pr = spot?.priceRange;
   const tier = WIZARD_PRICE_TIERS.find((t) => t.value === pr);
@@ -81,7 +76,8 @@ function matchPriceValue(spot) {
 
 export const EditSpotScreen = ({ route, navigation }) => {
   const spotId = route?.params?.spotId;
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, isSpotOwner, canAddSpot } = useAuth();
+  const canEditSpot = canAddSpot;
   const { location } = useLocation();
   const toast = useToast();
   const insets = useSafeAreaInsets();
@@ -114,15 +110,15 @@ export const EditSpotScreen = ({ route, navigation }) => {
   const [draftLng, setDraftLng] = useState(lng);
 
   useEffect(() => {
-    if (!isSuperAdmin) {
+    if (!canEditSpot) {
       navigation.replace('Home');
     }
-  }, [isSuperAdmin, navigation]);
+  }, [canEditSpot, navigation]);
 
   const query = useQuery({
     queryKey: ['edit-spot', spotId],
     queryFn: () => getSpotById(spotId),
-    enabled: !!spotId && isSuperAdmin,
+    enabled: !!spotId && canEditSpot,
   });
 
   const spot = query.data && !query.data.error ? query.data : null;
@@ -219,20 +215,28 @@ export const EditSpotScreen = ({ route, navigation }) => {
         twitter: twitter.trim() || undefined,
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
-        isEditorsPick,
-        weeklyRank:
-          weeklyRank.trim() === ''
-            ? null
-            : Number.parseInt(weeklyRank, 10),
+        ...(isSuperAdmin
+          ? {
+              isEditorsPick,
+              weeklyRank:
+                weeklyRank.trim() === ''
+                  ? null
+                  : Number.parseInt(weeklyRank, 10),
+            }
+          : {}),
       };
 
-      const result = await updateSpot(spotId, spotData);
+      const updateFn = isSpotOwner && !isSuperAdmin ? updateOwnerSpot : updateSpot;
+      const uploadFn =
+        isSpotOwner && !isSuperAdmin ? uploadOwnerSpotImages : uploadSpotImages;
+
+      const result = await updateFn(spotId, spotData);
       if (result?.error) {
         throw new Error(result.error);
       }
 
       if (newImages.length > 0) {
-        const uploadResult = await uploadSpotImages(spotId, newImages);
+        const uploadResult = await uploadFn(spotId, newImages);
         if (uploadResult?.error) {
           toast.show('Saved, but some photos failed to upload.', {
             variant: 'info',
@@ -261,7 +265,9 @@ export const EditSpotScreen = ({ route, navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              const result = await deleteSpot(spotId);
+              const deleteFn =
+                isSpotOwner && !isSuperAdmin ? deleteOwnerSpot : deleteSpot;
+              const result = await deleteFn(spotId);
               if (result?.error) throw new Error(result.error);
               toast.show('Spot removed.', { variant: 'success' });
               navigation.navigate('Home');
@@ -283,7 +289,7 @@ export const EditSpotScreen = ({ route, navigation }) => {
     setMapOpen(true);
   };
 
-  if (!isSuperAdmin) {
+  if (!canEditSpot) {
     return null;
   }
 

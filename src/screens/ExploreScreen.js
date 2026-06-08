@@ -63,6 +63,7 @@ import {
 import { CATEGORIES } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { distanceKmFromUser, formatMiles, kmToMiles } from '../utils/geo';
+import { openStatus } from '../utils/spotHelpers';
 
 /* ─────────────────────────────────────────────────────────────────── */
 /*  CONSTANTS / HELPERS                                                */
@@ -114,81 +115,6 @@ function indexForSpot(spot, fallbackIndex) {
   const digits = raw.replace(/\D/g, '');
   if (digits.length >= 2) return digits.slice(-3).padStart(3, '0');
   return String(fallbackIndex + 1).padStart(3, '0');
-}
-
-/**
- * openStatus — defensive shape probing for spot.hours.
- * Returns { isOpen, label } where isOpen ∈ {true, false, null}. `null`
- * means hours data wasn't parseable and the row should show a dash.
- *
- * Accepted shapes:
- *   - { today: { open, close } | null }
- *   - { open247: true }
- *   - { mon: { open, close }, tue: ... }
- *   - [ { day: 0..6, open, close } ]
- */
-function openStatus(spot, now = new Date()) {
-  const h = spot?.hours;
-  if (!h) return { isOpen: null, label: '—' };
-
-  if (h.open247 === true || h.is24h === true) {
-    return { isOpen: true, label: 'OPEN · 24H' };
-  }
-
-  let todayWindow = null;
-
-  if (h.today && (h.today.open || h.today.close)) {
-    todayWindow = { open: h.today.open, close: h.today.close };
-  } else if (Array.isArray(h)) {
-    const day = now.getDay();
-    const entry = h.find((e) => Number(e?.day) === day);
-    if (entry && (entry.open || entry.close)) {
-      todayWindow = { open: entry.open, close: entry.close };
-    }
-  } else if (typeof h === 'object') {
-    const keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-    const key = keys[now.getDay()];
-    const entry = h[key];
-    if (entry && (entry.open || entry.close)) {
-      todayWindow = { open: entry.open, close: entry.close };
-    }
-  }
-
-  if (!todayWindow) return { isOpen: null, label: '—' };
-
-  const openMin = toMinutes(todayWindow.open);
-  const closeMin = toMinutes(todayWindow.close);
-  if (openMin == null || closeMin == null) return { isOpen: null, label: '—' };
-
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const isOpen = nowMin >= openMin && nowMin <= closeMin;
-
-  if (isOpen) {
-    return {
-      isOpen: true,
-      label: `OPEN · ${formatHour(openMin)}–${formatHour(closeMin)}`,
-    };
-  }
-  if (nowMin < openMin) {
-    return { isOpen: false, label: `CLOSED · OPENS ${formatHour(openMin)}` };
-  }
-  return { isOpen: false, label: 'CLOSED' };
-}
-
-function toMinutes(t) {
-  if (typeof t !== 'string') return null;
-  const m = /^(\d{1,2})(?::(\d{2}))?$/.exec(t.trim());
-  if (!m) return null;
-  const h = Math.min(23, Math.max(0, parseInt(m[1], 10)));
-  const min = m[2] ? Math.min(59, Math.max(0, parseInt(m[2], 10))) : 0;
-  return h * 60 + min;
-}
-
-function formatHour(min) {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  if (m === 0) return String(h);
-  return `${h}:${String(m).padStart(2, '0')}`;
 }
 
 function getCount(arr) {

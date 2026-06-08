@@ -89,6 +89,7 @@ import {
   vibeForCategory,
   zeroPad,
 } from '../utils/spotHelpers';
+import { normalizeHoursFromSpot, HOURS_DAYS } from '../utils/hoursHelpers';
 import { distanceKmFromUser, kmToMiles, walkingMinutes } from '../utils/geo';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -456,6 +457,8 @@ export const SpotDetailScreen = ({ navigation, route }) => {
   const price = priceSymbol(spot);
   const vibe = vibeForCategory(spot.category);
   const todayKey = DAY_KEYS[new Date().getDay()];
+  const displayHours = normalizeHoursFromSpot(spot.hours);
+  const hasHours = HOURS_DAYS.some((d) => displayHours[d] != null);
   const vibeSummary = topVibesString(spotVibes);
   const avgRating = Number(spot.ratingAvg ?? spot.averageRating ?? spot.rating ?? 0);
   const reviewsTotalFromMeta = Number(reviewsPayload?.meta?.total ?? 0);
@@ -703,9 +706,9 @@ export const SpotDetailScreen = ({ navigation, route }) => {
           ) : (
             <Text style={styles.bestTimeNoteMuted}>No best-time note yet.</Text>
           )}
-          {spot.hours ? (
+          {hasHours ? (
             <View style={{ marginTop: 14 }}>
-              <HourBarChart hours={spot.hours} today={todayKey} />
+              <HourBarChart hours={displayHours} today={todayKey} />
             </View>
           ) : (
             <Text style={styles.hoursMissing}>

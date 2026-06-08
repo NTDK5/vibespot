@@ -14,8 +14,15 @@ import {
 
 import fieldGuide from '../../../theme/fieldGuide';
 import MonoMeta from '../primitives/MonoMeta';
+import {
+  HOURS_DAYS,
+  createEmptyHours,
+  normalizeHoursFromSpot,
+} from '../../../utils/hoursHelpers';
 
-const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+export { createEmptyHours, normalizeHoursFromSpot };
+
+const DAYS = HOURS_DAYS;
 const DAY_LABEL = {
   mon: 'MON',
   tue: 'TUE',
@@ -27,14 +34,7 @@ const DAY_LABEL = {
 };
 
 function emptyHours() {
-  return DAYS.reduce((acc, d) => {
-    acc[d] = null;
-    return acc;
-  }, {});
-}
-
-export function createEmptyHours() {
-  return emptyHours();
+  return createEmptyHours();
 }
 
 function parseHour(text) {
@@ -51,24 +51,6 @@ function formatHour(n) {
   const m = Math.round((n - h) * 60);
   if (m === 0) return String(h);
   return `${h}:${String(m).padStart(2, '0')}`;
-}
-
-export function normalizeHoursFromSpot(hours) {
-  const out = emptyHours();
-  if (!hours || typeof hours !== 'object') return out;
-  DAYS.forEach((d) => {
-    const v = hours[d];
-    if (Array.isArray(v) && v.length >= 2) {
-      out[d] = [Number(v[0]), Number(v[1])];
-    } else if (v && typeof v === 'object' && v.open != null && v.close != null) {
-      const o = parseHour(v.open);
-      const c = parseHour(v.close);
-      if (o != null && c != null) out[d] = [o, c];
-    } else {
-      out[d] = null;
-    }
-  });
-  return out;
 }
 
 export default function HoursEditor({ value, onChange, style }) {

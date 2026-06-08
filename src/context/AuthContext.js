@@ -308,6 +308,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   const isSuperAdmin = user?.role === "superadmin";
+  const isSpotOwner =
+    user?.isSpotOwner === true || user?.roleSlug === "spot_owner";
+  const spotOwnerApplication = user?.spotOwnerApplication ?? null;
+  const isSpotOwnerPending = spotOwnerApplication?.status === "pending";
+  const canManageOwnSpots = isSpotOwner;
+  const canAddSpot = isSuperAdmin || isSpotOwner;
 
   const updateLocalUser = async (patch) => {
     if (!user) return;
@@ -325,6 +331,11 @@ export const AuthProvider = ({ children }) => {
         loginWithGoogle,
         loading,
         isSuperAdmin,
+        isSpotOwner,
+        spotOwnerApplication,
+        isSpotOwnerPending,
+        canManageOwnSpots,
+        canAddSpot,
         updateLocalUser,
         register,
         requestReset,

@@ -226,6 +226,11 @@ export function distanceLabel(meters) {
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 function toMinutes(t) {
+  if (typeof t === 'number' && !Number.isNaN(t)) {
+    const h = Math.floor(t);
+    const frac = t - h;
+    return h * 60 + Math.round(frac * 60);
+  }
   if (typeof t !== 'string') return null;
   const m = /^(\d{1,2})(?::(\d{2}))?$/.exec(t.trim());
   if (!m) return null;
@@ -252,6 +257,7 @@ function formatHour(min) {
  *   - { open247: true }
  *   - { today: { open, close } }
  *   - { mon: { open, close }, tue: ... }              (keys lowercase)
+ *   - { mon: [8, 17], tue: null, ... }                (numeric arrays)
  *   - [ { day: 0..6, open, close } ]
  */
 export function openStatus(spot, now = new Date()) {
@@ -274,8 +280,15 @@ export function openStatus(spot, now = new Date()) {
     }
   } else if (typeof h === 'object') {
     const key = DAY_KEYS[now.getDay()];
+    const hasWeekHours = DAY_KEYS.some((k) => k in h);
     const entry = h[key];
-    if (entry && (entry.open || entry.close)) {
+
+    if (entry === null || (hasWeekHours && entry === undefined)) {
+      return { isOpen: false, label: 'CLOSED' };
+    }
+    if (Array.isArray(entry) && entry.length >= 2) {
+      todayWindow = { open: entry[0], close: entry[1] };
+    } else if (entry && (entry.open || entry.close)) {
       todayWindow = { open: entry.open, close: entry.close };
     }
   }
