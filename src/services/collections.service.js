@@ -36,7 +36,12 @@ export const createCollection = async (data) => {
     const response = await api.post("/collections", data);
     return response.data;
   } catch (err) {
-    return { error: err.response?.data?.message || "Failed to create collection" };
+    const data = err.response?.data;
+    return {
+      error: data?.message || "Failed to create collection",
+      code: data?.code,
+      unlockBadge: data?.unlockBadge,
+    };
   }
 };
 
@@ -46,7 +51,12 @@ export const updateCollection = async (id, data) => {
     const response = await api.put(`/collections/${id}`, data);
     return response.data;
   } catch (err) {
-    return { error: err.response?.data?.message || "Failed to update collection" };
+    const data = err.response?.data;
+    return {
+      error: data?.message || "Failed to update collection",
+      code: data?.code,
+      unlockBadge: data?.unlockBadge,
+    };
   }
 };
 
@@ -56,7 +66,12 @@ export const deleteCollection = async (id) => {
     const response = await api.delete(`/collections/${id}`);
     return response.data;
   } catch (err) {
-    return { error: err.response?.data?.message || "Failed to delete collection" };
+    const data = err.response?.data;
+    return {
+      error: data?.message || "Failed to delete collection",
+      code: data?.code,
+      unlockBadge: data?.unlockBadge,
+    };
   }
 };
 
@@ -96,7 +111,12 @@ export const addSpotToCollection = async (collectionId, spotId) => {
     const response = await api.post(`/collections/${collectionId}/spots`, { spotId });
     return response.data;
   } catch (err) {
-    return { error: err.response?.data?.message || "Failed to add spot to collection" };
+    const data = err.response?.data;
+    return {
+      error: data?.message || "Failed to add spot to collection",
+      code: data?.code,
+      unlockBadge: data?.unlockBadge,
+    };
   }
 };
 

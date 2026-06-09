@@ -65,7 +65,7 @@ const navigationTheme = {
  * Main Tab Navigator (for authenticated users)
  */
 const MainTabs = () => {
-  const { canAddSpot } = useAuth();
+  const { canAddSpot, isSpotOwner } = useAuth();
 
   return (
     <Tab.Navigator
@@ -78,9 +78,9 @@ const MainTabs = () => {
       <Tab.Screen
         name="Collections"
         component={CollectionsScreen}
-        options={{ tabBarLabel: 'Collections' }}
+        options={{ tabBarLabel: 'Pocket' }}
       />
-      {canAddSpot && (
+      {canAddSpot && !isSpotOwner && (
         <Tab.Screen
           name="AddSpot"
           component={AddSpotScreen}
@@ -142,6 +142,11 @@ export const AppNavigator = () => {
           <>
             <Stack.Screen name="MainTabs" component={MainTabs} />
             <Stack.Screen name="SpotDetail" component={SpotDetailsScreen} />
+            <Stack.Screen
+              name="AddSpot"
+              component={AddSpotScreen}
+              options={{ presentation: 'modal' }}
+            />
             <Stack.Screen name="EditSpot" component={EditSpotScreen} />
             <Stack.Screen name="BecomeSpotOwner" component={BecomeSpotOwnerScreen} />
             <Stack.Screen name="MySpots" component={MySpotsScreen} />

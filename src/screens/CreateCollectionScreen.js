@@ -44,6 +44,15 @@ import {
 import SpotPickerSheet from '../components/fieldguide/sheets/SpotPickerSheet';
 import fieldGuide from '../theme/fieldGuide';
 import { useToast } from '../components/ToastProvider';
+import { useUserProgression } from '../hooks/useUserProgression';
+import { useBadgeProgress } from '../hooks/useBadgeProgress';
+import { useAuth } from '../hooks/useAuth';
+import {
+  canCreateCollections,
+  getExplorerVisitProgress,
+  resolveUnlockBadge,
+  showCollectionsLockedToast,
+} from '../utils/collectionAccess';
 import { logger } from '../utils/logger';
 import { vibeForCategory } from '../utils/spotHelpers';
 import {
@@ -171,6 +180,13 @@ export const CreateCollectionScreen = ({ navigation, route }) => {
   const id = route?.params?.id;
   const mode = route?.params?.mode === 'edit' ? 'edit' : 'create';
   const toast = useToast();
+  const { user } = useAuth();
+  const { data: progression, isLoading: loadingProgression } = useUserProgression();
+  const unlockedCreate = canCreateCollections(user, progression);
+  const unlockBadge = resolveUnlockBadge(user, progression);
+  const { data: badgeProgress } = useBadgeProgress({
+    enabled: !unlockedCreate && !loadingProgression,
+  });
 
   const [loading, setLoading] = useState(mode === 'edit');
   const [submitting, setSubmitting] = useState(false);
@@ -182,6 +198,23 @@ export const CreateCollectionScreen = ({ navigation, route }) => {
   const [privacy, setPrivacy] = useState('private');
   const [championAlerts, setChampionAlerts] = useState(true);
   const [titleError, setTitleError] = useState('');
+
+  useEffect(() => {
+    if (loadingProgression) return;
+    if (!unlockedCreate) {
+      const progress = getExplorerVisitProgress(progression, badgeProgress, unlockBadge);
+      showCollectionsLockedToast(toast, unlockBadge, progress);
+      navigation.goBack();
+    }
+  }, [
+    loadingProgression,
+    unlockedCreate,
+    progression,
+    badgeProgress,
+    unlockBadge,
+    navigation,
+    toast,
+  ]);
 
   useEffect(() => {
     if (mode !== 'edit' || !id) return;
@@ -247,14 +280,30 @@ export const CreateCollectionScreen = ({ navigation, route }) => {
     try {
       if (mode === 'edit') {
         const result = await updateCollection(id, payload);
-        if (result?.error) throw new Error(result.error);
+        if (result?.error) {
+          if (result.code === 'COLLECTIONS_CREATE_LOCKED') {
+            const progress = getExplorerVisitProgress(progression, badgeProgress, unlockBadge);
+            showCollectionsLockedToast(toast, result.unlockBadge ?? unlockBadge, progress);
+            navigation.goBack();
+            return;
+          }
+          throw new Error(result.error);
+        }
         toast.show('Changes saved.', { variant: 'success' });
         navigation.goBack();
         return;
       }
 
       const result = await createCollection(payload);
-      if (result?.error) throw new Error(result.error);
+      if (result?.error) {
+        if (result.code === 'COLLECTIONS_CREATE_LOCKED') {
+          const progress = getExplorerVisitProgress(progression, badgeProgress, unlockBadge);
+          showCollectionsLockedToast(toast, result.unlockBadge ?? unlockBadge, progress);
+          navigation.goBack();
+          return;
+        }
+        throw new Error(result.error);
+      }
       const collectionId = result?.id ?? result?.data?.id ?? result?.collection?.id;
       if (!collectionId) throw new Error('No collection id returned');
 

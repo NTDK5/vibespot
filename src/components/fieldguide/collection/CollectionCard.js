@@ -21,7 +21,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import fieldGuide from '../../../theme/fieldGuide';
@@ -83,6 +83,18 @@ function citySummary(cities, spotCount) {
   return `${cities.length} CITIES`;
 }
 
+function resolveCreator(collection) {
+  const c = collection?.creator || collection?.user;
+  if (!c) return null;
+  const topBadge = c.topBadge || null;
+  return {
+    id: c.id,
+    name: c.name || 'Unknown curator',
+    profileImage: c.profileImage ?? null,
+    topBadge,
+  };
+}
+
 function privacyTag(collection) {
   if (collection?.isPublic) return { label: 'PUBLIC', accent: true };
   const sharedCount =
@@ -108,6 +120,7 @@ export default function CollectionCard({
   const extra = Math.max(0, spotCount - 4);
   const cityLabel = citySummary(cities, spotCount);
   const priv = privacyTag(collection);
+  const creator = useMemo(() => resolveCreator(collection), [collection]);
 
   const metaParts = [
     `${spotCount} SPOT${spotCount === 1 ? '' : 'S'}`,
@@ -119,7 +132,7 @@ export default function CollectionCard({
       onPress={onPress}
       onLongPress={onLongPress}
       accessibilityRole="button"
-      accessibilityLabel={collection?.title || 'Collection'}
+      accessibilityLabel={collection?.title || 'Pocket'}
       style={({ pressed }) => [
         styles.card,
         { opacity: pressed ? 0.94 : 1 },
@@ -130,8 +143,33 @@ export default function CollectionCard({
 
       <View style={styles.body}>
         <View style={styles.bodyLeft}>
+          {creator ? (
+            <View style={styles.creatorRow}>
+              {creator.profileImage ? (
+                <Image source={{ uri: creator.profileImage }} style={styles.creatorAvatar} />
+              ) : (
+                <View style={[styles.creatorAvatar, styles.creatorAvatarFallback]}>
+                  <Text style={styles.creatorInitial}>
+                    {(creator.name || '?').charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <Text style={styles.creatorName} numberOfLines={1}>
+                {creator.name}
+              </Text>
+              {creator.topBadge ? (
+                <>
+                  <Text style={styles.creatorDot}>·</Text>
+                  <Text style={styles.creatorBadge}>
+                    {creator.topBadge.icon ? `${creator.topBadge.icon} ` : ''}
+                    {creator.topBadge.name}
+                  </Text>
+                </>
+              ) : null}
+            </View>
+          ) : null}
           <Text style={styles.title} numberOfLines={1}>
-            {collection?.title || 'Untitled collection'}
+            {collection?.title || 'Untitled pocket'}
           </Text>
           <View style={styles.metaRow}>
             <MonoMeta size="spot">{metaParts.join('  ·  ')}</MonoMeta>
@@ -192,6 +230,47 @@ const styles = StyleSheet.create({
   bodyLeft: {
     flex: 1,
     minWidth: 0,
+  },
+  creatorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  creatorAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  creatorAvatarFallback: {
+    backgroundColor: fieldGuide.inkLine,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  creatorInitial: {
+    fontFamily: fieldGuide.fonts.monoMed,
+    fontSize: 11,
+    color: fieldGuide.creamMute,
+  },
+  creatorName: {
+    fontFamily: fieldGuide.fonts.monoMed,
+    fontSize: 10,
+    color: fieldGuide.creamSoft,
+    maxWidth: 120,
+  },
+  creatorDot: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 10,
+    color: fieldGuide.creamFaint,
+  },
+  creatorBadge: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9,
+    letterSpacing: fieldGuide.tracking.wider(9),
+    color: fieldGuide.creamMute,
+    textTransform: 'uppercase',
+    flexShrink: 1,
   },
   title: {
     fontFamily: fieldGuide.fonts.serifMedium,

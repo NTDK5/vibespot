@@ -72,10 +72,15 @@ export const AuthProvider = ({ children }) => {
         throw new Error("Invalid login response");
       }
 
+      if (accessToken) await AsyncStorage.setItem("token", accessToken);
+      if (refreshToken) await AsyncStorage.setItem("refreshToken", refreshToken);
+
       let resolvedUser = payloadUser;
-      if (!resolvedUser) {
+      try {
         const response = await api.get("/user/me");
-        resolvedUser = response.data;
+        if (response.data) resolvedUser = response.data;
+      } catch (err) {
+        if (!resolvedUser) throw err;
       }
 
       await persistAuthSession({
@@ -87,6 +92,18 @@ export const AuthProvider = ({ children }) => {
     },
     [persistAuthSession]
   );
+
+  const refreshUserFromMe = useCallback(async () => {
+    const token = await AsyncStorage.getItem("token");
+    if (!token) return null;
+    const response = await api.get("/user/me");
+    if (response.data) {
+      setUser(response.data);
+      await AsyncStorage.setItem("user", JSON.stringify(response.data));
+      return response.data;
+    }
+    return null;
+  }, []);
 
   const checkAuthState = useCallback(async () => {
     try {
@@ -253,6 +270,12 @@ export const AuthProvider = ({ children }) => {
     try {
       const data = await verifyEmailCode(pendingVerificationEmail, code);
       setPendingVerificationEmail(null);
+      try {
+        const refreshed = await refreshUserFromMe();
+        if (refreshed) return { ok: true, error: null };
+      } catch {
+        /* fall through to local patch */
+      }
       if (data?.user) {
         setUser(data.user);
         await AsyncStorage.setItem("user", JSON.stringify(data.user));
@@ -307,9 +330,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const isSuperAdmin = user?.role === "superadmin";
+  const roleSlug =
+    user?.roleSlug ?? (user?.role === "superadmin" ? "superadmin" : "user");
+  const isSuperAdmin = roleSlug === "superadmin" || user?.role === "superadmin";
   const isSpotOwner =
-    user?.isSpotOwner === true || user?.roleSlug === "spot_owner";
+    user?.isSpotOwner === true || roleSlug === "spot_owner";
   const spotOwnerApplication = user?.spotOwnerApplication ?? null;
   const isSpotOwnerPending = spotOwnerApplication?.status === "pending";
   const canManageOwnSpots = isSpotOwner;
@@ -336,6 +361,7 @@ export const AuthProvider = ({ children }) => {
         isSpotOwnerPending,
         canManageOwnSpots,
         canAddSpot,
+        refreshUserFromMe,
         updateLocalUser,
         register,
         requestReset,

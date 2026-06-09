@@ -85,7 +85,7 @@ export default function CollectionMenuSheet({
   }, [visible, translateY, backdrop]);
 
   const id = collection?.id;
-  const title = collection?.title || 'this collection';
+  const title = collection?.title || 'this pocket';
 
   const handleEdit = () => {
     onClose?.();
@@ -99,7 +99,7 @@ export default function CollectionMenuSheet({
 
   const handleDelete = () => {
     Alert.alert(
-      'Delete collection?',
+      'Delete pocket?',
       `"${title}" and its order will be removed. The spots themselves stay in your library.`,
       [
         { text: 'Cancel', style: 'cancel' },

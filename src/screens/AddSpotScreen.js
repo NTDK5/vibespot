@@ -174,7 +174,11 @@ export const AddSpotScreen = ({ navigation }) => {
 
   useEffect(() => {
     if (!canAddSpot) {
-      navigation.replace('Home');
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('MainTabs', { screen: 'Profile' });
+      }
     }
   }, [canAddSpot, navigation]);
 

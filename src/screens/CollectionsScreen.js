@@ -48,6 +48,8 @@ import {
 } from '../components/fieldguide';
 import fieldGuide from '../theme/fieldGuide';
 import { useAuth } from '../hooks/useAuth';
+import { useUserProgression } from '../hooks/useUserProgression';
+import { useBadgeProgress } from '../hooks/useBadgeProgress';
 import { useToast } from '../components/ToastProvider';
 import { logger } from '../utils/logger';
 import {
@@ -63,12 +65,18 @@ import {
   vibeForCategory,
   zeroPad,
 } from '../utils/spotHelpers';
+import {
+  canCreateCollections,
+  getExplorerVisitProgress,
+  resolveUnlockBadge,
+  showCollectionsLockedToast,
+} from '../utils/collectionAccess';
 
 /* ─────────────────────────────────────────────────────────────────── */
 /*  HELPERS                                                            */
 /* ─────────────────────────────────────────────────────────────────── */
 
-const TABS = ['Collections', 'All spots', 'Visited'];
+const TABS = ['Collections', 'Saved spots', 'Visited spots'];
 
 function safeArray(maybe) {
   if (Array.isArray(maybe)) return maybe;
@@ -123,7 +131,7 @@ function totalSpotCount(collections) {
 async function fetchCollections(userId) {
   const [mineRes, publicRes] = await Promise.all([
     userId ? getUserCollections(userId) : Promise.resolve([]),
-    getAllCollections({ isPublic: true, sortBy: 'popular', limit: 100 }),
+    getAllCollections({ isPublic: true, sortBy: 'prestige', limit: 100 }),
   ]);
 
   const mineErr = mineRes?.error;
@@ -184,15 +192,37 @@ export const CollectionsScreen = ({ navigation }) => {
   const toast = useToast();
   const queryClient = useQueryClient();
   const userId = user?.id;
+  const { data: progression, isLoading: loadingProgression, refetch: refetchProgression } =
+    useUserProgression();
+  const unlockedCreate = canCreateCollections(user, progression);
+  const unlockBadge = resolveUnlockBadge(user, progression);
+  const { data: badgeProgress } = useBadgeProgress({
+    enabled: !!userId && !unlockedCreate && !loadingProgression,
+  });
+
+  const tryOpenCreate = useCallback(() => {
+    if (unlockedCreate) {
+      navigation.navigate('CreateCollection');
+      return;
+    }
+    const progress = getExplorerVisitProgress(progression, badgeProgress, unlockBadge);
+    showCollectionsLockedToast(toast, unlockBadge, progress);
+  }, [
+    unlockedCreate,
+    navigation,
+    progression,
+    badgeProgress,
+    unlockBadge,
+    toast,
+  ]);
 
   const [tab, setTab] = useState(0);
   const [menuFor, setMenuFor] = useState(null);
 
   /* ── COLLECTIONS query ───────────────────────────────────────────── */
   const collectionsQuery = useQuery({
-    queryKey: ['user-collections', userId],
+    queryKey: ['user-collections', userId ?? 'guest'],
     queryFn: () => fetchCollections(userId),
-    enabled: !!userId,
     staleTime: 30_000,
   });
 
@@ -251,10 +281,11 @@ export const CollectionsScreen = ({ navigation }) => {
   /* ── refresh when screen regains focus ───────────────────────────── */
   useFocusEffect(
     useCallback(() => {
-      // Refetch collections lightly so a new pocket created on a sibling
-      // screen shows up without a manual pull.
-      queryClient.invalidateQueries({ queryKey: ['user-collections', userId] });
-    }, [queryClient, userId]),
+      queryClient.invalidateQueries({ queryKey: ['user-collections', userId ?? 'guest'] });
+      if (userId) {
+        refetchProgression();
+      }
+    }, [queryClient, userId, refetchProgression]),
   );
 
   /* ── pull-to-refresh ─────────────────────────────────────────────── */
@@ -275,15 +306,20 @@ export const CollectionsScreen = ({ navigation }) => {
   }, [tab, collectionsQuery, loadSaved, loadVisited]);
 
   /* ── header counts ───────────────────────────────────────────────── */
-  const totalSaved = useMemo(() => {
-    const c = totalSpotCount(collections);
-    if (c > 0) return c;
-    return Array.isArray(savedSpots) ? savedSpots.length : 0;
-  }, [collections, savedSpots]);
-
-  const headerSub = `${collections.length} COLLECTION${
-    collections.length === 1 ? '' : 'S'
-  } · ${totalSaved} SPOT${totalSaved === 1 ? '' : 'S'} IN YOUR POCKET`;
+  const headerSub = useMemo(() => {
+    if (tab === 1) {
+      const n = Array.isArray(savedSpots) ? savedSpots.length : 0;
+      return `${n} SAVED SPOT${n === 1 ? '' : 'S'}`;
+    }
+    if (tab === 2) {
+      const n = Array.isArray(visitedSpots) ? visitedSpots.length : 0;
+      return `${n} VISITED SPOT${n === 1 ? '' : 'S'}`;
+    }
+    const spotsInPockets = totalSpotCount(collections);
+    return `${collections.length} COLLECTION${
+      collections.length === 1 ? '' : 'S'
+    } · ${spotsInPockets} SPOT${spotsInPockets === 1 ? '' : 'S'}`;
+  }, [tab, collections, savedSpots, visitedSpots]);
 
   /* ── menu actions ────────────────────────────────────────────────── */
   const openMenu = (collection) => setMenuFor(collection);
@@ -291,6 +327,11 @@ export const CollectionsScreen = ({ navigation }) => {
 
   const handleEdit = (id) => {
     if (!menuFor || !isCollectionOwner(menuFor, userId)) return;
+    if (!unlockedCreate) {
+      const progress = getExplorerVisitProgress(progression, badgeProgress, unlockBadge);
+      showCollectionsLockedToast(toast, unlockBadge, progress);
+      return;
+    }
     navigation.navigate('CreateCollection', { id, mode: 'edit' });
   };
 
@@ -308,12 +349,20 @@ export const CollectionsScreen = ({ navigation }) => {
     );
     try {
       const result = await deleteCollection(id);
-      if (result?.error) throw new Error(result.error);
-      toast.show('Collection deleted.', { variant: 'success' });
+      if (result?.error) {
+        if (result.code === 'COLLECTIONS_CREATE_LOCKED') {
+          const progress = getExplorerVisitProgress(progression, badgeProgress, unlockBadge);
+          showCollectionsLockedToast(toast, result.unlockBadge ?? unlockBadge, progress);
+          queryClient.setQueryData(['user-collections', userId], snapshot);
+          return;
+        }
+        throw new Error(result.error);
+      }
+      toast.show('Pocket deleted.', { variant: 'success' });
     } catch (err) {
       logger.error('CollectionsScreen.deleteCollection', err);
       queryClient.setQueryData(['user-collections', userId], snapshot);
-      toast.show('Could not delete the collection.', { variant: 'error' });
+      toast.show('Could not delete the pocket.', { variant: 'error' });
     }
   };
 
@@ -330,13 +379,13 @@ export const CollectionsScreen = ({ navigation }) => {
       return (
         <View style={styles.emptyPad}>
           <EmptyState
-            pageName="COLLECTIONS"
+            pageName="POCKET"
             title="Nothing tucked away yet"
             italic="yet."
-            body="A collection holds a few spots that belong together — rainy-day cafés, places you save for visitors, the quiet ones for working."
+            body="A pocket holds a few spots that belong together — rainy-day cafés, places you save for visitors, the quiet ones for working."
             cta={{
-              label: 'Start one',
-              onPress: () => navigation.navigate('CreateCollection'),
+              label: 'Start a pocket',
+              onPress: tryOpenCreate,
             }}
           />
         </View>
@@ -431,13 +480,13 @@ export const CollectionsScreen = ({ navigation }) => {
       <View style={styles.head}>
         <View style={styles.row1}>
           <DisplayTitle size="lg" weight="500">
-            Saved spots
+            Pocket
           </DisplayTitle>
           <EditorialButton
             variant="cream"
             size="sm"
             leading={<Ionicons name="add" size={14} color={fieldGuide.ink} />}
-            onPress={() => navigation.navigate('CreateCollection')}
+            onPress={tryOpenCreate}
           >
             NEW
           </EditorialButton>
@@ -457,15 +506,15 @@ export const CollectionsScreen = ({ navigation }) => {
           renderSpotGrid(
             savedSpots,
             savedLoading,
-            'Nothing tucked away yet.',
-            'Tap the bookmark on any spot card to add it to your library — then build a pocket out of the ones that belong together.',
+            'Nothing saved yet.',
+            'Tap the bookmark on any spot card to save it here — then group your favorites into a pocket once you unlock Explorer.',
           )}
         {tab === 2 &&
           renderSpotGrid(
             visitedSpots,
             visitedLoading,
             'No visits logged yet.',
-            'Mark a spot as visited from its detail screen and we’ll keep a quiet record here.',
+            'Mark a spot as visited from its detail screen and we\'ll keep a quiet record here.',
           )}
       </View>
 

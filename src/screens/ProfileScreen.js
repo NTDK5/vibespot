@@ -36,15 +36,21 @@ import { getVisitedSpots } from '../services/visitedSpots.service';
 import { getUserCollections } from '../services/collections.service';
 import { getMyReviews } from '../services/user.service';
 import { initialFor } from '../utils/spotHelpers';
+import {
+  badgeCelebrationKey,
+  isWelcomeBadge,
+  loadCelebrationState,
+  pickBadgeToCelebrate,
+  reserveBadgeCelebration,
+  SEEN_SEALS_KEY,
+} from '../utils/celebrationStorage';
 import { logger } from '../utils/logger';
 
-const SEEN_SEALS_KEY = 'fena.seenSealIds';
-
-function usernameFromUser(user) {
+function usernameFromUser(user, { isSpotOwner = false } = {}) {
   if (user?.username) return user.username;
   const email = user?.email || '';
   const prefix = email.split('@')[0];
-  return prefix || 'explorer';
+  return prefix || (isSpotOwner ? 'owner' : 'explorer');
 }
 
 function readerNumberFromUser(user) {
@@ -151,6 +157,7 @@ export const ProfileScreen = ({ navigation }) => {
     isSpotOwner,
     isSpotOwnerPending,
     canManageOwnSpots,
+    refreshUserFromMe,
   } = useAuth();
   const [tab, setTab] = useState(0);
   const [savedSpots, setSavedSpots] = useState([]);
@@ -225,10 +232,14 @@ export const ProfileScreen = ({ navigation }) => {
   useEffect(() => {
     if (loadingProgression || !seenLoaded) return;
     const seen = seenSealsRef.current;
-    const firstLogin = seen == null;
     const seenSet = new Set(Array.isArray(seen) ? seen : []);
-    const newSeals = unlockedSealIds.filter((id) => !seenSet.has(id));
-    if (!firstLogin && newSeals.length === 0) return;
+    const newSealIds = unlockedSealIds.filter((id) => !seenSet.has(id));
+    // Welcome is handled by the celebration modal — only auto-expand for later badges.
+    const newNonWelcome = newSealIds.filter((id) => {
+      const badge = unlockedBadges.find((b) => String(b?.id ?? b?.name) === id);
+      return badge && !isWelcomeBadge(badge);
+    });
+    if (newNonWelcome.length === 0) return;
 
     setRevealSeals(true);
     const union = Array.from(
@@ -236,7 +247,7 @@ export const ProfileScreen = ({ navigation }) => {
     );
     seenSealsRef.current = union;
     AsyncStorage.setItem(SEEN_SEALS_KEY, JSON.stringify(union)).catch(() => {});
-  }, [loadingProgression, seenLoaded, unlockedSealIds]);
+  }, [loadingProgression, seenLoaded, unlockedSealIds, unlockedBadges]);
 
   const progressAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -251,18 +262,39 @@ export const ProfileScreen = ({ navigation }) => {
     }).start();
   }, [badgeProgress, progressAnim]);
 
-  const [lastBadgeId, setLastBadgeId] = useState(null);
+  const [celebrationBadge, setCelebrationBadge] = useState(null);
   const [showBadgeCelebration, setShowBadgeCelebration] = useState(false);
+  const lastCelebrationFingerprintRef = useRef('');
 
   useEffect(() => {
-    if (
-      progression?.newestBadge?.id &&
-      progression.newestBadge.id !== lastBadgeId
-    ) {
+    if (loadingProgression || !progression) return;
+    const unlocked = (progression.badges || []).filter((b) => b.unlocked);
+    const fingerprint = unlocked
+      .map((b) => `${badgeCelebrationKey(b)}:${b.earnedAt ?? ''}`)
+      .join('|');
+    if (lastCelebrationFingerprintRef.current === fingerprint) return;
+
+    let cancelled = false;
+    (async () => {
+      const state = await loadCelebrationState();
+      if (cancelled) return;
+      const target = pickBadgeToCelebrate(unlocked, state);
+      lastCelebrationFingerprintRef.current = fingerprint;
+      if (!target || cancelled) return;
+      const reserved = await reserveBadgeCelebration(target);
+      if (!reserved || cancelled) return;
+      setCelebrationBadge(target);
       setShowBadgeCelebration(true);
-      setLastBadgeId(progression.newestBadge.id);
-    }
-  }, [progression, lastBadgeId]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadingProgression, progression]);
+
+  const handleCelebrationDismiss = useCallback(() => {
+    setShowBadgeCelebration(false);
+    setCelebrationBadge(null);
+  }, []);
 
   const loadSavedSpots = useCallback(async () => {
     try {
@@ -339,6 +371,7 @@ export const ProfileScreen = ({ navigation }) => {
     setRefreshing(true);
     try {
       await Promise.all([
+        refreshUserFromMe?.(),
         loadSavedSpots(),
         loadVisitedSpots(),
         loadMyCollections(),
@@ -434,7 +467,7 @@ export const ProfileScreen = ({ navigation }) => {
           sortAt: new Date(col?.updatedAt || col?.createdAt || 0).getTime(),
           icon: 'albums-outline',
           iconBg: fieldGuide.moss,
-          title: col.title || 'Untitled collection',
+          title: col.title || 'Untitled pocket',
           meta: `Collection · ${col.spotCount || 0} spots`,
           preview: col.description || null,
           onPress: () =>
@@ -464,13 +497,17 @@ export const ProfileScreen = ({ navigation }) => {
     return items.sort((a, b) => (b.sortAt || 0) - (a.sortAt || 0));
   }, [visitedSpots, myCollections, progression, navigation]);
 
-  const displayName = user?.name || 'Explorer';
-  const handle = `@${usernameFromUser(user)} · ${user?.homeCity || '—'}`;
+  const displayName = isSpotOwner
+    ? user?.name || 'Spot Owner'
+    : user?.name || 'Explorer';
+  const handle = `@${usernameFromUser(user, { isSpotOwner })} · ${user?.homeCity || '—'}`;
   const isEditor =
     isSuperAdmin || user?.role === 'admin' || user?.role === 'superadmin';
-  const rolePill = isEditor
-    ? 'VERIFIED CONTRIBUTOR'
-    : `EXPLORER · NO. ${readerNumberFromUser(user)}`;
+  const rolePill = isSpotOwner
+    ? 'SPOT OWNER'
+    : isEditor
+      ? 'VERIFIED CONTRIBUTOR'
+      : `EXPLORER · NO. ${readerNumberFromUser(user)}`;
   const bio =
     user?.bio?.trim() ||
     'Nothing written yet — tell explorers who you are.';
@@ -568,8 +605,16 @@ export const ProfileScreen = ({ navigation }) => {
             <EditorialButton
               variant="primary"
               block
-              onPress={() => navigation.navigate('MySpots')}
+              onPress={() => navigation.navigate('AddSpot')}
               style={{ marginTop: 12 }}
+            >
+              List a new spot
+            </EditorialButton>
+            <EditorialButton
+              variant="ghost"
+              block
+              onPress={() => navigation.navigate('MySpots')}
+              style={{ marginTop: 8 }}
             >
               My spots
             </EditorialButton>
@@ -773,7 +818,7 @@ export const ProfileScreen = ({ navigation }) => {
                   style={styles.seeAll}
                 >
                   <MonoMeta size="eyebrow" color={fieldGuide.ember}>
-                    See all →
+                    See all → Pocket
                   </MonoMeta>
                 </Pressable>
               </>
@@ -784,11 +829,11 @@ export const ProfileScreen = ({ navigation }) => {
 
       <XPBadgeCelebration
         visible={showBadgeCelebration}
-        onDismiss={() => setShowBadgeCelebration(false)}
+        onDismiss={handleCelebrationDismiss}
         type="badge"
-        badgeName={progression?.newestBadge?.name}
-        badgeIcon={progression?.newestBadge?.icon}
-        message={progression?.newestBadge?.description}
+        badgeName={celebrationBadge?.name}
+        badgeIcon={celebrationBadge?.icon}
+        message={celebrationBadge?.description}
         durationMs={2500}
       />
     </SafeAreaView>

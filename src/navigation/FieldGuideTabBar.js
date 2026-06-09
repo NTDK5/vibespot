@@ -34,7 +34,7 @@ const ROUTE_ICON = {
   Map:         'map-outline',
   Profile:     'person-outline',
   AddSpot:     'add-circle-outline',
-  Collections: 'albums-outline',
+  Collections: 'bookmark-outline',
 };
 
 function resolveLabel(options, routeName) {

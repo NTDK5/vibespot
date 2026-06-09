@@ -65,6 +65,15 @@ import {
 import fieldGuide from '../theme/fieldGuide';
 import { useToast } from '../components/ToastProvider';
 import { logger } from '../utils/logger';
+import { useAuth } from '../hooks/useAuth';
+import { useUserProgression } from '../hooks/useUserProgression';
+import { useBadgeProgress } from '../hooks/useBadgeProgress';
+import {
+  canCreateCollections,
+  getExplorerVisitProgress,
+  resolveUnlockBadge,
+  showCollectionsLockedToast,
+} from '../utils/collectionAccess';
 import { useLocation } from '../hooks/useLocation';
 import { useSpotVibes } from '../hooks/useSpotVibes';
 import {
@@ -222,7 +231,21 @@ export const SpotDetailScreen = ({ navigation, route }) => {
   const spotId = route?.params?.spotId ?? route?.params?.id;
   const insets = useSafeAreaInsets();
   const toast = useToast();
+  const { user } = useAuth();
+  const { data: progression } = useUserProgression();
+  const unlockedCreate = canCreateCollections(user, progression);
+  const unlockBadge = resolveUnlockBadge(user, progression);
+  const { data: badgeProgress } = useBadgeProgress({ enabled: !unlockedCreate });
   const { location: userLocation } = useLocation();
+
+  const handleCreatePocket = useCallback(() => {
+    if (unlockedCreate) {
+      navigation.navigate('CreateCollection');
+      return;
+    }
+    const progress = getExplorerVisitProgress(progression, badgeProgress, unlockBadge);
+    showCollectionsLockedToast(toast, unlockBadge, progress);
+  }, [unlockedCreate, navigation, progression, badgeProgress, unlockBadge, toast]);
 
   /* ── queries ─────────────────────────────────────────────────────── */
   const spotQuery = useQuery({
@@ -897,7 +920,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
         visible={pickerOpen}
         spotId={spotId}
         onClose={() => setPickerOpen(false)}
-        onCreateNew={() => navigation.navigate('CreateCollection')}
+        onCreateNew={handleCreatePocket}
       />
     </View>
   );

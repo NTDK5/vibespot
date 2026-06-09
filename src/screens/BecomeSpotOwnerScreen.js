@@ -2,7 +2,7 @@
  * BecomeSpotOwnerScreen — apply to list a venue on FENA.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -21,13 +21,22 @@ import FloatingLabelInput from '../components/fieldguide/form/FloatingLabelInput
 import MonoMeta from '../components/fieldguide/primitives/MonoMeta';
 import fieldGuide from '../theme/fieldGuide';
 import { useToast } from '../components/ToastProvider';
+import { useAuth } from '../hooks/useAuth';
 import { applySpotOwner } from '../services/ownerSpots.service';
 
 export default function BecomeSpotOwnerScreen({ navigation }) {
   const toast = useToast();
+  const { isSpotOwner, isSpotOwnerPending } = useAuth();
   const [businessName, setBusinessName] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (isSpotOwner) {
+      toast.show('You already have spot owner access.', { variant: 'info' });
+      navigation.goBack();
+    }
+  }, [isSpotOwner, navigation, toast]);
 
   async function onSubmit() {
     setBusy(true);
@@ -44,6 +53,29 @@ export default function BecomeSpotOwnerScreen({ navigation }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (isSpotOwnerPending) {
+    return (
+      <SafeAreaView edges={['top', 'bottom']} style={styles.safe}>
+        <View style={styles.header}>
+          <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
+            <Ionicons name="arrow-back" size={22} color={fieldGuide.cream} />
+          </Pressable>
+          <MonoMeta size="kicker">LIST YOUR SPOT</MonoMeta>
+          <View style={{ width: 22 }} />
+        </View>
+        <View style={styles.pendingWrap}>
+          <MonoMeta size="spot">APPLICATION UNDER REVIEW</MonoMeta>
+          <Text style={styles.pendingText}>
+            We&apos;re reviewing your spot owner application. You&apos;ll hear from us soon.
+          </Text>
+          <EditorialButton variant="ghost" block onPress={() => navigation.goBack()}>
+            Back to profile
+          </EditorialButton>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -106,6 +138,17 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   scroll: { padding: 20, paddingBottom: 40, gap: 16 },
+  pendingWrap: {
+    flex: 1,
+    padding: 20,
+    gap: 16,
+    justifyContent: 'center',
+  },
+  pendingText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: fieldGuide.creamMute,
+  },
   title: {
     fontFamily: fieldGuide.fonts.serifMedium,
     fontSize: 28,

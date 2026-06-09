@@ -23,6 +23,8 @@ export const XPBadgeCelebration = ({
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const confettiOpacity = useRef(new Animated.Value(1)).current;
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
 
   useEffect(() => {
     if (!visible) return;
@@ -58,12 +60,12 @@ export const XPBadgeCelebration = ({
           useNativeDriver: true,
         }),
       ]).start(() => {
-        onDismiss?.();
+        onDismissRef.current?.();
       });
     }, durationMs);
 
     return () => clearTimeout(timer);
-  }, [visible]);
+  }, [visible, durationMs, scale, opacity, confettiOpacity]);
 
   if (!visible) return null;
 
