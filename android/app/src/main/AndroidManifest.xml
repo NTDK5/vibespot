@@ -34,6 +34,12 @@
         <data android:scheme="fena"/>
         <data android:scheme="exp+fena"/>
       </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="com.googleusercontent.apps.920018732298-4hn7s1tap25b2c5p2ou48panv6hpp6p5"/>
+      </intent-filter>
     </activity>
   </application>
 </manifest>

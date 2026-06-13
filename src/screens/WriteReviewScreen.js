@@ -50,6 +50,12 @@ import {
   createCommentWithMeta,
 } from '../services/comments.service';
 import { getSpotById } from '../services/spots.service';
+import { isSpotVisited } from '../services/visitedSpots.service';
+import { useAuth } from '../hooks/useAuth';
+import {
+  REVIEW_VISIT_REQUIRED_MESSAGE,
+  showReviewVisitRequiredToast,
+} from '../utils/reviewAccess';
 import { getAllVibes } from '../services/vibes.service';
 import {
   indexForSpot,
@@ -92,8 +98,11 @@ export const WriteReviewScreen = ({ navigation, route }) => {
   const spotId = route?.params?.spotId ?? route?.params?.id;
   const toast = useToast();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
 
   const [spot, setSpot] = useState(null);
+  const [visitChecked, setVisitChecked] = useState(false);
+  const [canReview, setCanReview] = useState(false);
   const [rating, setRating] = useState(0);
   const [text, setText] = useState('');
   const [photos, setPhotos] = useState([]); // [{ uri }]
@@ -103,11 +112,56 @@ export const WriteReviewScreen = ({ navigation, route }) => {
   const [anonymous, setAnonymous] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // ── require visit before composing a review ───────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!spotId) {
+        if (!cancelled) {
+          setCanReview(false);
+          setVisitChecked(true);
+        }
+        return;
+      }
+      if (!user) {
+        if (!cancelled) {
+          toast.show('Sign in to write a review.', { variant: 'info' });
+          setCanReview(false);
+          setVisitChecked(true);
+          navigation.goBack();
+        }
+        return;
+      }
+      try {
+        const visited = await isSpotVisited(spotId);
+        if (cancelled) return;
+        if (!visited) {
+          showReviewVisitRequiredToast(toast);
+          setCanReview(false);
+          setVisitChecked(true);
+          navigation.goBack();
+          return;
+        }
+        setCanReview(true);
+        setVisitChecked(true);
+      } catch (err) {
+        logger.error('WriteReview.isSpotVisited', err);
+        if (!cancelled) {
+          toast.show(REVIEW_VISIT_REQUIRED_MESSAGE, { variant: 'info' });
+          setCanReview(false);
+          setVisitChecked(true);
+          navigation.goBack();
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [spotId, user, navigation, toast]);
+
   // ── load spot ─────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!spotId) return;
+      if (!spotId || !canReview) return;
       try {
         const data = await getSpotById(spotId);
         if (cancelled) return;
@@ -117,7 +171,7 @@ export const WriteReviewScreen = ({ navigation, route }) => {
       }
     })();
     return () => { cancelled = true; };
-  }, [spotId]);
+  }, [spotId, canReview]);
 
   // ── load vibe tags ────────────────────────────────────────────────
   useEffect(() => {
@@ -250,7 +304,7 @@ export const WriteReviewScreen = ({ navigation, route }) => {
   };
 
   const handlePost = async () => {
-    if (!spotId || !canSubmit) return;
+    if (!spotId || !canSubmit || !canReview) return;
     setSubmitting(true);
     try {
       // TODO(backend): there's no dedicated review-photos endpoint yet.
@@ -268,10 +322,15 @@ export const WriteReviewScreen = ({ navigation, route }) => {
       const result = await createCommentWithMeta(spotId, payload);
       if (result?.error) {
         const isClient = result?.status && result.status >= 400 && result.status < 500;
-        toast.show(
-          isClient ? result.error : 'Could not post your review.',
-          { variant: 'error' },
-        );
+        const message =
+          result?.code === 'REVIEW_VISIT_REQUIRED' || result?.status === 403
+            ? REVIEW_VISIT_REQUIRED_MESSAGE
+            : isClient
+              ? result.error
+              : 'Could not post your review.';
+        toast.show(message, {
+          variant: result?.status === 403 ? 'info' : 'error',
+        });
         logger.error('WriteReview.post', result.error);
         return;
       }
@@ -315,6 +374,16 @@ export const WriteReviewScreen = ({ navigation, route }) => {
     .join(' · ');
 
   // ── render ────────────────────────────────────────────────────────
+  if (!visitChecked || !canReview) {
+    return (
+      <SafeAreaView edges={['top']} style={styles.safe}>
+        <View style={styles.visitGate}>
+          <ActivityIndicator color={fieldGuide.ember} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
       <KeyboardAvoidingView
@@ -576,6 +645,11 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
+  },
+  visitGate: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   fill: { flex: 1 },
 

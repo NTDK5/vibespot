@@ -73,7 +73,7 @@ function RegisterScreenForm({ navigation }) {
   const showError = (msg) => toast?.show?.(msg, { variant: 'error' });
   const showInfo = (msg) => toast?.show?.(msg, { variant: 'info' });
 
-  const { request: googleRequest, busyGoogle, signInWithGoogle } = useGoogleAuth({
+  const { busyGoogle, signInWithGoogle } = useGoogleAuth({
     onError: showError,
   });
 
@@ -249,7 +249,6 @@ function RegisterScreenForm({ navigation }) {
               variant="ghost"
               block
               loading={busyGoogle}
-              disabled={!googleRequest}
               onPress={signInWithGoogle}
               leading={<GoogleIcon />}
             >

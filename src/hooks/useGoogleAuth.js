@@ -1,34 +1,62 @@
 /**
  * useGoogleAuth — shared Google OAuth wiring for Login and Register.
  *
- * Wraps expo-auth-session's Google id-token flow + AuthContext.loginWithGoogle
- * so both screens stay in sync. Uses the redirect scheme "fena" (see app.json)
- * and reads client IDs from EXPO_PUBLIC_GOOGLE_* env vars.
+ * Native Android/iOS builds use Google's reversed client ID redirect URI.
+ * See GOOGLE_SIGNIN_SETUP.md and src/utils/googleAuth.js.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import * as Google from 'expo-auth-session/providers/google';
-import { makeRedirectUri } from 'expo-auth-session';
 
 import { useAuth } from './useAuth';
+import { googleNativeRedirectUri } from '../utils/googleAuth';
+
+const PLACEHOLDER_IDS = new Set([
+  'YOUR_WEB_CLIENT_ID',
+  'your-web-client-id.apps.googleusercontent.com',
+]);
+
+function resolveGoogleClientId() {
+  const id = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID?.trim();
+  if (!id || PLACEHOLDER_IDS.has(id)) return null;
+  return id;
+}
 
 export function useGoogleAuth({ onError } = {}) {
   const { loginWithGoogle } = useAuth();
   const [busyGoogle, setBusyGoogle] = useState(false);
+  const webClientId = resolveGoogleClientId();
+  const isConfigured = !!webClientId;
 
   // Keep the latest onError without re-subscribing the response effect.
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
 
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId:
-      process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || 'YOUR_WEB_CLIENT_ID',
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || undefined,
-    androidClientId:
-      process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || undefined,
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || undefined,
-    redirectUri: makeRedirectUri({ scheme: 'fena' }),
-  });
+  const androidClientId =
+    process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID?.trim().replace(/^"|"$/g, '') ||
+    undefined;
+  const iosClientId =
+    process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim().replace(/^"|"$/g, '') ||
+    undefined;
+
+  const redirectUriOptions = useMemo(() => {
+    const native = Platform.select({
+      android: googleNativeRedirectUri(androidClientId),
+      ios: googleNativeRedirectUri(iosClientId),
+      default: undefined,
+    });
+    return native ? { native } : {};
+  }, [androidClientId, iosClientId]);
+
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest(
+    {
+      iosClientId,
+      androidClientId,
+      webClientId: webClientId || undefined,
+    },
+    redirectUriOptions,
+  );
 
   const handleIdToken = useCallback(
     async (idToken) => {
@@ -50,11 +78,32 @@ export function useGoogleAuth({ onError } = {}) {
   }, [response, handleIdToken]);
 
   const signInWithGoogle = useCallback(() => {
-    if (!request) return;
+    if (!isConfigured) {
+      onErrorRef.current?.(
+        'Google Sign-In is not configured. Add client IDs to .env — see GOOGLE_SIGNIN_SETUP.md.',
+      );
+      return;
+    }
+    if (Platform.OS === 'android' && !process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID) {
+      onErrorRef.current?.(
+        'Android Google client ID is missing. Create an Android OAuth client in Google Cloud Console and set EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID in .env.',
+      );
+      return;
+    }
+    if (Platform.OS === 'ios' && !process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID) {
+      onErrorRef.current?.(
+        'iOS Google client ID is missing. Create an iOS OAuth client in Google Cloud Console and set EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID in .env.',
+      );
+      return;
+    }
+    if (!request) {
+      onErrorRef.current?.('Google Sign-In is still loading. Try again in a moment.');
+      return;
+    }
     promptAsync();
-  }, [request, promptAsync]);
+  }, [isConfigured, request, promptAsync]);
 
-  return { request, busyGoogle, signInWithGoogle };
+  return { request, busyGoogle, signInWithGoogle, isConfigured };
 }
 
 export default useGoogleAuth;

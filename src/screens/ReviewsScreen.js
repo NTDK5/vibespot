@@ -41,6 +41,8 @@ import { getSpotById } from '../services/spots.service';
 import { indexForSpot, zeroPad } from '../utils/spotHelpers';
 import { useAuth } from '../hooks/useAuth';
 import { getDisplayableReviewPhotos } from '../utils/reviewPhotos';
+import { isSpotVisited } from '../services/visitedSpots.service';
+import { tryNavigateToWriteReview } from '../utils/reviewAccess';
 
 const PAGE_SIZE = 20;
 
@@ -109,6 +111,7 @@ export const ReviewsScreen = ({ navigation, route }) => {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [visited, setVisited] = useState(false);
 
   // ── load spot header ──────────────────────────────────────────────
   useEffect(() => {
@@ -161,6 +164,34 @@ export const ReviewsScreen = ({ navigation, route }) => {
   useEffect(() => {
     loadPage(1);
   }, [loadPage]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!spotId || !user) {
+        if (!cancelled) setVisited(false);
+        return;
+      }
+      try {
+        const v = await isSpotVisited(spotId);
+        if (!cancelled) setVisited(!!v);
+      } catch (err) {
+        logger.error('Reviews.isSpotVisited', err);
+        if (!cancelled) setVisited(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [spotId, user]);
+
+  const handleWriteReview = useCallback(() => {
+    tryNavigateToWriteReview({
+      navigation,
+      spotId,
+      visited,
+      toast,
+      user,
+    });
+  }, [navigation, spotId, visited, toast, user]);
 
   const onEndReached = () => {
     if (loading || loadingMore || !hasMore) return;
@@ -263,7 +294,7 @@ export const ReviewsScreen = ({ navigation, route }) => {
         <EditorialButton
           size="sm"
           variant="primary"
-          onPress={() => navigation.navigate('WriteReview', { spotId })}
+          onPress={handleWriteReview}
         >
           + Write
         </EditorialButton>
@@ -355,8 +386,7 @@ export const ReviewsScreen = ({ navigation, route }) => {
                 body="Switch back to ALL, or be the first to leave a stamp on this spot."
                 cta={{
                   label: 'Write a review',
-                  onPress: () =>
-                    navigation.navigate('WriteReview', { spotId }),
+                  onPress: handleWriteReview,
                 }}
               />
             </View>

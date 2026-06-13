@@ -1,15 +1,15 @@
 /**
- * SplashScreen — FENA stamp mark + tagline.
+ * SplashScreen — FENA launch screen.
  */
 
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BRAND } from '../brand/fena';
 import { FenaLogoMark } from '../components/brand';
 import fieldGuide from '../theme/fieldGuide';
-import { CompassDial, MonoMeta } from '../components/fieldguide';
+import { MonoMeta } from '../components/fieldguide';
 import { useAuth } from '../hooks/useAuth';
 import { useFirstLaunch } from '../hooks/useFirstLaunch';
 
@@ -34,22 +34,21 @@ export default function SplashScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <View style={styles.dialBg} pointerEvents="none">
-        <CompassDial size={320} spinning color={fieldGuide.cream} />
-      </View>
-
       <View style={styles.center}>
         <FenaLogoMark width={156} />
         <Text style={styles.wordmark}>{BRAND.name}</Text>
-        <MonoMeta size="eyebrow" style={styles.tag}>
-          {BRAND.taglineShort}
-        </MonoMeta>
+        <Text style={styles.tagline}>{BRAND.tagline}</Text>
       </View>
 
       <View style={styles.footer}>
         <MonoMeta size="tab" color={fieldGuide.creamFaint}>
-          {`${BRAND.nameGeez} · FIELD GUIDE`}
+          {BRAND.splashFooter}
         </MonoMeta>
+        <ActivityIndicator
+          color={fieldGuide.ember}
+          size="small"
+          style={styles.loader}
+        />
       </View>
     </SafeAreaView>
   );
@@ -63,16 +62,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 28,
   },
-  dialBg: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    width: 320,
-    height: 320,
-    marginLeft: -160,
-    marginTop: -160,
-    opacity: 0.12,
-  },
   center: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -85,11 +74,14 @@ const styles = StyleSheet.create({
     color: fieldGuide.ember,
     textAlign: 'center',
   },
-  tag: {
+  tagline: {
     marginTop: 14,
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 15,
+    lineHeight: 22,
+    color: fieldGuide.creamSoft,
     textAlign: 'center',
-    letterSpacing: 3.2,
-    color: fieldGuide.creamMute,
+    maxWidth: 280,
   },
   footer: {
     position: 'absolute',
@@ -97,5 +89,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
+  },
+  loader: {
+    marginTop: 16,
   },
 });

@@ -52,7 +52,7 @@ function LoginScreenForm({ navigation }) {
     }
   };
 
-  const { request, busyGoogle, signInWithGoogle } = useGoogleAuth({
+  const { busyGoogle, signInWithGoogle } = useGoogleAuth({
     onError: showError,
   });
 
@@ -181,7 +181,6 @@ function LoginScreenForm({ navigation }) {
               variant="ghost"
               block
               loading={busyGoogle}
-              disabled={!request}
               onPress={signInWithGoogle}
               leading={<GoogleIcon />}
               style={styles.googleBtn}

@@ -100,6 +100,7 @@ import {
 } from '../utils/spotHelpers';
 import { normalizeHoursFromSpot, HOURS_DAYS } from '../utils/hoursHelpers';
 import { distanceKmFromUser, kmToMiles, walkingMinutes } from '../utils/geo';
+import { tryNavigateToWriteReview } from '../utils/reviewAccess';
 
 const SCREEN_W = Dimensions.get('window').width;
 const HERO_H = 520;
@@ -426,6 +427,16 @@ export const SpotDetailScreen = ({ navigation, route }) => {
     }
   }, [spotId, visited, visitBusy, canStamp, toast]);
 
+  const handleWriteReview = useCallback(() => {
+    tryNavigateToWriteReview({
+      navigation,
+      spotId,
+      visited,
+      toast,
+      user,
+    });
+  }, [navigation, spotId, visited, toast, user]);
+
   const openExternal = useCallback(async (url) => {
     try {
       const ok = await Linking.canOpenURL(url);
@@ -690,7 +701,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
           <ActionCell
             icon="create-outline"
             label="Review"
-            onPress={() => navigation.navigate('WriteReview', { spotId })}
+            onPress={handleWriteReview}
           />
           <ActionCell
             icon="navigate-outline"
@@ -792,7 +803,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
                 body="A short, honest note helps the next explorer figure out if this is their kind of place."
                 cta={{
                   label: 'Write a review',
-                  onPress: () => navigation.navigate('WriteReview', { spotId }),
+                  onPress: handleWriteReview,
                 }}
               />
             </View>

@@ -6,13 +6,14 @@
 export const BRAND = Object.freeze({
   name: 'FENA',
   nameGeez: 'ፍና',
-  tagline: 'Where Paths Meet Evening',
-  taglineShort: 'WHERE PATHS MEET EVENING',
+  tagline: 'Discover places worth your time',
+  taglineShort: 'DISCOVER PLACES WORTH YOUR TIME',
+  splashFooter: 'SAVE SPOTS · SHARE VIBES',
   shareSuffix: 'on FENA',
   legalName: 'FENA',
-  supportEmail: 'readers@fena.app',
+  supportEmail: 'hello@fena.app',
   privacyUrl: 'https://fena.app/privacy',
-  logoA11yLabel: 'Fena, Where Paths Meet Evening',
+  logoA11yLabel: 'FENA — discover places worth your time',
 });
 
 export const LOGO_LOCKUP = require('../../assets/brand/logo-lockup-alt.svg');
