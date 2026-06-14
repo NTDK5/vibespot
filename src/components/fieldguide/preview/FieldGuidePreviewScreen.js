@@ -112,14 +112,17 @@ const MOCK_FEATURE = {
 };
 
 const MOCK_CHAMPION = {
-  title: 'The Quiet Apothecary',
-  blurb: 'A late-evening cellar where the bar is cream marble and every drink lists three botanicals — five if you ask.',
-  vibe: 'night',
-  rank: '01',
-  weekNumber: 28,
-  category: 'Bar',
-  district: 'Alfama',
-  distance: '0.6 mi',
+  title: 'Carmine Café',
+  hook: 'Golden-hour light · quiet counter · cardamom bun',
+  vibe: 'cafe',
+  category: 'Café',
+  distance: '0.4 MI',
+  rating: 4.8,
+  ratingCount: 126,
+  savesTrend: 248,
+  isOpen: true,
+  walkLabel: '4 min walk',
+  isSaved: false,
 };
 
 const HOURS = {

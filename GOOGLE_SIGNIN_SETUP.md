@@ -118,11 +118,22 @@ Example for client `920018732298-abc...apps.googleusercontent.com`:
 com.googleusercontent.apps.920018732298-abc...:/oauth2redirect
 ```
 
-After changing the Android client ID or manifest, **rebuild** the dev client:
+After changing the Android client ID or manifest, **rebuild** the dev client (Metro reload is not enough):
 
-```bash
+```powershell
+cd vibespot
 npx expo run:android
 ```
+
+Then start Metro again: `npx expo start --dev-client --clear`.
+
+When you tap **Continue with Google**, check Metro logs for:
+
+```
+GoogleAuth.redirectUri  com.googleusercontent.apps.920018732298-...:/oauthredirect
+```
+
+If you see `com.fena.app:/oauthredirect` or `exp+fena://` instead, the fix did not load — rebuild the app.
 
 ### C. iOS client (required for iOS dev builds)
 

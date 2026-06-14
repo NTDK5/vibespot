@@ -1,27 +1,9 @@
 /**
- * SpotDetailScreen — Phase 4 / design 13 (Field Guide rewrite).
+ * SpotDetailScreen — discovery layout (screens/13-spot-detail.html).
  *
- * The part the app exists for. One full-bleed ScrollView with a sticky
- * "Walk there" / save CTA at the bottom. Layered from top to bottom:
- *
- *   hero        520-pt photo carousel + ink gradient + glass nav-top
- *   title-block kicker / serif title / mono meta with Open/Closed pill
- *   rating-row  big serif rating left, RatingDots + vibe summary right
- *   actions     4-col grid: Save / Review / Directions / Share
- *   story       dropcap paragraph + tag pills
- *   hours       HourBarChart for the week
- *   location    address + MiniMap + contact list
- *   reviews     top 3 inline ReviewRows + "All →"
- *   similar     h-scroll of SpotCard variant="similar"
- *
- * Data:
- *   - useQuery(getSpotById(spotId))            — main payload
- *   - useSpotVibes(spotId)                     — top-3 vibe labels
- *   - useQuery(getSpotComments(id, 1, 3))      — review preview
- *   - useQuery(getNearbySpots(lat, lng, …))    — similar carousel
- *     filtered to shared category, sliced to 10.
- *   - useLocation                              — walk-time
- *   - savedSpots.service                       — pocket toggle
+ * Hero carousel, title chips, rating row, actions, story, hours,
+ * location, reviews preview, similar spots, sticky walk CTA.
+ * Data: getSpotById, vibes, comments, nearby, save/visit, review guard.
  */
 
 import React, { useCallback, useMemo, useRef, useState } from 'react';
@@ -32,6 +14,7 @@ import {
   Image,
   Linking,
   Pressable,
+  RefreshControl,
   ScrollView,
   Share,
   StyleSheet,
@@ -47,21 +30,16 @@ import { useQuery } from '@tanstack/react-query';
 import { BRAND, formatSpotShareMessage } from '../brand/fena';
 import {
   CollectionPickerSheet,
-  DisplayTitle,
-  Dropcap,
   DuotoneVibe,
   EditorialButton,
   EmptyState,
   HourBarChart,
   IconSquare,
   MiniMap,
-  MonoMeta,
-  Pill,
   RatingDots,
   ReviewRow,
-  SaveStamp,
-  SpotCard,
 } from '../components/fieldguide';
+import { LivePulseDot } from '../components/home/LivePulseDot';
 import fieldGuide from '../theme/fieldGuide';
 import { useToast } from '../components/ToastProvider';
 import { logger } from '../utils/logger';
@@ -89,14 +67,11 @@ import {
 } from '../services/savedSpots.service';
 import {
   isSpotVisited,
-  markSpotAsVisited,
 } from '../services/visitedSpots.service';
 import {
-  indexForSpot,
   openStatus,
   prettyCategory,
   vibeForCategory,
-  zeroPad,
 } from '../utils/spotHelpers';
 import { normalizeHoursFromSpot, HOURS_DAYS } from '../utils/hoursHelpers';
 import { distanceKmFromUser, kmToMiles, walkingMinutes } from '../utils/geo';
@@ -105,7 +80,6 @@ import { tryNavigateToWriteReview } from '../utils/reviewAccess';
 const SCREEN_W = Dimensions.get('window').width;
 const HERO_H = 520;
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-const VISIT_RADIUS_M = 100;
 
 /* ─────────────────────────────────────────────────────────────────── */
 /*  HELPERS                                                            */
@@ -151,14 +125,83 @@ function spotImages(spot) {
   return [];
 }
 
-function topVibesString(vibes) {
+function topVibesDisplay(vibes) {
   if (!Array.isArray(vibes) || !vibes.length) return '';
   const sorted = [...vibes].sort((a, b) => (b?.count || 0) - (a?.count || 0));
   return sorted
     .slice(0, 3)
-    .map((v) => String(v?.name || v?.label || v?.id || '').toUpperCase())
+    .map((v) => String(v?.name || v?.label || v?.id || '').trim())
     .filter(Boolean)
     .join(' · ');
+}
+
+function formatMi(km) {
+  if (km == null) return null;
+  const miles = kmToMiles(km);
+  if (miles < 0.1) return '< 0.1 mi';
+  return `${miles.toFixed(1)} mi`;
+}
+
+function formatWalkEyebrow(km, walkMin) {
+  const mi = formatMi(km);
+  if (mi && walkMin != null) return `${mi} · ${walkMin} min walk`;
+  if (mi) return mi;
+  if (walkMin != null) return `${walkMin} min walk`;
+  return 'Location';
+}
+
+function isChampionSpot(spot) {
+  return !!(
+    spot?.isWeeklyChampion ||
+    spot?.weeklyChampion ||
+    spot?.championWeek != null ||
+    spot?.isChampion
+  );
+}
+
+function buildVibeHook(spot, tags, vibeSummary) {
+  if (Array.isArray(tags) && tags.length) {
+    const first = String(tags[0]);
+    const rest = tags.slice(1, 3).map(String).join(' · ');
+    return { highlight: first, rest: rest ? ` · ${rest}` : '' };
+  }
+  if (vibeSummary) {
+    const parts = vibeSummary.split(' · ');
+    if (parts.length > 1) {
+      return { highlight: parts[0], rest: ` · ${parts.slice(1).join(' · ')}` };
+    }
+    return { highlight: vibeSummary, rest: '' };
+  }
+  const desc = spot?.description || spot?.blurb || '';
+  const sentence = desc.split(/[.!?]/)[0]?.trim();
+  if (sentence && sentence.length <= 80) {
+    return { highlight: sentence, rest: '' };
+  }
+  return null;
+}
+
+function buildSubtitleLine(spot, tags, vibeSummary, walkMin) {
+  const parts = [];
+  if (Array.isArray(tags) && tags.length) {
+    parts.push(...tags.slice(0, 3).map(String));
+  } else if (vibeSummary) {
+    parts.push(...vibeSummary.split(' · '));
+  } else if (spot?.hook) {
+    parts.push(String(spot.hook));
+  }
+  return {
+    main: parts.join(' · '),
+    walk: walkMin != null ? `${walkMin} min walk` : null,
+  };
+}
+
+function openUntilLabel(status) {
+  if (status?.isOpen !== true) return null;
+  const label = String(status.label || '');
+  const match = label.match(/(\d{1,2}:\d{2})/);
+  if (match) return `Until ${match[1]}`;
+  if (/OPEN/i.test(label)) return 'Open now';
+  return label || 'Open now';
 }
 
 function pickSocialField(spot, keys = []) {
@@ -167,6 +210,128 @@ function pickSocialField(spot, keys = []) {
     if (value != null && String(value).trim() !== '') return String(value).trim();
   }
   return null;
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+/*  PRIMITIVES                                                         */
+/* ─────────────────────────────────────────────────────────────────── */
+
+function SectionEyebrow({ children }) {
+  return <Text style={styles.sectionEyebrow}>{children}</Text>;
+}
+
+function SectionHeading({ children, style }) {
+  return <Text style={[styles.sectionHeading, style]}>{children}</Text>;
+}
+
+function TitleChip({ children, variant = 'default' }) {
+  return (
+    <View
+      style={[
+        styles.titleChip,
+        variant === 'open' && styles.titleChipOpen,
+        variant === 'trend' && styles.titleChipTrend,
+      ]}
+    >
+      {variant === 'open' ? <View style={styles.titleChipOpenDot} /> : null}
+      <Text
+        style={[
+          styles.titleChipText,
+          variant === 'open' && styles.titleChipTextOpen,
+          variant === 'trend' && styles.titleChipTextTrend,
+        ]}
+      >
+        {children}
+      </Text>
+    </View>
+  );
+}
+
+function HeroBadge({ children, variant = 'default', pulse = false }) {
+  return (
+    <View
+      style={[
+        styles.heroBadge,
+        variant === 'champion' && styles.heroBadgeChampion,
+        variant === 'moss' && styles.heroBadgeMoss,
+      ]}
+    >
+      {pulse ? (
+        <LivePulseDot color={fieldGuide.ember} size={6} />
+      ) : variant === 'moss' ? (
+        <View style={styles.heroBadgeMossDot} />
+      ) : null}
+      {typeof children === 'string' ? (
+        <Text
+          style={[
+            styles.heroBadgeText,
+            variant === 'champion' && styles.heroBadgeTextChampion,
+            variant === 'moss' && styles.heroBadgeTextMoss,
+          ]}
+        >
+          {children}
+        </Text>
+      ) : (
+        <View style={styles.heroBadgeRow}>{children}</View>
+      )}
+    </View>
+  );
+}
+
+function TagPill({ label }) {
+  return (
+    <View style={styles.tagPill}>
+      <Text style={styles.tagPillText}>{label}</Text>
+    </View>
+  );
+}
+
+function SimilarSpotCard({ item, onPress, userLocation }) {
+  const km = userLocation ? distanceKmFromUser(userLocation, item) : null;
+  const dist = km != null ? formatMi(km) : null;
+  const rating = Number(item?.ratingAvg ?? item?.rating ?? 0);
+  const imageUri =
+    item?.thumbnail ||
+    (Array.isArray(item?.images) && item.images[0]) ||
+    null;
+  const vibe = vibeForCategory(item?.category);
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => [
+        styles.similarCard,
+        { opacity: pressed ? 0.92 : 1 },
+      ]}
+    >
+      <View style={styles.similarPhoto}>
+        {imageUri ? (
+          <Image source={{ uri: imageUri }} style={StyleSheet.absoluteFill} />
+        ) : (
+          <DuotoneVibe vibe={vibe} style={StyleSheet.absoluteFill} />
+        )}
+        {dist ? (
+          <View style={styles.similarDist}>
+            <Text style={styles.similarDistText}>{dist}</Text>
+          </View>
+        ) : null}
+      </View>
+      <Text style={styles.similarTitle} numberOfLines={2}>
+        {item?.title || item?.name || 'Spot'}
+      </Text>
+      <Text style={styles.similarMeta} numberOfLines={1}>
+        {rating > 0 ? (
+          <Text style={styles.similarRating}>{rating.toFixed(1)}</Text>
+        ) : null}
+        {rating > 0 ? ' · ' : ''}
+        {prettyCategory(item?.category) || 'Spot'}
+        {item?.district || item?.city
+          ? ` · ${item.district || item.city}`
+          : ''}
+      </Text>
+    </Pressable>
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────── */
@@ -189,7 +354,7 @@ function ContactRow({ icon, label, value, onPress }) {
         <Ionicons name={icon} size={14} color={fieldGuide.cream} />
       </View>
       <View style={styles.contactInfo}>
-        <MonoMeta size="spot">{label}</MonoMeta>
+        <Text style={styles.contactLabel}>{label.toUpperCase()}</Text>
         <Text style={styles.contactValue} numberOfLines={1}>
           {value}
         </Text>
@@ -287,7 +452,6 @@ export const SpotDetailScreen = ({ navigation, route }) => {
   );
 
   const [visited, setVisited] = useState(false);
-  const [visitBusy, setVisitBusy] = useState(false);
 
   const refreshVisited = useCallback(async () => {
     if (!spotId) return;
@@ -322,6 +486,8 @@ export const SpotDetailScreen = ({ navigation, route }) => {
     }
   }, [spotId, saved, toast]);
 
+  const [refreshing, setRefreshing] = useState(false);
+
   /* ── pagination of hero ──────────────────────────────────────────── */
   const [heroIndex, setHeroIndex] = useState(0);
   const heroRef = useRef(null);
@@ -344,6 +510,21 @@ export const SpotDetailScreen = ({ navigation, route }) => {
   });
   const similar = safeArray(similarQuery.data);
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.allSettled([
+        spotQuery.refetch(),
+        commentsQuery.refetch(),
+        similarQuery.refetch(),
+        refreshSaved(),
+        refreshVisited(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [spotQuery, commentsQuery, similarQuery, refreshSaved, refreshVisited]);
+
   /* ── distance + walking minutes ──────────────────────────────────── */
   const distanceKm = useMemo(() => {
     if (!coords || !userLocation) return null;
@@ -353,19 +534,11 @@ export const SpotDetailScreen = ({ navigation, route }) => {
     });
   }, [coords, userLocation]);
   const walkMin = useMemo(() => walkingMinutes(distanceKm), [distanceKm]);
-  const canStamp = useMemo(() => {
-    if (distanceKm == null) return false;
-    return distanceKm * 1000 <= VISIT_RADIUS_M;
-  }, [distanceKm]);
-  const distanceMiles = useMemo(() => {
-    if (distanceKm == null) return null;
-    return kmToMiles(distanceKm);
-  }, [distanceKm]);
-  const distanceLabel = useMemo(() => {
-    if (distanceMiles == null) return null;
-    if (distanceMiles < 0.1) return '< 0.1 MILES';
-    return `${distanceMiles.toFixed(1)} MILES`;
-  }, [distanceMiles]);
+  const distanceMi = useMemo(() => formatMi(distanceKm), [distanceKm]);
+  const walkEyebrow = useMemo(
+    () => formatWalkEyebrow(distanceKm, walkMin),
+    [distanceKm, walkMin],
+  );
 
   /* ── action handlers ─────────────────────────────────────────────── */
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -400,32 +573,6 @@ export const SpotDetailScreen = ({ navigation, route }) => {
       toast.show('Could not open maps.', { variant: 'error' });
     }
   }, [coords, toast]);
-
-  const handleStampVisit = useCallback(async () => {
-    if (!spotId || visited || visitBusy) return;
-    if (!canStamp) {
-      toast.show("You're not close enough yet — within 100 m to stamp.", {
-        variant: 'info',
-      });
-      return;
-    }
-    setVisitBusy(true);
-    setVisited(true);
-    try {
-      const result = await markSpotAsVisited(spotId, {
-        lat: userLocation?.latitude,
-        lng: userLocation?.longitude,
-      });
-      if (result?.error) throw new Error(result.error);
-      toast.show("Stamped · you've been here.", { variant: 'success' });
-    } catch (err) {
-      logger.error('SpotDetail.stampVisit', err);
-      setVisited(false);
-      toast.show('Could not stamp this visit.', { variant: 'error' });
-    } finally {
-      setVisitBusy(false);
-    }
-  }, [spotId, visited, visitBusy, canStamp, toast]);
 
   const handleWriteReview = useCallback(() => {
     tryNavigateToWriteReview({
@@ -486,14 +633,22 @@ export const SpotDetailScreen = ({ navigation, route }) => {
 
   /* ── derived ─────────────────────────────────────────────────────── */
   const images = spotImages(spot);
-  const idxLabel = `NO. ${zeroPad(indexForSpot(spot, 0), 3)}`;
   const status = openStatus(spot);
   const price = priceSymbol(spot);
   const vibe = vibeForCategory(spot.category);
   const todayKey = DAY_KEYS[new Date().getDay()];
   const displayHours = normalizeHoursFromSpot(spot.hours);
   const hasHours = HOURS_DAYS.some((d) => displayHours[d] != null);
-  const vibeSummary = topVibesString(spotVibes);
+  const vibeSummary = topVibesDisplay(spotVibes);
+  const tags = Array.isArray(spot.tags) ? spot.tags.filter(Boolean) : [];
+  const vibeHook = buildVibeHook(spot, tags, vibeSummary);
+  const subtitle = buildSubtitleLine(spot, tags, vibeSummary, walkMin);
+  const champion = isChampionSpot(spot);
+  const openUntil = openUntilLabel(status);
+  const isTrending = !!(spot.trending || spot.isTrending || spot.rankDelta > 0);
+  const savesTrend = Number(
+    spot.savedCount ?? spot.saveCount ?? spot.savesThisWeek ?? 0,
+  );
   const avgRating = Number(spot.ratingAvg ?? spot.averageRating ?? spot.rating ?? 0);
   const reviewsTotalFromMeta = Number(reviewsPayload?.meta?.total ?? 0);
   const reviewCount = Number(
@@ -513,6 +668,14 @@ export const SpotDetailScreen = ({ navigation, route }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         bounces
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={fieldGuide.ember}
+            colors={[fieldGuide.ember]}
+          />
+        }
       >
         {/* HERO */}
         <View style={styles.hero}>
@@ -558,44 +721,47 @@ export const SpotDetailScreen = ({ navigation, route }) => {
 
           {/* nav-top */}
           <View
-            style={[
-              styles.navTop,
-              { top: insets.top + 6 },
-            ]}
+            style={[styles.navTop, { top: insets.top + 10 }]}
             pointerEvents="box-none"
           >
             <IconSquare
               onPress={() => navigation.goBack()}
               accessibilityLabel="Back"
               size={38}
+              radius={19}
             >
-              <Ionicons name="chevron-back" size={18} color={fieldGuide.cream} />
+              <Ionicons name="chevron-back" size={16} color={fieldGuide.cream} />
             </IconSquare>
             <View style={styles.navTopRight}>
               <Pressable
+                onPress={toggleSave}
                 onLongPress={() => setPickerOpen(true)}
                 accessibilityRole="button"
-                accessibilityLabel="Long-press to add to pocket"
-                style={styles.navSavePressable}
+                accessibilityLabel={saved ? 'Saved' : 'Save spot'}
               >
-                <SaveStamp
-                  saved={saved}
-                  onToggle={toggleSave}
-                  size={38}
-                  style={styles.navSaveStamp}
-                />
+                <View style={styles.navGlassBtn}>
+                  <Ionicons
+                    name={saved ? 'bookmark' : 'bookmark-outline'}
+                    size={16}
+                    color={saved ? fieldGuide.ember : fieldGuide.cream}
+                  />
+                </View>
               </Pressable>
-              <View style={{ width: 8 }} />
-              <IconSquare onPress={handleShare} accessibilityLabel="Share" size={38}>
+              <IconSquare
+                onPress={handleShare}
+                accessibilityLabel="Share"
+                size={38}
+                radius={19}
+              >
                 <Ionicons name="share-outline" size={16} color={fieldGuide.cream} />
               </IconSquare>
-              <View style={{ width: 8 }} />
               <IconSquare
                 onPress={() =>
                   toast.show('More options coming soon.', { variant: 'info' })
                 }
                 accessibilityLabel="More"
                 size={38}
+                radius={19}
               >
                 <Ionicons
                   name="ellipsis-horizontal"
@@ -606,88 +772,87 @@ export const SpotDetailScreen = ({ navigation, route }) => {
             </View>
           </View>
 
-          {/* hero count pill */}
-          {images.length > 1 ? (
+          {images.length > 0 ? (
             <View style={styles.heroCount}>
-              <Ionicons name="images-outline" size={11} color={fieldGuide.cream} />
+              <Ionicons name="images-outline" size={12} color={fieldGuide.cream} />
               <Text style={styles.heroCountText}>
                 {`${heroIndex + 1} / ${images.length}`}
               </Text>
             </View>
           ) : null}
+
+          <View style={styles.heroBadges}>
+            {champion ? (
+              <HeroBadge variant="champion" pulse>
+                Week&apos;s top spot
+              </HeroBadge>
+            ) : null}
+            {distanceMi ? (
+              <HeroBadge>
+                <Ionicons name="location" size={12} color={fieldGuide.cream} />
+                <Text style={styles.heroBadgeText}>{distanceMi}</Text>
+              </HeroBadge>
+            ) : null}
+            {status.isOpen === true ? (
+              <HeroBadge variant="moss">Open now</HeroBadge>
+            ) : null}
+          </View>
         </View>
 
         {/* TITLE BLOCK */}
         <View style={styles.titleBlock}>
-          <Text style={styles.kicker}>
-            <Text style={styles.kickerNo}>{idxLabel}</Text>
-            {spot.championWeek != null
-              ? ` · CHAMPION WEEK ${spot.championWeek}`
-              : ''}
-          </Text>
-          <DisplayTitle
-            size="lg"
-            weight="400"
-            numberOfLines={2}
-            adjustsFontSizeToFit
-            style={{ marginTop: 8 }}
-          >
-            {spot.title}
-          </DisplayTitle>
-          <View style={styles.titleMeta}>
-            <Text style={styles.titleMetaStrong}>
-              {prettyCategory(spot.category).toUpperCase() || 'SPOT'}
-            </Text>
+          <View style={styles.titleChips}>
+            {prettyCategory(spot.category) ? (
+              <TitleChip>{prettyCategory(spot.category)}</TitleChip>
+            ) : null}
             {spot.district || spot.city ? (
-              <>
-                <Text style={styles.titleMetaDot}>·</Text>
-                <Text style={styles.titleMetaStrong}>
-                  {(spot.district || spot.city).toUpperCase()}
-                </Text>
-              </>
+              <TitleChip>{spot.district || spot.city}</TitleChip>
             ) : null}
-            {price ? (
-              <>
-                <Text style={styles.titleMetaDot}>·</Text>
-                <Text style={styles.titleMetaStrong}>{price}</Text>
-              </>
-            ) : null}
-            {status.isOpen === true ? (
-              <>
-                <Text style={styles.titleMetaDot}>·</Text>
-                <View style={styles.openWrap}>
-                  <View style={styles.openDot} />
-                  <Text style={styles.openText}>{status.label}</Text>
-                </View>
-              </>
+            {price ? <TitleChip>{price}</TitleChip> : null}
+            {openUntil ? (
+              <TitleChip variant="open">{openUntil}</TitleChip>
             ) : status.isOpen === false ? (
-              <>
-                <Text style={styles.titleMetaDot}>·</Text>
-                <Text style={styles.closedText}>{status.label}</Text>
-              </>
+              <TitleChip>Closed</TitleChip>
+            ) : null}
+            {isTrending ? (
+              <TitleChip variant="trend">↑ Trending</TitleChip>
             ) : null}
           </View>
+          <Text style={styles.spotTitle}>{spot.title}</Text>
+          {subtitle.main || subtitle.walk ? (
+            <Text style={styles.spotSub}>
+              {subtitle.main}
+              {subtitle.walk ? (
+                <Text style={styles.spotSubMuted}> · {subtitle.walk}</Text>
+              ) : null}
+            </Text>
+          ) : null}
         </View>
 
         {/* RATING ROW */}
-        <View style={styles.ratingBlock}>
-          <View style={styles.ratingRow}>
-            <View style={styles.ratingLeft}>
-              <Text style={styles.ratingBig}>
-                {(avgRating > 0 ? avgRating : 0).toFixed(1)}
-                <Text style={styles.ratingSmall}>/5</Text>
-              </Text>
-              <MonoMeta size="spot" style={{ marginTop: 4 }}>
-                {`FROM ${reviewCount} REVIEW${reviewCount === 1 ? '' : 'S'}`}
-              </MonoMeta>
-            </View>
-            <RatingDots value={avgRating || 0} showNumber={false} size="md" />
+        <View style={styles.ratingRow}>
+          <View style={styles.ratingLeft}>
+            <Text style={styles.ratingBig}>
+              {(avgRating > 0 ? avgRating : 0).toFixed(1)}
+              <Text style={styles.ratingSmall}>/5</Text>
+            </Text>
+            <Text style={styles.reviewCountLabel}>
+              {`${reviewCount} review${reviewCount === 1 ? '' : 's'}`}
+            </Text>
           </View>
-          {vibeSummary ? (
-            <MonoMeta size="spot" style={styles.vibeLine}>
-              {vibeSummary}
-            </MonoMeta>
-          ) : null}
+          <View style={styles.dotsBlock}>
+            <RatingDots value={avgRating || 0} showNumber={false} size="md" />
+            {vibeSummary ? (
+              <Text style={styles.vibeSummaryLabel}>{vibeSummary}</Text>
+            ) : null}
+            {savesTrend > 0 ? (
+              <View style={styles.savesTrendPill}>
+                <Text style={styles.savesTrendText}>
+                  {`↑ ${savesTrend} saves this week`}
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </View>
 
         {/* ACTIONS */}
@@ -699,7 +864,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
             primary={saved}
           />
           <ActionCell
-            icon="create-outline"
+            icon="star-outline"
             label="Review"
             onPress={handleWriteReview}
           />
@@ -716,15 +881,21 @@ export const SpotDetailScreen = ({ navigation, route }) => {
         </View>
 
         {/* STORY */}
-        {spot.description ? (
-          <View style={styles.section}>
-            <StoryBlock description={spot.description} />
-            {Array.isArray(spot.tags) && spot.tags.length > 0 ? (
+        {(vibeHook || spot.description || tags.length > 0) ? (
+          <View style={styles.storySection}>
+            {vibeHook ? (
+              <Text style={styles.vibeHook}>
+                <Text style={styles.vibeHookEm}>{vibeHook.highlight}</Text>
+                {vibeHook.rest}
+              </Text>
+            ) : null}
+            {spot.description ? (
+              <Text style={styles.storyBody}>{spot.description}</Text>
+            ) : null}
+            {tags.length > 0 ? (
               <View style={styles.tagRow}>
-                {spot.tags.slice(0, 8).map((t, i) => (
-                  <Pill key={`${t}-${i}`} variant="default">
-                    {String(t).toUpperCase()}
-                  </Pill>
+                {tags.slice(0, 8).map((t, i) => (
+                  <TagPill key={`${t}-${i}`} label={String(t)} />
                 ))}
               </View>
             ) : null}
@@ -733,38 +904,35 @@ export const SpotDetailScreen = ({ navigation, route }) => {
 
         {/* HOURS */}
         <View style={styles.section}>
-          <MonoMeta size="eyebrow">Hours · This week</MonoMeta>
-          <Text style={styles.sectionTitle}>When to come</Text>
+          <SectionEyebrow>Hours</SectionEyebrow>
+          <SectionHeading>Best time to visit</SectionHeading>
           {bestTimeValue ? (
-            <Text style={styles.bestTimeNote}>{`Best time: ${bestTimeValue}`}</Text>
-          ) : (
-            <Text style={styles.bestTimeNoteMuted}>No best-time note yet.</Text>
-          )}
+            <Text style={styles.bestTimeNote}>{bestTimeValue}</Text>
+          ) : null}
           {hasHours ? (
             <View style={{ marginTop: 14 }}>
               <HourBarChart hours={displayHours} today={todayKey} />
             </View>
           ) : (
             <Text style={styles.hoursMissing}>
-              Hours not listed yet — we’re checking with the editors.
+              Hours not listed yet — check back soon.
             </Text>
           )}
         </View>
 
         {/* LOCATION */}
         <View style={styles.section}>
-          <MonoMeta size="eyebrow">
-            {`Location${distanceLabel ? ` · ${distanceLabel}` : ''}`}
-          </MonoMeta>
-          <Text style={styles.sectionTitle}>
+          <SectionEyebrow>{walkEyebrow}</SectionEyebrow>
+          <SectionHeading>
             {spot.address || 'Address coming soon'}
-          </Text>
+          </SectionHeading>
           <View style={styles.miniMapWrap}>
             <MiniMap
               location={
                 coords ? { lat: coords.lat, lng: coords.lng } : undefined
               }
               drawn
+              style={styles.miniMap}
             />
           </View>
           <ContactList
@@ -778,16 +946,16 @@ export const SpotDetailScreen = ({ navigation, route }) => {
         <View style={styles.section}>
           <View style={styles.reviewsHead}>
             <View>
-              <MonoMeta size="eyebrow">
-                {`Reviews${reviewCount ? ` · ${reviewCount} TOTAL` : ''}`}
-              </MonoMeta>
-              <Text style={styles.sectionTitle}>What people noticed</Text>
+              <SectionEyebrow>
+                {`${reviewCount} review${reviewCount === 1 ? '' : 's'}`}
+              </SectionEyebrow>
+              <SectionHeading>Recent visits</SectionHeading>
             </View>
             <Pressable
               onPress={() => navigation.navigate('Reviews', { spotId })}
               hitSlop={8}
             >
-              <Text style={styles.allLink}>All →</Text>
+              <Text style={styles.allLink}>All reviews →</Text>
             </Pressable>
           </View>
 
@@ -798,9 +966,8 @@ export const SpotDetailScreen = ({ navigation, route }) => {
           ) : reviews.length === 0 ? (
             <View style={styles.reviewsEmpty}>
               <EmptyState
-                title="Be the first to leave a stamp."
-                italic="first"
-                body="A short, honest note helps the next explorer figure out if this is their kind of place."
+                title="No reviews yet."
+                body="Be the first to share what this spot is like."
                 cta={{
                   label: 'Write a review',
                   onPress: handleWriteReview,
@@ -809,7 +976,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
             </View>
           ) : (
             <View style={{ marginTop: 4 }}>
-              {reviews.slice(0, 3).map((r, i) => (
+              {reviews.slice(0, 2).map((r, i) => (
                 <ReviewRow key={String(r?.id || i)} review={r} />
               ))}
             </View>
@@ -819,8 +986,8 @@ export const SpotDetailScreen = ({ navigation, route }) => {
         {/* SIMILAR */}
         <View style={styles.similarSection}>
           <View style={styles.similarHead}>
-            <MonoMeta size="eyebrow">Similar vibes</MonoMeta>
-            <Text style={styles.sectionTitle}>If you liked this</Text>
+            <SectionEyebrow>Nearby</SectionEyebrow>
+            <SectionHeading>More like this</SectionHeading>
           </View>
           {similarQuery.isLoading ? (
             <View style={{ paddingVertical: 24, paddingHorizontal: 22 }}>
@@ -829,8 +996,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
           ) : similar.length === 0 ? (
             <View style={{ paddingHorizontal: 22, paddingTop: 14 }}>
               <Text style={styles.similarEmpty}>
-                Nothing nearby with the same vibe yet — pull up the map to
-                wander.
+                Nothing nearby with the same vibe yet — pull up the map to wander.
               </Text>
             </View>
           ) : (
@@ -840,17 +1006,10 @@ export const SpotDetailScreen = ({ navigation, route }) => {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.similarList}
-              renderItem={({ item, index }) => (
-                <SpotCard
-                  spot={{
-                    ...item,
-                    vibe: vibeForCategory(item?.category),
-                    indexNumber: indexForSpot(item, index),
-                    category: prettyCategory(item?.category).toUpperCase(),
-                    district: (item?.district || item?.city || '').toUpperCase(),
-                    image: item?.thumbnail ? { uri: item.thumbnail } : undefined,
-                  }}
-                  variant="similar"
+              renderItem={({ item }) => (
+                <SimilarSpotCard
+                  item={item}
+                  userLocation={userLocation}
                   onPress={() =>
                     navigation.push('SpotDetail', { spotId: item?.id })
                   }
@@ -872,57 +1031,31 @@ export const SpotDetailScreen = ({ navigation, route }) => {
           pointerEvents="none"
         />
         <View
-          style={[
-            styles.ctaRow,
-            { paddingBottom: insets.bottom + 4 },
-          ]}
+          style={[styles.ctaRow, { paddingBottom: insets.bottom + 4 }]}
         >
-          <View style={styles.ctaCol}>
-            <View style={styles.ctaActions}>
-              <EditorialButton
-                variant="primary"
-                size="md"
-                leading={
-                  <Ionicons name="walk-outline" size={16} color="#FFF8F1" />
-                }
-                onPress={openDirections}
-                style={styles.ctaWalk}
-              >
-                {walkMin != null
-                  ? `Walk there · ${walkMin} min`
-                  : 'Open directions'}
-              </EditorialButton>
-              <EditorialButton
-                variant="ghost"
-                size="md"
-                onPress={handleStampVisit}
-                disabled={visited || !canStamp || visitBusy || !userLocation}
-                loading={visitBusy}
-                style={styles.ctaStamp}
-              >
-                {visited ? 'Visited' : 'Stamp visit'}
-              </EditorialButton>
-            </View>
-            {!visited && !canStamp ? (
-              <MonoMeta size="tab" style={styles.ctaHint}>
-                WITHIN 100 M TO STAMP
-              </MonoMeta>
-            ) : null}
-          </View>
+          <EditorialButton
+            variant="primary"
+            size="md"
+            leading={
+              <Ionicons name="navigate-outline" size={14} color="#FFF8F1" />
+            }
+            onPress={openDirections}
+            style={styles.ctaWalk}
+          >
+            {walkMin != null
+              ? `Walk there · ${walkMin} min`
+              : 'Get directions'}
+          </EditorialButton>
           <Pressable
-            onPress={() => setPickerOpen(true)}
+            onPress={handleWriteReview}
             accessibilityRole="button"
-            accessibilityLabel="Save into a pocket"
+            accessibilityLabel="Write a review"
             style={({ pressed }) => [
               styles.ctaIconBtn,
               { opacity: pressed ? 0.9 : 1 },
             ]}
           >
-            <Ionicons
-              name={saved ? 'bookmark' : 'bookmark-outline'}
-              size={18}
-              color={fieldGuide.ink}
-            />
+            <Ionicons name="star-outline" size={16} color={fieldGuide.ink} />
           </Pressable>
         </View>
       </View>
@@ -938,35 +1071,6 @@ export const SpotDetailScreen = ({ navigation, route }) => {
 };
 
 export default SpotDetailScreen;
-
-/* ─────────────────────────────────────────────────────────────────── */
-/*  STORY BLOCK                                                         */
-/* ─────────────────────────────────────────────────────────────────── */
-
-function StoryBlock({ description }) {
-  const paragraphs = description
-    .split(/\n\s*\n/)
-    .map((p) => p.trim())
-    .filter(Boolean);
-  if (!paragraphs.length) return null;
-  const [first, ...rest] = paragraphs;
-  const firstChar = first.charAt(0);
-  const firstBody = first.slice(1);
-  return (
-    <View>
-      <Dropcap letter={firstChar}>
-        <Text style={styles.storyBody}>
-          {firstBody}
-        </Text>
-      </Dropcap>
-      {rest.map((p, i) => (
-        <Text key={i} style={[styles.storyBody, styles.storyParagraph]}>
-          {p}
-        </Text>
-      ))}
-    </View>
-  );
-}
 
 /* ─────────────────────────────────────────────────────────────────── */
 /*  CONTACT LIST                                                        */
@@ -1103,14 +1207,67 @@ const styles = StyleSheet.create({
   navTopRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  navSavePressable: {
+  navGlassBtn: {
     width: 38,
     height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(20,22,29,0.45)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(244,239,230,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  navSaveStamp: {
-    top: 0,
-    right: 0,
+  heroBadges: {
+    position: 'absolute',
+    left: 22,
+    right: 22,
+    bottom: 110,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    alignItems: 'center',
+    zIndex: 9,
+  },
+  heroBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: fieldGuide.radius.full,
+    backgroundColor: 'rgba(20,22,29,0.62)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(244,239,230,0.16)',
+  },
+  heroBadgeChampion: {
+    backgroundColor: 'rgba(232,116,58,0.22)',
+    borderColor: 'rgba(232,116,58,0.4)',
+  },
+  heroBadgeMoss: {},
+  heroBadgeMossDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: fieldGuide.moss,
+  },
+  heroBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroBadgeText: {
+    fontFamily: fieldGuide.fonts.sansSemi,
+    fontSize: 11,
+    color: fieldGuide.cream,
+    includeFontPadding: false,
+  },
+  heroBadgeTextChampion: {
+    color: fieldGuide.emberSoft,
+  },
+  heroBadgeTextMoss: {
+    color: fieldGuide.moss,
   },
   heroCount: {
     position: 'absolute',
@@ -1136,80 +1293,83 @@ const styles = StyleSheet.create({
 
   /* title block */
   titleBlock: {
-    marginTop: -80,
+    marginTop: -72,
     paddingHorizontal: 22,
     zIndex: 2,
     position: 'relative',
   },
-  kicker: {
-    fontFamily: fieldGuide.fonts.mono,
-    fontSize: 10,
-    letterSpacing: fieldGuide.tracking.widest(10),
-    color: fieldGuide.ember,
-    textTransform: 'uppercase',
-  },
-  kickerNo: {
-    color: fieldGuide.creamMute,
-  },
-  titleMeta: {
-    marginTop: 14,
+  titleChips: {
     flexDirection: 'row',
-    alignItems: 'center',
     flexWrap: 'wrap',
+    gap: 6,
   },
-  titleMetaStrong: {
-    fontFamily: fieldGuide.fonts.mono,
-    fontSize: 10,
-    letterSpacing: fieldGuide.tracking.widest(10),
-    color: fieldGuide.cream,
-    textTransform: 'uppercase',
-    marginRight: 10,
-  },
-  titleMetaDot: {
-    fontFamily: fieldGuide.fonts.mono,
-    fontSize: 10,
-    color: fieldGuide.creamMute,
-    marginRight: 10,
-  },
-  openWrap: {
+  titleChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 5,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: fieldGuide.radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine2,
+    backgroundColor: fieldGuide.inkElev,
   },
-  openDot: {
+  titleChipOpen: {
+    borderColor: 'rgba(122,155,106,0.35)',
+  },
+  titleChipTrend: {
+    borderColor: 'rgba(201,162,75,0.35)',
+  },
+  titleChipOpenDot: {
     width: 5,
     height: 5,
     borderRadius: 2.5,
     backgroundColor: fieldGuide.moss,
-    marginRight: 6,
   },
-  openText: {
-    fontFamily: fieldGuide.fonts.mono,
-    fontSize: 10,
-    letterSpacing: fieldGuide.tracking.widest(10),
+  titleChipText: {
+    fontFamily: fieldGuide.fonts.sansMedium,
+    fontSize: 11,
+    color: fieldGuide.creamSoft,
+    includeFontPadding: false,
+  },
+  titleChipTextOpen: {
     color: fieldGuide.moss,
-    textTransform: 'uppercase',
   },
-  closedText: {
-    fontFamily: fieldGuide.fonts.mono,
-    fontSize: 10,
-    letterSpacing: fieldGuide.tracking.widest(10),
+  titleChipTextTrend: {
+    color: fieldGuide.gold,
+  },
+  spotTitle: {
+    marginTop: 12,
+    fontFamily: fieldGuide.fonts.displayHeavy,
+    fontSize: 34,
+    lineHeight: Math.round(34 * 1.05),
+    letterSpacing: -0.02 * 34,
+    color: fieldGuide.cream,
+    includeFontPadding: false,
+  },
+  spotSub: {
+    marginTop: 8,
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 14,
+    lineHeight: Math.round(14 * 1.45),
+    color: fieldGuide.creamSoft,
+    includeFontPadding: false,
+  },
+  spotSubMuted: {
     color: fieldGuide.creamMute,
-    textTransform: 'uppercase',
   },
 
   /* rating row */
-  ratingBlock: {
+  ratingRow: {
     marginTop: 18,
     paddingHorizontal: 22,
     paddingVertical: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: fieldGuide.inkLine,
-  },
-  ratingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
   },
   ratingLeft: {
     flexShrink: 1,
@@ -1228,9 +1388,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: fieldGuide.creamMute,
   },
-  vibeLine: {
-    marginTop: 12,
-    lineHeight: 16,
+  reviewCountLabel: {
+    marginTop: 4,
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 12,
+    color: fieldGuide.creamMute,
+    includeFontPadding: false,
+  },
+  dotsBlock: {
+    alignItems: 'flex-end',
+    gap: 6,
+    maxWidth: '52%',
+  },
+  vibeSummaryLabel: {
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 12,
+    color: fieldGuide.creamMute,
+    textAlign: 'right',
+    includeFontPadding: false,
+  },
+  savesTrendPill: {
+    marginTop: 2,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: fieldGuide.radius.full,
+    backgroundColor: 'rgba(122,155,106,0.12)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(122,155,106,0.28)',
+  },
+  savesTrendText: {
+    fontFamily: fieldGuide.fonts.sansSemi,
+    fontSize: 11,
+    color: fieldGuide.moss,
+    includeFontPadding: false,
   },
 
   /* actions */
@@ -1269,28 +1459,65 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: fieldGuide.inkLine,
   },
-  sectionTitle: {
-    marginTop: 4,
-    fontFamily: fieldGuide.fonts.serifMedium,
-    fontSize: 18,
-    color: fieldGuide.cream,
-    letterSpacing: -0.005 * 18,
+  sectionEyebrow: {
+    fontFamily: fieldGuide.fonts.sansSemi,
+    fontSize: 12,
+    color: fieldGuide.creamMute,
+    marginBottom: 4,
     includeFontPadding: false,
   },
-  storyBody: {
-    fontFamily: fieldGuide.fonts.sans,
-    fontSize: 14.5,
-    lineHeight: 24,
-    color: fieldGuide.creamSoft,
+  sectionHeading: {
+    fontFamily: fieldGuide.fonts.displayHeavy,
+    fontSize: 18,
+    letterSpacing: -0.005 * 18,
+    color: fieldGuide.cream,
+    includeFontPadding: false,
   },
-  storyParagraph: {
-    marginTop: 12,
+  storySection: {
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    paddingBottom: 24,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
+  },
+  vibeHook: {
+    fontFamily: fieldGuide.fonts.displayHeavy,
+    fontSize: 16,
+    lineHeight: Math.round(16 * 1.35),
+    letterSpacing: -0.01 * 16,
+    color: fieldGuide.cream,
+    includeFontPadding: false,
+  },
+  vibeHookEm: {
+    color: fieldGuide.emberSoft,
+  },
+  storyBody: {
+    marginTop: 10,
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 14,
+    lineHeight: Math.round(14 * 1.55),
+    color: fieldGuide.creamSoft,
+    includeFontPadding: false,
   },
   tagRow: {
-    marginTop: 16,
+    marginTop: 14,
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
+  },
+  tagPill: {
+    paddingVertical: 5,
+    paddingHorizontal: 11,
+    borderRadius: fieldGuide.radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine2,
+    backgroundColor: fieldGuide.inkElev,
+  },
+  tagPillText: {
+    fontFamily: fieldGuide.fonts.sansMedium,
+    fontSize: 11,
+    color: fieldGuide.creamSoft,
+    includeFontPadding: false,
   },
 
   /* hours fallback */
@@ -1321,6 +1548,9 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 18,
   },
+  miniMap: {
+    aspectRatio: 16 / 10,
+  },
   contactList: {
     flexDirection: 'column',
     gap: 0,
@@ -1345,6 +1575,13 @@ const styles = StyleSheet.create({
   contactInfo: {
     flex: 1,
     minWidth: 0,
+  },
+  contactLabel: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9,
+    letterSpacing: fieldGuide.tracking.widest(9),
+    color: fieldGuide.creamMute,
+    includeFontPadding: false,
   },
   contactValue: {
     marginTop: 2,
@@ -1373,11 +1610,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   allLink: {
-    fontFamily: fieldGuide.fonts.mono,
-    fontSize: 10,
-    letterSpacing: fieldGuide.tracking.widest(10),
+    fontFamily: fieldGuide.fonts.sansSemi,
+    fontSize: 13,
     color: fieldGuide.ember,
-    textTransform: 'uppercase',
+    includeFontPadding: false,
   },
   reviewsEmpty: {
     marginTop: 12,
@@ -1394,6 +1630,50 @@ const styles = StyleSheet.create({
   similarList: {
     paddingHorizontal: 22,
     paddingTop: 14,
+  },
+  similarCard: {
+    width: 150,
+  },
+  similarPhoto: {
+    width: '100%',
+    aspectRatio: 16 / 11,
+    borderRadius: fieldGuide.radius.md,
+    overflow: 'hidden',
+    backgroundColor: fieldGuide.inkElev,
+  },
+  similarDist: {
+    position: 'absolute',
+    left: 8,
+    bottom: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: fieldGuide.radius.full,
+    backgroundColor: 'rgba(20,22,29,0.72)',
+  },
+  similarDistText: {
+    fontFamily: fieldGuide.fonts.sansSemi,
+    fontSize: 10,
+    color: fieldGuide.cream,
+    includeFontPadding: false,
+  },
+  similarTitle: {
+    marginTop: 8,
+    fontFamily: fieldGuide.fonts.displayHeavy,
+    fontSize: 14,
+    lineHeight: Math.round(14 * 1.2),
+    color: fieldGuide.cream,
+    includeFontPadding: false,
+  },
+  similarMeta: {
+    marginTop: 4,
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 11,
+    color: fieldGuide.creamMute,
+    includeFontPadding: false,
+  },
+  similarRating: {
+    color: fieldGuide.emberSoft,
+    fontFamily: fieldGuide.fonts.sansSemi,
   },
   similarEmpty: {
     fontFamily: fieldGuide.fonts.sans,
@@ -1413,29 +1693,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 14,
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  ctaCol: {
-    flex: 1,
-    minWidth: 0,
-  },
-  ctaActions: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
+    alignItems: 'center',
     gap: 8,
   },
   ctaWalk: {
     flex: 1,
-  },
-  ctaStamp: {
-    flex: 0.45,
-    minWidth: 108,
-  },
-  ctaHint: {
-    marginTop: 6,
-    color: fieldGuide.creamMute,
-    textAlign: 'center',
   },
   ctaIconBtn: {
     width: 52,

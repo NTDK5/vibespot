@@ -14,6 +14,11 @@ const api = axios.create({
   },
 });
 
+const APP_START_MS = Date.now();
+const COLD_START_404_WINDOW_MS = 60_000;
+const RETRY_DELAYS_MS = [1000, 2000, 4000];
+const MAX_RETRIES = 3;
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const normalizeApiError = (error) => {
@@ -42,6 +47,27 @@ function tokensFromRefreshBody(body) {
   };
 }
 
+function isRetryableError(error) {
+  const status = error?.response?.status;
+  if (!error.response) return true;
+  if ([502, 503, 504].includes(status)) return true;
+  if (
+    status === 404 &&
+    Date.now() - APP_START_MS < COLD_START_404_WINDOW_MS
+  ) {
+    return true;
+  }
+  return false;
+}
+
+async function retryRequest(config) {
+  const retryCount = config._retryCount ?? 0;
+  if (retryCount >= MAX_RETRIES) return null;
+  config._retryCount = retryCount + 1;
+  await sleep(RETRY_DELAYS_MS[retryCount] ?? 4000);
+  return api(config);
+}
+
 // Request interceptor - add token to all requests
 api.interceptors.request.use(
   async (config) => {
@@ -56,7 +82,7 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor - handle token refresh and errors
+// Response interceptor - retry cold-start failures, refresh token, normalize errors
 api.interceptors.response.use(
   (response) => {
     return response;
@@ -64,11 +90,14 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Silent retry for network errors (no response)
-    if (!error.response && !originalRequest?._networkRetry) {
-      originalRequest._networkRetry = true;
-      await sleep(500);
-      return api(originalRequest);
+    if (
+      originalRequest &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes("/auth/refresh") &&
+      isRetryableError(error)
+    ) {
+      const retried = await retryRequest(originalRequest);
+      if (retried) return retried;
     }
 
     // If 401 and we haven't tried to refresh yet
@@ -125,6 +154,7 @@ api.interceptors.response.use(
         request_id: normalized.request_id,
         method: originalRequest?.method,
         url: originalRequest?.url,
+        retryCount: originalRequest?._retryCount ?? 0,
       },
     });
 

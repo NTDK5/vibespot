@@ -1,30 +1,44 @@
 /**
- * ChampionCard — full-bleed weekly champion hero.
+ * ChampionCard — weekly discovery hero (wide map-style card).
  *
- * CSS ref: .champion-card / .label / .rank / .body and the version in
- * screens/07-home.html L84-136. Notable: aspect-ratio 4/5.4, giant
- * Syne 800 rank numeral with text-shadow, bottom gradient body
- * (transparent → ink-deep@55% @ 50% → ink-deep@92% @ 100%).
+ * CSS ref: screens/07-home.html L82–399 (.champion-card).
+ * Discovery hero — not a magazine cover. Wide 16/11, pin overlay,
+ * signal pills, Save / Go there CTAs.
  *
  * Props:
- *   spot: { title, blurb, vibe, rank, weekNumber, category, district, distance }
- *   onPress: () => void
+ *   spot: {
+ *     title, hook, vibe, images, category, distance,
+ *     rating, ratingCount, savesTrend, isOpen, walkLabel,
+ *     isSaved, onSave, onDirections,
+ *   }
+ *   onPress?: () => void   — tap card background → spot detail
  *   style?: ViewStyle
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  FlatList,
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 
 import fieldGuide from '../../../theme/fieldGuide';
 import DuotoneVibe from './DuotoneVibe';
+import RatingDots from './RatingDots';
 
-const RANK_FS = 92;
-const LABEL_FS = 10;
-const TITLE_FS = 30;
-const BLURB_FS = 13.5;
-const META_FS = 10;
+const TITLE_FS = 24;
+const HOOK_FS = 13;
+const SIGNAL_FS = 8.5;
+const FOOTER_FS = 9;
+const BTN_FS = 8.5;
 
 function toImageUri(value) {
   if (!value) return null;
@@ -36,34 +50,139 @@ function toImageUri(value) {
   return null;
 }
 
+function PulseDot() {
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 2400,
+        useNativeDriver: true,
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [anim]);
+
+  const ringScale = anim.interpolate({
+    inputRange: [0, 0.7, 1],
+    outputRange: [1, 2.4, 1],
+  });
+  const ringOpacity = anim.interpolate({
+    inputRange: [0, 0.7, 1],
+    outputRange: [0.55, 0, 0.55],
+  });
+
+  return (
+    <View style={pulseStyles.wrap}>
+      <Animated.View
+        style={[
+          pulseStyles.ring,
+          { transform: [{ scale: ringScale }], opacity: ringOpacity },
+        ]}
+      />
+      <View style={pulseStyles.dot} />
+    </View>
+  );
+}
+
+const pulseStyles = StyleSheet.create({
+  wrap: {
+    width: 7,
+    height: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 7,
+  },
+  ring: {
+    position: 'absolute',
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: 'rgba(232, 116, 58, 0.45)',
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: fieldGuide.ember,
+  },
+});
+
+function SignalChip({ label, variant = 'default' }) {
+  const palette = {
+    default: {
+      color: 'rgba(244,239,230,0.78)',
+      border: 'rgba(244,239,230,0.12)',
+      bg: 'rgba(244,239,230,0.08)',
+    },
+    live: {
+      color: fieldGuide.moss,
+      border: 'rgba(122, 155, 106, 0.35)',
+      bg: 'rgba(122, 155, 106, 0.12)',
+    },
+    hot: {
+      color: fieldGuide.emberSoft,
+      border: 'rgba(232, 116, 58, 0.35)',
+      bg: 'rgba(232, 116, 58, 0.12)',
+    },
+  }[variant];
+
+  return (
+    <View
+      style={[
+        styles.signalChip,
+        {
+          backgroundColor: palette.bg,
+          borderColor: palette.border,
+        },
+      ]}
+    >
+      <Text style={[styles.signalText, { color: palette.color }]} numberOfLines={1}>
+        {String(label).toUpperCase()}
+      </Text>
+    </View>
+  );
+}
+
 export default function ChampionCard({ spot, onPress, style }) {
   const {
     title = 'Champion',
-    blurb,
+    hook,
     vibe = 'cafe',
-    rank = '01',
-    weekNumber,
     category,
-    district,
     distance,
     images = [],
+    rating,
+    ratingCount,
+    savesTrend,
+    isOpen,
+    walkLabel,
+    isSaved = false,
+    onSave,
+    onDirections,
   } = spot || {};
 
-  const rankLabel = typeof rank === 'number'
-    ? String(rank).padStart(2, '0')
-    : String(rank);
-
-  const labelText = `CHAMPION${weekNumber != null ? ` · WEEK ${weekNumber}` : ''}`;
-  const metaParts = [category, district, distance].filter(Boolean);
   const imageList = useMemo(() => {
     const raw = Array.isArray(images) ? images : [];
     return raw.map(toImageUri).filter(Boolean);
   }, [images]);
+
   const [index, setIndex] = useState(0);
   const [cardWidth, setCardWidth] = useState(1);
   const listRef = useRef(null);
   const autoplayRef = useRef(null);
   const resumeRef = useRef(null);
+
+  const ratingValue =
+    typeof rating === 'number' && !Number.isNaN(rating) ? rating : 0;
+  const reviewCount =
+    typeof ratingCount === 'number' && !Number.isNaN(ratingCount)
+      ? ratingCount
+      : 0;
+  const showTrend =
+    typeof savesTrend === 'number' && savesTrend > 0 && Number.isFinite(savesTrend);
 
   const clearAutoplay = () => {
     if (autoplayRef.current) {
@@ -119,111 +238,200 @@ export default function ChampionCard({ spot, onPress, style }) {
     setIndex(nextIndex);
   };
 
+  const handleGoThere = () => {
+    if (onDirections) {
+      onDirections();
+      return;
+    }
+    onPress?.();
+  };
+
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`Champion: ${title}`}
-      style={({ pressed }) => [
-        styles.card,
-        { opacity: pressed ? 0.96 : 1 },
-        style,
-      ]}
-      onLayout={(event) => {
-        const nextWidth = Math.round(event?.nativeEvent?.layout?.width || 0);
-        if (nextWidth > 0 && nextWidth !== cardWidth) {
-          setCardWidth(nextWidth);
-        }
-      }}
-    >
-      {imageList.length > 0 ? (
-        <FlatList
-          ref={listRef}
-          data={imageList}
-          keyExtractor={(uri, i) => `${uri}-${i}`}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          style={StyleSheet.absoluteFill}
-          onScrollBeginDrag={pauseAndResume}
-          onMomentumScrollEnd={onMomentumEnd}
-          getItemLayout={(_, i) => ({
-            length: cardWidth,
-            offset: cardWidth * i,
-            index: i,
-          })}
-          renderItem={({ item }) => (
-            <View style={[styles.slide, { width: cardWidth }]}>
-              <Image source={{ uri: item }} style={styles.bgImage} resizeMode="cover" />
-            </View>
-          )}
-        />
-      ) : (
-        <DuotoneVibe vibe={vibe} />
-      )}
-
-      <BlurView tint="dark" intensity={24} style={styles.labelWrap}>
-        <View style={styles.labelDot} />
-        <Text style={styles.label} numberOfLines={1}>{labelText}</Text>
-      </BlurView>
-
-      <Text style={styles.rank} numberOfLines={1}>{rankLabel}</Text>
-
-      <LinearGradient
-        colors={['rgba(11,12,17,0)', 'rgba(11,12,17,0.55)', 'rgba(11,12,17,0.92)']}
-        locations={[0, 0.5, 1]}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        style={styles.body}
+    <View style={[styles.shadowWrap, style]}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`Champion: ${title}`}
+        style={({ pressed }) => [
+          styles.card,
+          { opacity: pressed ? 0.96 : 1 },
+        ]}
+        onLayout={(event) => {
+          const nextWidth = Math.round(event?.nativeEvent?.layout?.width || 0);
+          if (nextWidth > 0 && nextWidth !== cardWidth) {
+            setCardWidth(nextWidth);
+          }
+        }}
       >
-        <Text style={styles.title}>{title}</Text>
-        {blurb ? (
-          <Text style={styles.blurb} numberOfLines={3}>{blurb}</Text>
-        ) : null}
-        {metaParts.length ? (
-          <View style={styles.metaRow}>
-            <Text style={styles.meta}>
-              {metaParts.map((p, i) => (
-                <Text
-                  key={i}
-                  style={
-                    p === distance
-                      ? { color: fieldGuide.emberSoft, fontFamily: fieldGuide.fonts.monoMed }
-                      : undefined
-                  }
-                >
-                  {(i === 0 ? '' : '  ·  ') + String(p).toUpperCase()}
-                </Text>
-              ))}
+        {imageList.length > 0 ? (
+          <FlatList
+            ref={listRef}
+            data={imageList}
+            keyExtractor={(uri, i) => `${uri}-${i}`}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            style={StyleSheet.absoluteFill}
+            onScrollBeginDrag={pauseAndResume}
+            onMomentumScrollEnd={onMomentumEnd}
+            getItemLayout={(_, i) => ({
+              length: cardWidth,
+              offset: cardWidth * i,
+              index: i,
+            })}
+            renderItem={({ item }) => (
+              <View style={[styles.slide, { width: cardWidth }]}>
+                <Image source={{ uri: item }} style={styles.bgImage} resizeMode="cover" />
+              </View>
+            )}
+          />
+        ) : (
+          <DuotoneVibe vibe={vibe} />
+        )}
+
+        <View style={styles.topBar} pointerEvents="box-none">
+          <BlurView tint="dark" intensity={28} style={styles.badge}>
+            <PulseDot />
+            <Text style={styles.badgeLabel} numberOfLines={1}>
+              Week&apos;s top spot
             </Text>
+          </BlurView>
+          {showTrend ? (
+            <BlurView tint="dark" intensity={28} style={styles.trendPill}>
+              <Text style={styles.trendText} numberOfLines={1}>
+                {`↑ ${savesTrend} saves`}
+              </Text>
+            </BlurView>
+          ) : null}
+        </View>
+
+        {distance ? (
+          <View style={styles.pin} pointerEvents="none">
+            <Ionicons
+              name="location"
+              size={28}
+              color={fieldGuide.ember}
+              style={styles.pinIcon}
+            />
+            <View style={styles.pinDistanceWrap}>
+              <Text style={styles.pinDistance} numberOfLines={1}>
+                {String(distance).toUpperCase()}
+              </Text>
+            </View>
           </View>
         ) : null}
-      </LinearGradient>
 
-      {imageList.length > 1 ? (
-        <View style={styles.dots}>
-          {imageList.map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.dot,
-                i === index ? styles.dotActive : null,
-              ]}
-            />
-          ))}
-        </View>
-      ) : null}
-    </Pressable>
+        {imageList.length > 1 ? (
+          <View style={styles.carouselDots} pointerEvents="none">
+            {imageList.map((_, i) => (
+              <View
+                key={i}
+                style={[styles.dot, i === index ? styles.dotActive : null]}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        <LinearGradient
+          colors={[
+            'rgba(11,12,17,0)',
+            'rgba(11,12,17,0.55)',
+            'rgba(11,12,17,0.96)',
+          ]}
+          locations={[0, 0.38, 1]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.body}
+          pointerEvents="box-none"
+        >
+          <Text style={styles.title} numberOfLines={2}>
+            {title}
+          </Text>
+          {hook ? (
+            <Text style={styles.hook} numberOfLines={1}>
+              {hook}
+            </Text>
+          ) : null}
+
+          <View style={styles.signals}>
+            {isOpen === true ? (
+              <SignalChip label="Open now" variant="live" />
+            ) : null}
+            {category ? <SignalChip label={category} /> : null}
+            <SignalChip label="Trending" variant="hot" />
+            {walkLabel ? <SignalChip label={walkLabel} /> : null}
+          </View>
+
+          <View style={styles.footer}>
+            <View style={styles.ratingRow}>
+              <RatingDots value={ratingValue} showNumber={false} size="sm" />
+              <Text style={styles.ratingMeta}>
+                {`${ratingValue.toFixed(1)} · ${reviewCount}`}
+              </Text>
+            </View>
+            <View style={styles.actions}>
+              <Pressable
+                onPress={(e) => {
+                  e?.stopPropagation?.();
+                  onSave?.();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={isSaved ? 'Unsave spot' : 'Save spot'}
+                style={({ pressed }) => [
+                  styles.btnGhost,
+                  { opacity: pressed ? 0.85 : 1 },
+                ]}
+              >
+                <Text style={styles.btnGhostText}>
+                  {isSaved ? 'Saved' : 'Save'}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={(e) => {
+                  e?.stopPropagation?.();
+                  handleGoThere();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Go there"
+                style={({ pressed }) => [
+                  styles.btnPrimary,
+                  { opacity: pressed ? 0.9 : 1 },
+                ]}
+              >
+                <Text style={styles.btnPrimaryText}>Go there</Text>
+              </Pressable>
+            </View>
+          </View>
+        </LinearGradient>
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  shadowWrap: {
+    width: '100%',
+    borderRadius: fieldGuide.radius.xl,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 18 },
+        shadowOpacity: 0.35,
+        shadowRadius: 40,
+      },
+      android: {
+        elevation: 12,
+      },
+    }),
+  },
   card: {
     width: '100%',
-    aspectRatio: 4 / 5.4,
+    aspectRatio: 16 / 11,
     borderRadius: fieldGuide.radius.xl,
     overflow: 'hidden',
     backgroundColor: fieldGuide.inkElev,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine2,
     position: 'relative',
   },
   bgImage: {
@@ -233,63 +441,101 @@ const styles = StyleSheet.create({
   slide: {
     height: '100%',
   },
-  labelWrap: {
+  topBar: {
     position: 'absolute',
-    top: 18,
-    left: 18,
+    top: 14,
+    left: 14,
+    right: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    justifyContent: 'space-between',
+    gap: 10,
+    zIndex: 3,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 11,
     borderRadius: fieldGuide.radius.full,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(244,239,230,0.18)',
-    backgroundColor: 'rgba(20,22,29,0.4)',
+    borderColor: 'rgba(244,239,230,0.14)',
+    backgroundColor: 'rgba(11,12,17,0.72)',
     overflow: 'hidden',
+    flexShrink: 1,
   },
-  labelDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: fieldGuide.ember,
-    marginRight: 8,
-  },
-  label: {
+  badgeLabel: {
     fontFamily: fieldGuide.fonts.mono,
-    fontSize: LABEL_FS,
-    letterSpacing: fieldGuide.tracking.mono30(LABEL_FS),
+    fontSize: 9,
+    letterSpacing: fieldGuide.tracking.wide(9),
     textTransform: 'uppercase',
     color: fieldGuide.cream,
     includeFontPadding: false,
   },
-  rank: {
-    position: 'absolute',
-    top: 16,
-    right: 22,
-    fontFamily: fieldGuide.fonts.displayHeavy,
-    fontSize: RANK_FS,
-    lineHeight: RANK_FS,
-    letterSpacing: -0.04 * RANK_FS,
-    color: fieldGuide.cream,
-    textShadowColor: 'rgba(0,0,0,0.4)',
-    textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 30,
+  trendPill: {
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: fieldGuide.radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(122, 155, 106, 0.35)',
+    backgroundColor: 'rgba(11,12,17,0.72)',
+    overflow: 'hidden',
+  },
+  trendText: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9,
+    letterSpacing: fieldGuide.tracking.wide(9),
+    textTransform: 'uppercase',
+    color: fieldGuide.moss,
     includeFontPadding: false,
   },
-  body: {
+  pin: {
     position: 'absolute',
+    top: '46%',
+    left: '58%',
+    transform: [{ translateX: -14 }, { translateY: -36 }],
+    zIndex: 2,
+    alignItems: 'center',
+  },
+  pinIcon: {
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.45,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  pinDistanceWrap: {
+    marginTop: 4,
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+    borderRadius: fieldGuide.radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine2,
+    backgroundColor: 'rgba(11,12,17,0.8)',
+  },
+  pinDistance: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 8,
+    letterSpacing: fieldGuide.tracking.wide(8),
+    color: fieldGuide.cream,
+    includeFontPadding: false,
+  },
+  carouselDots: {
+    position: 'absolute',
+    bottom: 118,
+    alignSelf: 'center',
     left: 0,
     right: 0,
-    bottom: 0,
-    padding: 22,
-  },
-  dots: {
-    position: 'absolute',
-    bottom: 14,
-    right: 16,
     flexDirection: 'row',
+    justifyContent: 'center',
     gap: 5,
-    zIndex: 11,
+    zIndex: 1,
   },
   dot: {
     width: 6,
@@ -300,32 +546,106 @@ const styles = StyleSheet.create({
   dotActive: {
     backgroundColor: 'rgba(244,239,230,0.95)',
   },
+  body: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    paddingTop: 28,
+    zIndex: 2,
+  },
   title: {
-    fontFamily: fieldGuide.fonts.serifMedium,
+    fontFamily: fieldGuide.fonts.displayHeavy,
     fontSize: TITLE_FS,
-    lineHeight: Math.round(TITLE_FS * 1.05),
-    letterSpacing: -0.015 * TITLE_FS,
+    lineHeight: Math.round(TITLE_FS * 1.08),
+    letterSpacing: fieldGuide.tracking.tight(TITLE_FS),
     color: fieldGuide.cream,
     includeFontPadding: false,
   },
-  blurb: {
-    marginTop: 8,
+  hook: {
+    marginTop: 4,
     fontFamily: fieldGuide.fonts.sans,
-    fontSize: BLURB_FS,
-    lineHeight: Math.round(BLURB_FS * 1.45),
-    color: 'rgba(244,239,230,0.78)',
+    fontSize: HOOK_FS,
+    lineHeight: Math.round(HOOK_FS * 1.35),
+    color: fieldGuide.creamSoft,
   },
-  metaRow: {
-    marginTop: 14,
+  signals: {
+    marginTop: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  signalChip: {
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: fieldGuide.radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  signalText: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: SIGNAL_FS,
+    letterSpacing: fieldGuide.tracking.wide(SIGNAL_FS),
+    includeFontPadding: false,
+  },
+  footer: {
+    marginTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
   },
-  meta: {
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+  },
+  ratingMeta: {
     fontFamily: fieldGuide.fonts.mono,
-    fontSize: META_FS,
-    letterSpacing: fieldGuide.tracking.widest(META_FS),
+    fontSize: FOOTER_FS,
+    letterSpacing: fieldGuide.tracking.wide(FOOTER_FS),
     textTransform: 'uppercase',
-    color: 'rgba(244,239,230,0.7)',
+    color: 'rgba(244,239,230,0.72)',
+    includeFontPadding: false,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  btnGhost: {
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: fieldGuide.radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(244,239,230,0.18)',
+    backgroundColor: 'rgba(244,239,230,0.08)',
+  },
+  btnGhostText: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: BTN_FS,
+    letterSpacing: fieldGuide.tracking.wide(BTN_FS),
+    textTransform: 'uppercase',
+    color: fieldGuide.cream,
+    includeFontPadding: false,
+  },
+  btnPrimary: {
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: fieldGuide.radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.ember,
+    backgroundColor: fieldGuide.ember,
+  },
+  btnPrimaryText: {
+    fontFamily: fieldGuide.fonts.monoMed,
+    fontSize: BTN_FS,
+    letterSpacing: fieldGuide.tracking.wide(BTN_FS),
+    textTransform: 'uppercase',
+    color: fieldGuide.inkDeep,
     includeFontPadding: false,
   },
 });

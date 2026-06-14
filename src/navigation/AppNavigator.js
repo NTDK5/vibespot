@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 
 import { useAuth } from '../hooks/useAuth';
+import { useApiReady } from '../hooks/useApiReady';
 import { useFirstLaunch } from '../hooks/useFirstLaunch';
 
 // Auth & onboarding screens (default-exported in Phase 2)
@@ -108,10 +109,11 @@ const MainTabs = () => {
  * Handles first-launch gating, the auth flow, and the main app stack.
  */
 export const AppNavigator = () => {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { apiReady } = useApiReady();
   const { ready: launchReady, onboarded } = useFirstLaunch();
 
-  if (loading || !launchReady) {
+  if (authLoading || !launchReady || !apiReady) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={fieldGuide.ember} />

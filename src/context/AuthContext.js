@@ -136,8 +136,8 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (error) {
         const status = error.response?.status;
-        if (status === 401) {
-          meStatus = "401";
+        if (status === 401 || status === 404) {
+          meStatus = String(status);
           await clearAuth();
         } else if (storedUser) {
           meStatus = status ? String(status) : "network";

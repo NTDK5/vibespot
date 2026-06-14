@@ -18,7 +18,8 @@ export function googleClientIdPrefix(clientId) {
 export function googleNativeRedirectUri(clientId) {
   const prefix = googleClientIdPrefix(clientId);
   if (!prefix) return null;
-  return `com.googleusercontent.apps.${prefix}:/oauth2redirect`;
+  // Must match expo-auth-session Google provider default path segment.
+  return `com.googleusercontent.apps.${prefix}:/oauthredirect`;
 }
 
 /** @param {string | undefined} clientId */

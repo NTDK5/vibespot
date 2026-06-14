@@ -34,6 +34,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 import fieldGuide from '../theme/fieldGuide';
@@ -331,6 +332,7 @@ export const ExploreScreen = ({ navigation, route }) => {
   // Track in-flight saved-spot toggles so the optimistic UI stays
   // honest when the user taps the SaveStamp twice quickly.
   const savedOptimistic = useRef(new Map());
+  const initialFetchDone = useRef(false);
 
   /* ── re-sync from route params when re-entered with new args ── */
   useEffect(() => {
@@ -389,10 +391,21 @@ export const ExploreScreen = ({ navigation, route }) => {
       });
       if (!append) setSpots([]);
     } finally {
-      if (pageNum === 1) setLoading(false);
-      else setLoadingMore(false);
+      if (pageNum === 1) {
+        initialFetchDone.current = true;
+        setLoading(false);
+      } else {
+        setLoadingMore(false);
+      }
     }
   }, [searchQuery, selectedCategory, filters.minRating, filters.priceTier]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!initialFetchDone.current || loading || spots.length > 0) return;
+      fetchSpots();
+    }, [loading, spots.length, fetchSpots]),
+  );
 
   const loadMoreSpots = useCallback(() => {
     if (loading || loadingMore || !hasMore) return;

@@ -1,60 +1,42 @@
 /**
- * HomeScreen — Field Guide masthead, champion, picks, trending, walking, moods.
+ * HomeScreen — discovery header, champion, picks, trending, walking, moods.
  *
- * Source: screens/07-home.html. Treats the Home tab like the cover
- * spread of a printed monthly: a small mono masthead with city, volume,
- * issue, and date; a serif greeting in two voices; a tri-cell stats
- * strip framed by hairlines; the weekly Champion card; horizontal
- * Editor's Picks; a vertical Trending list; a horizontal Within Walking
- * strip (only when location permission is granted); and a By Mood grid
- * built from the CATEGORIES constant.
- *
- * Data flow is preserved verbatim from the pre-Phase-3 implementation:
- *   - useAuth() for the greeting + home city
- *   - useLocation() for nearby + walking
- *   - usePersonalizedSpots(location) — warmed so Explore/SpotDetail
- *     have the cache ready when navigated to
- *   - getAllSpots / searchSpots, getNearbySpots, getEditorsPicks,
- *     getWeeklyChampionSpot, getWeeklySpotRanks
- *   - getSavedSpots / getVisitedSpots for the stats strip numbers
- *   - RefreshControl pull-to-refresh
- *   - logger.error() on every failure path
- *
- * Every visual is built from Field Guide primitives (DisplayTitle,
- * MonoMeta, SectionHead, Rule, SpotCard, ChampionCard, SpotPhoto,
- * DuotoneVibe, IndexStamp). No inline hex colours or fontFamily
- * literals outside the field-guide tokens.
+ * Source: screens/07-home.html (discovery header + champion).
+ * Top: city loc-btn, search, greeting, quick-stats, filter chips, champion.
+ * Below unchanged: Editor's Picks, Trending, Within Walking, By Mood.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Animated,
   FlatList,
+  Linking,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets as useSafeAreaInsetsHook } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 import fieldGuide from '../theme/fieldGuide';
 import {
   ChampionCard,
-  DisplayTitle,
   DuotoneVibe,
   IndexStamp,
   LoadingScreen,
   MonoMeta,
-  Rule,
   SectionHead,
   SpotCard,
 } from '../components/fieldguide';
+import HomeDiscoveryHeader from '../components/home/HomeDiscoveryHeader';
 
 import { useAuth } from '../hooks/useAuth';
 import { useLocation } from '../hooks/useLocation';
 import { usePersonalizedSpots } from '../hooks/usePersonalizedSpots';
+import { useToast } from '../components/ToastProvider';
 
 import {
   getAllSpots,
@@ -64,26 +46,21 @@ import {
   getWeeklyChampionSpot,
 } from '../services/spots.service';
 import { getWeeklySpotRanks } from '../services/weeklyRank.service';
-import { getSavedSpots } from '../services/savedSpots.service';
+import {
+  getSavedSpots,
+  isSpotSaved,
+  saveSpot,
+  unsaveSpot,
+} from '../services/savedSpots.service';
 import { getVisitedSpots } from '../services/visitedSpots.service';
 
 import { CATEGORIES } from '../utils/constants';
 import { logger } from '../utils/logger';
-import {
-  formatShortDate,
-} from '../utils/issueDate';
-import { distanceKmFromUser, formatMiles } from '../utils/geo';
+import { distanceKmFromUser, formatMiles, walkingMinutes } from '../utils/geo';
+import { openStatus } from '../utils/spotHelpers';
 
 const PAGE_PAD = 22;
 const TAB_BAR_SPACE = 96; // FieldGuideTabBar height + safe gap
-
-// Rotating editorial subtitle for the masthead greeting.
-// Cycled daily so each visit on the same day shows the same line.
-const EDITORIAL_LINES = [
-  "The light's good tonight.",
-  'Twelve new entries this week.',
-  'A quiet hour between the rains.',
-];
 
 // Map a backend category id to one of the Field Guide vibe gradients.
 // Used by SpotCard / ChampionCard / DuotoneVibe so every card carries
@@ -114,18 +91,6 @@ function categoryToVibe(category) {
   return CATEGORY_VIBE[key] || 'cafe';
 }
 
-function getTimeGreeting(date = new Date()) {
-  const h = date.getHours();
-  if (h < 12) return 'Morning';
-  if (h < 18) return 'Afternoon';
-  return 'Evening';
-}
-
-function getDailyLine(date = new Date()) {
-  const idx = Math.floor(date.getTime() / 86_400_000) % EDITORIAL_LINES.length;
-  return EDITORIAL_LINES[idx];
-}
-
 function getFirstName(user) {
   if (!user?.name || typeof user.name !== 'string') return 'explorer';
   const first = user.name.trim().split(/\s+/)[0];
@@ -145,6 +110,20 @@ function pickImageUri(value) {
     if (typeof candidate === 'string') return candidate.trim() || null;
   }
   return null;
+}
+
+function buildChampionHook(spot) {
+  const tags = Array.isArray(spot?.tags)
+    ? spot.tags.filter(Boolean).map(String)
+    : [];
+  if (tags.length >= 2) {
+    return tags.slice(0, 3).join(' · ');
+  }
+  const desc =
+    spot?.description || spot?.blurb || spot?.summary || '';
+  if (!desc) return undefined;
+  if (desc.length <= 60) return desc;
+  return `${desc.slice(0, 57).trim()}…`;
 }
 
 // Defensive accessor for trending rows. The /weeklyspotrank endpoint
@@ -190,42 +169,6 @@ function indexForSpot(spot, fallbackIndex) {
   const digits = raw.replace(/\D/g, '');
   if (digits.length >= 2) return digits.slice(-3).padStart(3, '0');
   return String(fallbackIndex + 1).padStart(3, '0');
-}
-
-/* ─────────────────────────────────────────────────────────────────── */
-/*  STATS STRIP                                                        */
-/* ─────────────────────────────────────────────────────────────────── */
-
-function StatsStrip({ nearbyCount, visitedCount, savedCount }) {
-  return (
-    <View style={styles.statsWrap}>
-      <Rule />
-      <View style={styles.statsRow}>
-        <StatCell
-          number={nearbyCount}
-          indicator={nearbyCount > 0 ? '↗' : null}
-          label={'Nearby\nTonight'}
-        />
-        <View style={styles.statDivider} />
-        <StatCell number={visitedCount} label={'Spots\nVisited'} />
-        <View style={styles.statDivider} />
-        <StatCell number={savedCount} label={'In Your\nPocket'} />
-      </View>
-      <Rule />
-    </View>
-  );
-}
-
-function StatCell({ number, indicator, label }) {
-  return (
-    <View style={styles.statCell}>
-      <View style={styles.statNumberRow}>
-        <Text style={styles.statNumber}>{String(number ?? 0)}</Text>
-        {indicator ? <Text style={styles.statIndicator}>{indicator}</Text> : null}
-      </View>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
 }
 
 /* ─────────────────────────────────────────────────────────────────── */
@@ -349,6 +292,7 @@ function ChampionSkeleton() {
 
 export const HomeScreen = ({ navigation }) => {
   const { user } = useAuth();
+  const toast = useToast();
   const insets =
     typeof useSafeAreaInsetsHook === 'function'
       ? useSafeAreaInsetsHook()
@@ -364,11 +308,11 @@ export const HomeScreen = ({ navigation }) => {
   const [weeklyRanks, setWeeklyRanks] = useState([]);
   const [editorsPicks, setEditorsPicks] = useState([]);
   const [weeklyChampion, setWeeklyChampion] = useState(null);
+  const [championSaved, setChampionSaved] = useState(false);
   const [stats, setStats] = useState({ nearbyCount: 0, visitedSpots: 0, savedSpots: 0 });
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
-
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const [activeFilter, setActiveFilter] = useState('for_you');
 
   /* ── loaders ─────────────────────────────────────────────────── */
 
@@ -517,6 +461,36 @@ export const HomeScreen = ({ navigation }) => {
     setStats((s) => ({ ...s, nearbyCount: nearbySpots.length }));
   }, [nearbySpots]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (initialLoading) return;
+      const coreEmpty =
+        spots.length === 0 &&
+        editorsPicks.length === 0 &&
+        weeklyRanks.length === 0 &&
+        !weeklyChampion;
+      if (!coreEmpty) return;
+      Promise.allSettled([
+        loadSpots(),
+        loadWeeklyRanks(),
+        loadEditorsPicks(),
+        loadWeeklyChampion(),
+        loadStats(),
+      ]);
+    }, [
+      initialLoading,
+      spots.length,
+      editorsPicks.length,
+      weeklyRanks.length,
+      weeklyChampion,
+      loadSpots,
+      loadWeeklyRanks,
+      loadEditorsPicks,
+      loadWeeklyChampion,
+      loadStats,
+    ]),
+  );
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -547,38 +521,15 @@ export const HomeScreen = ({ navigation }) => {
   /* ── derived ─────────────────────────────────────────────────── */
 
   const userFirstName = useMemo(() => getFirstName(user), [user]);
-  const homeCity = user?.homeCity || 'Lisbon';
-  const timeGreeting = useMemo(() => getTimeGreeting(), []);
-  const editorialLine = useMemo(() => getDailyLine(), []);
-  const { dayName, dayNum, monShort } = useMemo(() => formatShortDate(), []);
-
-  const greetingText = `${timeGreeting}, ${userFirstName}.\n${editorialLine}`;
-  const greetingItalic = `${userFirstName}.`;
-
+  const homeCity = user?.homeCity || null;
   const nearbyCount = stats.nearbyCount;
-  const subtitleText = useMemo(() => {
-    const headline =
-      nearbyCount >= 3
-        ? `${nearbyCount} new spots verified this week.`
-        : 'A few new spots verified this week.';
-    let walking;
-    if (nearbyCount <= 0) {
-      walking = '';
-    } else if (nearbyCount === 1) {
-      walking = 'One is within a short walk of you.';
-    } else if (nearbyCount < 3) {
-      walking = 'A few are within a short walk of you.';
-    } else if (nearbyCount >= 12) {
-      walking = 'All are within a brief walk of you.';
-    } else {
-      walking = 'Three are within a six-minute walk of you.';
-    }
-    return walking ? `${headline} ${walking}` : headline;
-  }, [nearbyCount]);
+  const nearbyTrend = nearbyCount > 0 ? `↑${Math.min(4, nearbyCount)}` : undefined;
 
   const championProps = useMemo(() => {
     if (!weeklyChampion) return null;
     const distanceKm = distanceKmFromUser(location, weeklyChampion);
+    const walkMins = walkingMinutes(distanceKm);
+    const hoursStatus = openStatus(weeklyChampion);
     const championImages = [];
     const pushImage = (value) => {
       const uri = pickImageUri(value);
@@ -590,42 +541,49 @@ export const HomeScreen = ({ navigation }) => {
     if (Array.isArray(weeklyChampion.images)) {
       weeklyChampion.images.forEach(pushImage);
     }
+    const rating =
+      typeof weeklyChampion.ratingAvg === 'number'
+        ? weeklyChampion.ratingAvg
+        : typeof weeklyChampion.rating === 'number'
+          ? weeklyChampion.rating
+          : 0;
+    const ratingCount =
+      typeof weeklyChampion.ratingCount === 'number'
+        ? weeklyChampion.ratingCount
+        : typeof weeklyChampion.reviewCount === 'number'
+          ? weeklyChampion.reviewCount
+          : 0;
+    const savesTrend =
+      typeof weeklyChampion.savedCount === 'number'
+        ? weeklyChampion.savedCount
+        : typeof weeklyChampion.saveCount === 'number'
+          ? weeklyChampion.saveCount
+          : undefined;
     return {
       id: weeklyChampion.id,
-      title: weeklyChampion.title || weeklyChampion.name || 'This week\'s champion',
-      blurb:
-        weeklyChampion.description ||
-        weeklyChampion.blurb ||
-        weeklyChampion.summary ||
-        undefined,
+      title: weeklyChampion.title || weeklyChampion.name || "This week's champion",
+      hook: buildChampionHook(weeklyChampion),
       vibe: categoryToVibe(weeklyChampion.category),
-      rank: weeklyChampion.weeklyRank || 1,
-      weekNumber: weeklyChampion.weekNumber,
       category: prettyCategory(weeklyChampion.category),
-      district:
-        weeklyChampion.district ||
-        weeklyChampion.neighbourhood ||
-        weeklyChampion.city ||
-        undefined,
       distance: distanceKm != null ? formatMiles(distanceKm) : undefined,
       images: [...new Set(championImages)],
+      rating,
+      ratingCount,
+      savesTrend,
+      isOpen: hoursStatus.isOpen === true,
+      walkLabel: walkMins != null ? `${walkMins} min walk` : undefined,
     };
   }, [weeklyChampion, location]);
 
   const moodCategories = useMemo(() => CATEGORIES.slice(0, 6), []);
 
-  /* ── scroll-driven masthead motion ──────────────────────────── */
-
-  const mastOpacity = scrollY.interpolate({
-    inputRange: [0, 100],
-    outputRange: [1, 0.95],
-    extrapolate: 'clamp',
-  });
-  const mastTranslate = scrollY.interpolate({
-    inputRange: [0, 100],
-    outputRange: [0, -20],
-    extrapolate: 'clamp',
-  });
+  const handleFilterSelect = useCallback(
+    (chip) => {
+      setActiveFilter(chip.id);
+      navigation.navigate('Explore', chip.params);
+    },
+    [navigation],
+  );
 
   /* ── renderers ──────────────────────────────────────────────── */
 
@@ -633,6 +591,70 @@ export const HomeScreen = ({ navigation }) => {
     (id) => navigation.navigate('SpotDetail', { spotId: id }),
     [navigation],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    const spotId = weeklyChampion?.id;
+    if (!spotId) {
+      setChampionSaved(false);
+      return undefined;
+    }
+    (async () => {
+      const saved = await isSpotSaved(spotId);
+      if (!cancelled) setChampionSaved(!!saved);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [weeklyChampion?.id]);
+
+  const handleChampionSave = useCallback(async () => {
+    if (!weeklyChampion?.id) return;
+    const spotId = weeklyChampion.id;
+    const nextSaved = !championSaved;
+    setChampionSaved(nextSaved);
+    try {
+      const result = nextSaved
+        ? await saveSpot(spotId)
+        : await unsaveSpot(spotId);
+      if (result?.error) throw new Error(result.error);
+      toast.show(nextSaved ? 'Saved to your pocket.' : 'Removed from saved.', {
+        variant: 'success',
+      });
+      loadStats();
+    } catch (err) {
+      setChampionSaved(!nextSaved);
+      logger.error({
+        service: 'home',
+        action: 'champion_save_error',
+        message: 'Could not update saved state for champion',
+        metadata: { error: err?.message || String(err) },
+      });
+      toast.show('Could not update saved spot.', { variant: 'error' });
+    }
+  }, [weeklyChampion?.id, championSaved, toast, loadStats]);
+
+  const handleChampionDirections = useCallback(async () => {
+    if (!weeklyChampion) return;
+    const lat = weeklyChampion.lat ?? weeklyChampion.latitude;
+    const lng = weeklyChampion.lng ?? weeklyChampion.longitude;
+    if (lat == null || lng == null) {
+      goSpotDetail(weeklyChampion.id);
+      return;
+    }
+    const url = `https://maps.google.com/?daddr=${lat},${lng}`;
+    try {
+      await Linking.openURL(url);
+    } catch (err) {
+      logger.error({
+        service: 'home',
+        action: 'champion_directions_error',
+        message: 'Could not open maps for champion',
+        metadata: { error: err?.message || String(err) },
+      });
+      toast.show('Could not open maps.', { variant: 'error' });
+    }
+  }, [weeklyChampion, goSpotDetail, toast]);
 
   const renderPick = useCallback(
     ({ item, index }) => {
@@ -690,13 +712,8 @@ export const HomeScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <Animated.ScrollView
+      <ScrollView
         showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true },
-        )}
         contentContainerStyle={{
           paddingBottom: TAB_BAR_SPACE + Math.max(insets.bottom, 12),
         }}
@@ -709,57 +726,28 @@ export const HomeScreen = ({ navigation }) => {
           />
         }
       >
-        {/* ─── MASTHEAD ─────────────────────────────────────── */}
-        <Animated.View
-          style={[
-            styles.mast,
-            { opacity: mastOpacity, transform: [{ translateY: mastTranslate }] },
-          ]}
-        >
-          <View style={styles.mastRow1}>
-            <View style={styles.mastCity}>
-              <Ionicons
-                name="location-outline"
-                size={11}
-                color={fieldGuide.cream}
-                style={styles.mastCityIcon}
-              />
-              <Text style={styles.mastCityText}>
-                {`${homeCity.toUpperCase()}, PT`}
-              </Text>
-            </View>
-            <View style={styles.mastVolWrap}>
-              <Text style={styles.mastVolText}>
-                {`${dayName} · ${dayNum} ${monShort}`}
-              </Text>
-            </View>
-          </View>
-          <Rule />
-
-          <DisplayTitle
-            size="xl"
-            weight="400"
-            italic={greetingItalic}
-            style={styles.greeting}
-          >
-            {greetingText}
-          </DisplayTitle>
-
-          <Text style={styles.subtitle}>{subtitleText}</Text>
-        </Animated.View>
-
-        {/* ─── STATS STRIP ──────────────────────────────────── */}
-        <StatsStrip
-          nearbyCount={stats.nearbyCount}
-          visitedCount={stats.visitedSpots}
-          savedCount={stats.savedSpots}
+        <HomeDiscoveryHeader
+          navigation={navigation}
+          user={user}
+          firstName={userFirstName}
+          homeCity={homeCity}
+          stats={stats}
+          nearbyCount={nearbyCount}
+          nearbyTrend={nearbyTrend}
+          activeFilter={activeFilter}
+          onFilterSelect={handleFilterSelect}
         />
 
         {/* ─── CHAMPION ─────────────────────────────────────── */}
         <View style={styles.championWrap}>
           {championProps ? (
             <ChampionCard
-              spot={championProps}
+              spot={{
+                ...championProps,
+                isSaved: championSaved,
+                onSave: handleChampionSave,
+                onDirections: handleChampionDirections,
+              }}
               onPress={() => goSpotDetail(championProps.id)}
             />
           ) : (
@@ -854,7 +842,7 @@ export const HomeScreen = ({ navigation }) => {
             />
           ))}
         </View>
-      </Animated.ScrollView>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -871,115 +859,18 @@ const styles = StyleSheet.create({
     backgroundColor: fieldGuide.ink,
   },
 
-  /* masthead */
-  mast: {
-    paddingHorizontal: PAGE_PAD,
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  mastRow1: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingBottom: 10,
-  },
-  mastCity: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  mastCityIcon: {
-    marginRight: 6,
-  },
-  mastCityText: {
-    fontFamily: fieldGuide.fonts.mono,
-    fontSize: 9.5,
-    letterSpacing: fieldGuide.tracking.mono30(9.5),
-    color: fieldGuide.cream,
-    textTransform: 'uppercase',
-    includeFontPadding: false,
-  },
-  mastVolWrap: {
-    alignItems: 'flex-end',
-  },
-  mastVolText: {
-    fontFamily: fieldGuide.fonts.mono,
-    fontSize: 9.5,
-    letterSpacing: fieldGuide.tracking.mono30(9.5),
-    color: fieldGuide.creamMute,
-    textTransform: 'uppercase',
-    lineHeight: 14,
-    includeFontPadding: false,
-  },
-  greeting: {
-    marginTop: 18,
-  },
-  subtitle: {
-    marginTop: 10,
-    fontFamily: fieldGuide.fonts.sans,
-    fontSize: 13.5,
-    lineHeight: 20,
-    color: fieldGuide.creamSoft,
-    maxWidth: 320,
-  },
-
-  /* stats */
-  statsWrap: {
-    marginTop: 22,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-  },
-  statCell: {
-    flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-  },
-  statDivider: {
-    width: StyleSheet.hairlineWidth,
-    backgroundColor: fieldGuide.inkLine,
-  },
-  statNumberRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  statNumber: {
-    fontFamily: fieldGuide.fonts.serifMedium,
-    fontSize: 26,
-    lineHeight: 32,
-    color: fieldGuide.cream,
-    includeFontPadding: true,
-  },
-  statIndicator: {
-    marginLeft: 4,
-    marginBottom: 4,
-    fontFamily: fieldGuide.fonts.mono,
-    fontSize: 10,
-    letterSpacing: fieldGuide.tracking.wide(10),
-    color: fieldGuide.ember,
-    includeFontPadding: false,
-  },
-  statLabel: {
-    marginTop: 6,
-    fontFamily: fieldGuide.fonts.mono,
-    fontSize: 9,
-    letterSpacing: fieldGuide.tracking.widest(9),
-    textTransform: 'uppercase',
-    color: fieldGuide.creamMute,
-    includeFontPadding: false,
-  },
-
-  /* champion */
   championWrap: {
     paddingHorizontal: PAGE_PAD,
-    paddingTop: 28,
+    paddingTop: 20,
     paddingBottom: 8,
   },
   championSkeleton: {
     width: '100%',
-    aspectRatio: 4 / 5.4,
+    aspectRatio: 16 / 11,
     borderRadius: fieldGuide.radius.xl,
     backgroundColor: fieldGuide.inkElev,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine2,
   },
 
   /* horizontal scrollers */
