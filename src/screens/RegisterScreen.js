@@ -192,7 +192,7 @@ function RegisterScreenForm({ navigation }) {
                   value={homeCity}
                   onChangeText={setHomeCity}
                   onFocus={scrollToField('homeCity')}
-                  placeholder="So we can show you nearby spots"
+                  placeholder="Addis Ababa"
                   autoCapitalize="words"
                   returnKeyType="done"
                   onSubmitEditing={handleSubmit}

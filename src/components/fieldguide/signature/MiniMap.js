@@ -1,21 +1,18 @@
 /**
- * MiniMap — drawn-by-hand district sketch.
+ * MiniMap — spot location preview or drawn district sketch fallback.
  *
- * CSS ref: .mini-map (css_app.css L728-738). Phase-1 deliverable
- * renders only the `drawn` mode; `location` is accepted but ignored
- * until Phase 4 wires real geolocation.
- *
- * Props:
- *   location?: { lat: number, lng: number }      ignored in Phase 1
- *   drawn?: boolean                              default true
- *   style?: ViewStyle
- *
- * Open TODO (Phase 4): swap the SVG sketch for a real react-native-maps
- * preview keyed on `location`.
+ * When `location` has valid lat/lng and `drawn` is false, renders a
+ * non-interactive Leaflet preview (Carto tiles, no Google Maps cost).
+ * Otherwise shows the hand-drawn SVG sketch.
  */
 
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import Svg, {
   Circle,
   Line,
@@ -23,14 +20,22 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg';
 
+import { LeafletMap } from '../../LeafletMap';
 import fieldGuide from '../../../theme/fieldGuide';
+import { fieldGuideTileStyle } from '../../../utils/mapStyle';
 
 const VBW = 320;
 const VBH = 180;
 
-export default function MiniMap({ location, drawn = true, style }) {
+function hasValidLocation(location) {
+  const lat = Number(location?.lat);
+  const lng = Number(location?.lng);
+  return Number.isFinite(lat) && Number.isFinite(lng);
+}
+
+function DrawnSketch() {
   return (
-    <View style={[styles.container, style]}>
+    <>
       <Svg
         width="100%"
         height="100%"
@@ -104,10 +109,64 @@ export default function MiniMap({ location, drawn = true, style }) {
           strokeWidth={1}
         />
       </Svg>
-
       <View style={styles.legend} pointerEvents="none">
         <Text style={styles.legendText}>SKETCH · NOT TO SCALE</Text>
       </View>
+    </>
+  );
+}
+
+function LiveMiniMap({ location, style, onPress }) {
+  const lat = Number(location.lat);
+  const lng = Number(location.lng);
+  const [mapHeight, setMapHeight] = useState(0);
+
+  const markers = useMemo(
+    () => [{ id: 'spot', lat, lng, color: fieldGuide.ember }],
+    [lat, lng],
+  );
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={onPress ? 'Open directions' : undefined}
+      onLayout={(event) => {
+        const nextHeight = Math.round(event.nativeEvent.layout.height);
+        if (nextHeight > 0 && nextHeight !== mapHeight) {
+          setMapHeight(nextHeight);
+        }
+      }}
+      style={[styles.container, style]}
+    >
+      {mapHeight > 0 ? (
+        <LeafletMap
+          latitude={lat}
+          longitude={lng}
+          height={mapHeight}
+          interactive={false}
+          markers={markers}
+          tileStyle={fieldGuideTileStyle}
+          style={styles.mapFill}
+        />
+      ) : null}
+    </Pressable>
+  );
+}
+
+export default function MiniMap({ location, drawn = true, style, onPress }) {
+  const useLiveMap = !drawn && hasValidLocation(location);
+
+  if (useLiveMap) {
+    return (
+      <LiveMiniMap location={location} style={style} onPress={onPress} />
+    );
+  }
+
+  return (
+    <View style={[styles.container, style]}>
+      <DrawnSketch />
     </View>
   );
 }
@@ -121,6 +180,10 @@ const styles = StyleSheet.create({
     backgroundColor: fieldGuide.inkElev,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: fieldGuide.inkLine,
+  },
+  mapFill: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: fieldGuide.radius.lg,
   },
   legend: {
     position: 'absolute',

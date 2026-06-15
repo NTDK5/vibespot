@@ -62,32 +62,12 @@ For Google Sign-In to work, you need to:
 
 ## Map Configuration
 
-For maps to work properly:
+Maps use **Leaflet** inside a WebView with **Carto** dark tiles (`LeafletMap`). No Google Maps API key is required.
 
-1. **Get Google Maps API Key**
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Enable Maps SDK for Android and iOS
-   - Create API key
+- Main map, spot location picker, and Spot Detail mini-map all use `LeafletMap`.
+- "Walk there" / directions open the user's Google or Apple Maps app via URL — that does not use your API key.
 
-2. **Update `app.json`**
-   ```json
-   {
-     "expo": {
-       "android": {
-         "config": {
-           "googleMaps": {
-             "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
-           }
-         }
-       },
-       "ios": {
-         "config": {
-           "googleMapsApiKey": "YOUR_GOOGLE_MAPS_API_KEY"
-         }
-       }
-     }
-   }
-   ```
+See `LEAFLET_MIGRATION.md` for component usage.
 
 ## Troubleshooting
 
@@ -105,8 +85,8 @@ For maps to work properly:
 - See Google Sign-In setup section above
 
 ### Maps not loading
-- Add Google Maps API key to `app.json`
-- Enable Maps SDK in Google Cloud Console
+- Check internet connection (Leaflet loads tiles from Carto/OSM CDN)
+- See `LEAFLET_MIGRATION.md`
 
 ### Cloud Functions errors
 - Verify functions are deployed: `firebase functions:list`

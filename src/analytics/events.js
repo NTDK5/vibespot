@@ -12,4 +12,6 @@ export const Events = Object.freeze({
   PUSH_PERMISSION_RESULT: 'push_permission_result',
   PUSH_TOKEN_REGISTERED: 'push_token_registered',
   NOTIFICATION_OPENED: 'notification_opened',
+  SERVICE_AREA_OUTSIDE_VIEWED: 'service_area_outside_viewed',
+  SERVICE_AREA_EXPLORE_ADDIS_TAPPED: 'service_area_explore_addis_tapped',
 });

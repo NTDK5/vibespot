@@ -42,7 +42,7 @@ export const ONBOARDING_SLIDES = [
     headlineAccent: 'evening',
     headlineAfter: '',
     body:
-      'Personal picks that adapt to your taste, location, and time of day. Your city, rediscovered.',
+      'Personal picks that adapt to your taste and time of day. FENA launches in Addis Ababa — hidden cafés, rooftops, and corners worth your evening.',
     chip: { bold: 'Ready', text: ' to explore', dot: 'moss' },
   },
 ];

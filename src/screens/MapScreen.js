@@ -44,6 +44,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import Reanimated, {
   Extrapolate,
@@ -69,7 +70,10 @@ import {
   SheetHandle,
   SpotPhoto,
 } from '../components/fieldguide';
+import ServiceAreaBanner from '../components/home/ServiceAreaBanner';
+import { getServiceAreaCenter, SERVICE_AREA } from '../config/serviceArea';
 import { useLocation } from '../hooks/useLocation';
+import { useServiceArea } from '../hooks/useServiceArea';
 import { useSpotVibes } from '../hooks/useSpotVibes';
 import { useToast } from '../components/ToastProvider';
 import { getNearbySpots, getSurpriseMeSpot } from '../services/spots.service';
@@ -251,7 +255,7 @@ const hexToRgba = (hex, alpha = 1) => {
 /*  SCREEN                                                             */
 /* ─────────────────────────────────────────────────────────────────── */
 
-export const MapScreen = ({ navigation }) => {
+export const MapScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const safeTop = Math.max(insets.top, 12);
   const safeBot = Math.max(insets.bottom, 0);
@@ -260,6 +264,8 @@ export const MapScreen = ({ navigation }) => {
 
   /* ── data ───────────────────────────────────────────────────────── */
   const { location } = useLocation();
+  const { inServiceArea, showBanner, dismissBanner, locationLoading } = useServiceArea();
+  const serviceCenter = useMemo(() => getServiceAreaCenter(), []);
   const [spots, setSpots] = useState([]);
 
   // `mapCenter` is the lat/lng we hand to LeafletMap. We deliberately
@@ -337,13 +343,36 @@ export const MapScreen = ({ navigation }) => {
   }, []);
 
   // Initial center + load on first location resolve. Runs exactly
-  // once per session.
+  // once per session unless the user is outside the service area.
   useEffect(() => {
-    if (location && !mapCenter) {
+    if (mapCenter || locationLoading) return;
+
+    if (!location || inServiceArea === false) {
+      setMapCenter({
+        latitude: serviceCenter.latitude,
+        longitude: serviceCenter.longitude,
+      });
+      loadNearby(serviceCenter.latitude, serviceCenter.longitude);
+      return;
+    }
+
+    if (inServiceArea === true) {
       setMapCenter({ latitude: location.latitude, longitude: location.longitude });
       loadNearby(location.latitude, location.longitude);
     }
-  }, [location, mapCenter, loadNearby]);
+  }, [location, locationLoading, inServiceArea, mapCenter, loadNearby, serviceCenter]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!route?.params?.centerOnServiceArea) return;
+      setMapCenter({
+        latitude: serviceCenter.latitude,
+        longitude: serviceCenter.longitude,
+      });
+      loadNearby(serviceCenter.latitude, serviceCenter.longitude);
+      navigation.setParams({ centerOnServiceArea: undefined });
+    }, [route?.params?.centerOnServiceArea, loadNearby, navigation, serviceCenter]),
+  );
 
   // hydrate saved-state for visible spots
   useEffect(() => {
@@ -665,8 +694,8 @@ export const MapScreen = ({ navigation }) => {
         {/* Layer 0 — the map engine */}
         <LeafletMap
           ref={mapRef}
-          latitude={mapCenter?.latitude ?? location?.latitude ?? 9.0080}
-          longitude={mapCenter?.longitude ?? location?.longitude ?? 38.7886}
+          latitude={mapCenter?.latitude ?? location?.latitude ?? SERVICE_AREA.center.latitude}
+          longitude={mapCenter?.longitude ?? location?.longitude ?? SERVICE_AREA.center.longitude}
           markers={markers}
           pinTemplate={pinTemplate}
           onMarkerPress={onMarkerPress}
@@ -715,6 +744,18 @@ export const MapScreen = ({ navigation }) => {
             <Ionicons name="options-outline" size={18} color={fieldGuide.cream} />
           </IconSquare>
         </View>
+
+        {showBanner ? (
+          <View
+            pointerEvents="box-none"
+            style={[s.serviceBanner, { top: safeTop + 112 }]}
+          >
+            <ServiceAreaBanner
+              navigation={navigation}
+              onDismiss={dismissBanner}
+            />
+          </View>
+        ) : null}
 
         {/* Layer 1 — chip filter row */}
         <View
@@ -1042,6 +1083,12 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  serviceBanner: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 6,
   },
   chipItem: {
     marginRight: 8,

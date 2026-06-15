@@ -1033,7 +1033,8 @@ export const SpotDetailScreen = ({ navigation, route }) => {
               location={
                 coords ? { lat: coords.lat, lng: coords.lng } : undefined
               }
-              drawn
+              drawn={!coords}
+              onPress={coords ? openDirections : undefined}
               style={styles.miniMap}
             />
           </View>

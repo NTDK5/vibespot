@@ -32,6 +32,9 @@ import {
   SpotCard,
 } from '../components/fieldguide';
 import HomeDiscoveryHeader from '../components/home/HomeDiscoveryHeader';
+import ServiceAreaBanner from '../components/home/ServiceAreaBanner';
+import { getServiceAreaCenter } from '../config/serviceArea';
+import { useServiceArea } from '../hooks/useServiceArea';
 
 import { useAuth } from '../hooks/useAuth';
 import { useLocation } from '../hooks/useLocation';
@@ -298,6 +301,7 @@ export const HomeScreen = ({ navigation }) => {
       ? useSafeAreaInsetsHook()
       : { top: 0, bottom: 0, left: 0, right: 0 };
   const { location } = useLocation();
+  const { inServiceArea, showBanner, dismissBanner, locationLoading } = useServiceArea();
 
   // Warm the personalized-spots cache so downstream screens (Explore,
   // SpotDetail's "More like this") read it instantly.
@@ -452,10 +456,15 @@ export const HomeScreen = ({ navigation }) => {
   }, [loadSpots, loadWeeklyRanks, loadEditorsPicks, loadWeeklyChampion, loadStats]);
 
   useEffect(() => {
-    if (locationLat != null && locationLng != null) {
+    if (inServiceArea === false || (inServiceArea === null && !locationLoading && !location)) {
+      const center = getServiceAreaCenter();
+      loadNearby(center.latitude, center.longitude);
+      return;
+    }
+    if (inServiceArea === true && locationLat != null && locationLng != null) {
       loadNearby(locationLat, locationLng);
     }
-  }, [locationLat, locationLng, loadNearby]);
+  }, [location, locationLat, locationLng, inServiceArea, locationLoading, loadNearby]);
 
   useEffect(() => {
     setStats((s) => ({ ...s, nearbyCount: nearbySpots.length }));
@@ -736,7 +745,15 @@ export const HomeScreen = ({ navigation }) => {
           nearbyTrend={nearbyTrend}
           activeFilter={activeFilter}
           onFilterSelect={handleFilterSelect}
+          inServiceArea={inServiceArea}
         />
+
+        {showBanner ? (
+          <ServiceAreaBanner
+            navigation={navigation}
+            onDismiss={dismissBanner}
+          />
+        ) : null}
 
         {/* ─── CHAMPION ─────────────────────────────────────── */}
         <View style={styles.championWrap}>

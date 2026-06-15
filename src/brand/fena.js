@@ -14,6 +14,9 @@ export const BRAND = Object.freeze({
   supportEmail: 'hello@fena.app',
   privacyUrl: 'https://fena.app/privacy',
   logoA11yLabel: 'FENA — discover places worth your time',
+  serviceCityName: 'Addis Ababa',
+  serviceCityCountry: 'Ethiopia',
+  serviceTagline: 'Discover Addis Ababa',
 });
 
 export const LOGO_LOCKUP = require('../../assets/brand/logo-lockup-alt.svg');

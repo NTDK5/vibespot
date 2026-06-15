@@ -208,7 +208,7 @@ Then press:
 - Cloud Function automatically recalculates average rating
 
 ### Map Integration
-- Google Maps integration via `react-native-maps`
+- Leaflet + Carto tiles via `LeafletMap` (WebView)
 - Display spots as markers
 - Query nearby spots
 - User location tracking
@@ -236,13 +236,13 @@ Then press:
 - Offline persistence is enabled for Firestore
 - Image uploads use Firebase Storage
 - Location services require permissions
-- Map functionality requires Google Maps API key (configure in `app.json`)
+- Maps use Leaflet + Carto tiles (no Google Maps API key)
 
 ## Troubleshooting
 
 1. **Google Sign-In not working**: Check OAuth client IDs in `auth.js`
 2. **Cloud Functions errors**: Verify function URLs are updated after deployment
-3. **Map not loading**: Add Google Maps API key to `app.json`
+3. **Map not loading**: Check network; maps use Leaflet + Carto tiles (see `LEAFLET_MIGRATION.md`)
 4. **Permission errors**: Check Firestore and Storage security rules
 
 ## Next Steps

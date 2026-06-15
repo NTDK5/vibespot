@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import fieldGuide from '../../theme/fieldGuide';
+import { BRAND } from '../../brand/fena';
 import QuickStatChip from './QuickStatChip';
 import HomeFilterChips from './HomeFilterChips';
 import { LivePulseDot } from './LivePulseDot';
@@ -47,12 +48,31 @@ export default function HomeDiscoveryHeader({
   activeFilter,
   onFilterSelect,
   newTodayCount = 3,
+  inServiceArea = null,
 }) {
   const greeting = useMemo(() => goodTimeGreeting(), []);
-  const cityLabel = homeCity || 'Explore';
+  const cityLabel =
+    inServiceArea === false
+      ? BRAND.serviceCityName
+      : homeCity || BRAND.serviceCityName;
   const initial = (firstName || 'E').charAt(0).toUpperCase();
 
   const contextParts = useMemo(() => {
+    if (inServiceArea === false) {
+      const inCity =
+        nearbyCount > 0
+          ? `${nearbyCount} spot${nearbyCount === 1 ? '' : 's'} in ${BRAND.serviceCityName}`
+          : `Explore ${BRAND.serviceCityName}`;
+      return [
+        { key: 'city', text: inCity },
+        { key: 'golden', text: 'Golden hour' },
+        {
+          key: 'new',
+          text: `${newTodayCount} new today`,
+          accent: true,
+        },
+      ];
+    }
     const openNear =
       nearbyCount > 0
         ? `${nearbyCount} spot${nearbyCount === 1 ? '' : 's'} open near you`
@@ -66,7 +86,7 @@ export default function HomeDiscoveryHeader({
         accent: true,
       },
     ];
-  }, [nearbyCount, newTodayCount]);
+  }, [nearbyCount, newTodayCount, inServiceArea]);
 
   return (
     <View style={styles.header}>

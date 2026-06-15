@@ -38,6 +38,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 import fieldGuide from '../theme/fieldGuide';
+import { BRAND } from '../brand/fena';
 import {
   DisplayTitle,
   DuotoneVibe,
@@ -540,7 +541,7 @@ export const ExploreScreen = ({ navigation, route }) => {
   /* ── render ─────────────────────────────────────────────────── */
 
   const sortLabel = SORT_LABEL[sortMode] || SORT_LABEL.mood;
-  const homeCity = user?.homeCity || 'Lisbon';
+  const cityLabel = BRAND.serviceCityName;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -552,6 +553,9 @@ export const ExploreScreen = ({ navigation, route }) => {
         <DisplayTitle size="md" weight="500" style={styles.xHeadTitle}>
           What are you in the mood for?
         </DisplayTitle>
+        <MonoMeta size="eyebrow" style={styles.xHeadSubtitle}>
+          {`Showing spots in ${cityLabel}`}
+        </MonoMeta>
       </View>
 
       {/* ─── SEARCH ───────────────────────────────────────────── */}
@@ -612,7 +616,7 @@ export const ExploreScreen = ({ navigation, route }) => {
       <View style={styles.resultHead}>
         <Text style={styles.resultCount} numberOfLines={1}>
           <Text style={styles.resultCountBold}>{totalCount}</Text>
-          {` SPOTS · ${homeCity.toUpperCase()} · SORTED BY ${sortLabel}`}
+          {` SPOTS · ${cityLabel.toUpperCase()} · SORTED BY ${sortLabel}`}
         </Text>
         <Segmented
           compact
@@ -729,6 +733,10 @@ const styles = StyleSheet.create({
     lineHeight: 30,
     letterSpacing: -0.01 * 26,
     color: fieldGuide.cream,
+  },
+  xHeadSubtitle: {
+    marginTop: 6,
+    color: fieldGuide.creamMute,
   },
 
   /* search */
