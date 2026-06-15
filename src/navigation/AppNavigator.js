@@ -36,6 +36,8 @@ import { PhotoViewerScreen } from '../screens/PhotoViewerScreen';
 
 import fieldGuide from '../theme/fieldGuide';
 import FieldGuideTabBar from './FieldGuideTabBar';
+import { navigationRef } from './navigationRef';
+import { screen as trackScreen } from '../analytics';
 
 // Dev-only gallery of every Field Guide component. Reached via a long
 // press on the Profile tab (see listeners below) so it never pollutes
@@ -122,7 +124,16 @@ export const AppNavigator = () => {
   }
 
   return (
-    <NavigationContainer theme={navigationTheme}>
+    <NavigationContainer
+      ref={navigationRef}
+      theme={navigationTheme}
+      onStateChange={() => {
+        const route = navigationRef.getCurrentRoute();
+        if (route?.name) {
+          trackScreen(route.name, route.params ?? {});
+        }
+      }}
+    >
       <Stack.Navigator
         screenOptions={{ headerShown: false }}
         initialRouteName={

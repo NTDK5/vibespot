@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import fieldGuide from '../theme/fieldGuide';
 import { useFirstLaunch } from '../hooks/useFirstLaunch';
+import { track, Events } from '../analytics';
 import { ONBOARDING_SLIDES } from '../components/onboarding/onboardingSlides';
 import { SlideBody } from '../components/onboarding/OnboardingPrimitives';
 import DiscoverIllustration from '../components/onboarding/DiscoverIllustration';
@@ -59,6 +60,10 @@ export default function OnboardingScreen({ navigation }) {
   const finish = useCallback(async () => {
     if (finishingRef.current) return;
     finishingRef.current = true;
+    track(Events.ONBOARDING_COMPLETED, {
+      skipped: indexRef.current < SLIDE_COUNT - 1,
+      slide_index: indexRef.current,
+    });
     navigation.replace('SignIn');
     await markOnboarded();
   }, [markOnboarded, navigation]);

@@ -6,7 +6,7 @@
  * Data: getSpotById, vibes, comments, nearby, save/visit, review guard.
  */
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -44,6 +44,7 @@ import { LivePulseDot } from '../components/home/LivePulseDot';
 import fieldGuide from '../theme/fieldGuide';
 import { useToast } from '../components/ToastProvider';
 import { logger } from '../utils/logger';
+import { track, Events } from '../analytics';
 import { useAuth } from '../hooks/useAuth';
 import { useUserProgression } from '../hooks/useUserProgression';
 import { useBadgeProgress } from '../hooks/useBadgeProgress';
@@ -485,6 +486,9 @@ export const SpotDetailScreen = ({ navigation, route }) => {
       toast.show(next ? 'Saved to pocket.' : 'Removed from pocket.', {
         variant: 'success',
       });
+      if (next) {
+        track(Events.SPOT_SAVED, { spot_id: spotId });
+      }
     } catch (err) {
       logger.error('SpotDetail.toggleSave', err);
       setSaved(!next);
@@ -575,11 +579,12 @@ export const SpotDetailScreen = ({ navigation, route }) => {
     const url = `https://maps.google.com/?daddr=${coords.lat},${coords.lng}`;
     try {
       await Linking.openURL(url);
+      track(Events.DIRECTIONS_OPENED, { spot_id: spotId });
     } catch (err) {
       logger.error('SpotDetail.directions', err);
       toast.show('Could not open maps.', { variant: 'error' });
     }
-  }, [coords, toast]);
+  }, [coords, toast, spotId]);
 
   const handleMarkVisit = useCallback(async () => {
     if (!spotId || visited || visitBusy) return;
@@ -591,6 +596,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
       });
       if (result?.error) throw new Error(result.error);
       setVisited(true);
+      track(Events.SPOT_VISIT_STAMPED, { spot_id: spotId });
       toast.show("Stamped — you've been here.", { variant: 'success' });
     } catch (err) {
       logger.error('SpotDetail.markVisit', err);
@@ -601,6 +607,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
   }, [spotId, visited, visitBusy, userLocation, toast]);
 
   const handleWriteReview = useCallback(() => {
+    track(Events.REVIEW_STARTED, { spot_id: spotId });
     tryNavigateToWriteReview({
       navigation,
       spotId,
@@ -629,6 +636,35 @@ export const SpotDetailScreen = ({ navigation, route }) => {
     const x = e.nativeEvent.contentOffset.x;
     setHeroIndex(Math.round(x / SCREEN_W));
   }, []);
+
+  const userHasReviewed = useMemo(() => {
+    if (!user?.id || !spotId) return false;
+    const uid = String(user.id);
+    const sid = String(spotId);
+
+    const inPreview = reviews.some((r) => {
+      const authorId = reviewUserId(r);
+      if (authorId == null) return false;
+      const rid = reviewSpotId(r);
+      return String(authorId) === uid && (rid == null || String(rid) === sid);
+    });
+    if (inPreview) return true;
+
+    const myReviews = safeArray(myReviewsQuery.data);
+    return myReviews.some((r) => {
+      const rid = reviewSpotId(r);
+      return rid != null && String(rid) === sid;
+    });
+  }, [user?.id, spotId, reviews, myReviewsQuery.data]);
+
+  useEffect(() => {
+    const payload = spotQuery.data;
+    if (!spotId || !payload || payload.error) return;
+    track(Events.SPOT_VIEWED, {
+      spot_id: spotId,
+      category: payload.category,
+    });
+  }, [spotId, spotQuery.data]);
 
   /* ── render guards ───────────────────────────────────────────────── */
   if (!spotId) {
@@ -690,26 +726,6 @@ export const SpotDetailScreen = ({ navigation, route }) => {
       0,
   );
   const bestTimeValue = spot.bestTime || spot.best_visit_time || null;
-
-  const userHasReviewed = useMemo(() => {
-    if (!user?.id || !spotId) return false;
-    const uid = String(user.id);
-    const sid = String(spotId);
-
-    const inPreview = reviews.some((r) => {
-      const authorId = reviewUserId(r);
-      if (authorId == null) return false;
-      const rid = reviewSpotId(r);
-      return String(authorId) === uid && (rid == null || String(rid) === sid);
-    });
-    if (inPreview) return true;
-
-    const myReviews = safeArray(myReviewsQuery.data);
-    return myReviews.some((r) => {
-      const rid = reviewSpotId(r);
-      return rid != null && String(rid) === sid;
-    });
-  }, [user?.id, spotId, reviews, myReviewsQuery.data]);
 
   const renderBottomSecondary = () => {
     if (!user) {

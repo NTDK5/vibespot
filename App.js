@@ -10,6 +10,11 @@ import { AuthProvider } from './src/context/AuthContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { ToastProvider } from './src/components/ToastProvider';
 import { AppStatusProvider } from './src/context/AppStatusContext';
+import PushNotificationsBootstrap from './src/components/PushNotificationsBootstrap';
+import {
+  AnalyticsProvider,
+  AnalyticsAuthBinder,
+} from './src/analytics/AnalyticsProvider';
 import { useFieldGuideFonts } from './src/theme/fonts';
 
 // ... rest unchanged ...
@@ -52,20 +57,24 @@ export default function App() {
   return (
     <>
       <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
-        <QueryClientProvider client={queryClient}>
-          <SafeAreaProvider>
-            <AuthProvider>
-              <ThemeProvider>
-                <ToastProvider>
-                  <AppStatusProvider>
-                    <StatusBar style="light" />
-                    <AppNavigator />
-                  </AppStatusProvider>
-                </ToastProvider>
-              </ThemeProvider>
-            </AuthProvider>
-          </SafeAreaProvider>
-        </QueryClientProvider>
+        <AnalyticsProvider>
+          <QueryClientProvider client={queryClient}>
+            <SafeAreaProvider>
+              <AuthProvider>
+                <AnalyticsAuthBinder />
+                <PushNotificationsBootstrap />
+                <ThemeProvider>
+                  <ToastProvider>
+                    <AppStatusProvider>
+                      <StatusBar style="light" />
+                      <AppNavigator />
+                    </AppStatusProvider>
+                  </ToastProvider>
+                </ThemeProvider>
+              </AuthProvider>
+            </SafeAreaProvider>
+          </QueryClientProvider>
+        </AnalyticsProvider>
       </GestureHandlerRootView>
     </>
   );

@@ -1,0 +1,15 @@
+/** PostHog event names — keep snake_case and stable for dashboards. */
+export const Events = Object.freeze({
+  APP_OPENED: 'app_opened',
+  ONBOARDING_COMPLETED: 'onboarding_completed',
+  SIGN_UP_COMPLETED: 'sign_up_completed',
+  SIGN_IN_COMPLETED: 'sign_in_completed',
+  SPOT_VIEWED: 'spot_viewed',
+  SPOT_SAVED: 'spot_saved',
+  SPOT_VISIT_STAMPED: 'spot_visit_stamped',
+  REVIEW_STARTED: 'review_started',
+  DIRECTIONS_OPENED: 'directions_opened',
+  PUSH_PERMISSION_RESULT: 'push_permission_result',
+  PUSH_TOKEN_REGISTERED: 'push_token_registered',
+  NOTIFICATION_OPENED: 'notification_opened',
+});

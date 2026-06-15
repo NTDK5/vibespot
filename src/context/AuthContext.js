@@ -12,6 +12,7 @@ import {
 import api from "../config/axios";
 import { normalizeAuthError } from "../utils/authErrors";
 import { authEvents } from "../utils/authEvents";
+import { track, Events } from "../analytics";
 
 export const AuthContext = createContext();
 
@@ -184,6 +185,7 @@ export const AuthProvider = ({ children }) => {
       if (resolvedUser?.emailVerified === false) {
         setPendingVerificationEmail(email);
       }
+      track(Events.SIGN_IN_COMPLETED, { method: "email" });
       return { user: resolvedUser, error: null };
     } catch (err) {
       await clearAuth();
@@ -201,6 +203,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const data = await googleLoginUser(idToken);
       const resolvedUser = await completeLoginFromResponse(data);
+      track(Events.SIGN_IN_COMPLETED, { method: "google" });
       return { user: resolvedUser, error: null };
     } catch (err) {
       return {
@@ -221,6 +224,7 @@ export const AuthProvider = ({ children }) => {
       if (resolvedUser?.emailVerified === false) {
         setPendingVerificationEmail(email);
       }
+      track(Events.SIGN_UP_COMPLETED, { method: "email" });
       return { user: resolvedUser, error: null };
     } catch (err) {
       const data = err?.response?.data;

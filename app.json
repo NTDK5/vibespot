@@ -42,6 +42,14 @@
     },
     "plugins": [
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#E8743A",
+          "defaultChannel": "default"
+        }
+      ],
+      [
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "Allow FENA to use your location."
