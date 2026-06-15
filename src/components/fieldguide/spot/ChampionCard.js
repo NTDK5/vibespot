@@ -2,8 +2,8 @@
  * ChampionCard — weekly discovery hero (wide map-style card).
  *
  * CSS ref: screens/07-home.html L82–399 (.champion-card).
- * Discovery hero — not a magazine cover. Wide 16/11, pin overlay,
- * signal pills, Save / Go there CTAs.
+ * Discovery hero — not a magazine cover. Wide 16/11, signal pills,
+ * Save / Go there CTAs. Distance lives in signal chips (not on photo).
  *
  * Props:
  *   spot: {
@@ -110,7 +110,7 @@ const pulseStyles = StyleSheet.create({
   },
 });
 
-function SignalChip({ label, variant = 'default' }) {
+function SignalChip({ label, variant = 'default', icon }) {
   const palette = {
     default: {
       color: 'rgba(244,239,230,0.78)',
@@ -139,11 +139,23 @@ function SignalChip({ label, variant = 'default' }) {
         },
       ]}
     >
+      {icon ? (
+        <Ionicons name={icon} size={12} color={palette.color} />
+      ) : null}
       <Text style={[styles.signalText, { color: palette.color }]} numberOfLines={1}>
         {String(label).toUpperCase()}
       </Text>
     </View>
   );
+}
+
+function buildDistanceChipLabel(distance, walkLabel) {
+  const dist = distance != null && String(distance).trim() ? String(distance).trim() : '';
+  const walk = walkLabel != null && String(walkLabel).trim() ? String(walkLabel).trim() : '';
+  if (dist && walk) return `${dist} · ${walk}`;
+  if (dist) return dist;
+  if (walk) return walk;
+  return null;
 }
 
 export default function ChampionCard({ spot, onPress, style }) {
@@ -183,6 +195,12 @@ export default function ChampionCard({ spot, onPress, style }) {
       : 0;
   const showTrend =
     typeof savesTrend === 'number' && savesTrend > 0 && Number.isFinite(savesTrend);
+
+  const distanceChipLabel = useMemo(
+    () => buildDistanceChipLabel(distance, walkLabel),
+    [distance, walkLabel],
+  );
+  const showDistanceIcon = !!(distance != null && String(distance).trim());
 
   const clearAutoplay = () => {
     if (autoplayRef.current) {
@@ -296,41 +314,23 @@ export default function ChampionCard({ spot, onPress, style }) {
               Week&apos;s top spot
             </Text>
           </BlurView>
-          {showTrend ? (
-            <BlurView tint="dark" intensity={28} style={styles.trendPill}>
-              <Text style={styles.trendText} numberOfLines={1}>
-                {`↑ ${savesTrend} saves`}
-              </Text>
-            </BlurView>
-          ) : null}
+          <View style={styles.topBarRight}>
+            {imageList.length > 1 ? (
+              <BlurView tint="dark" intensity={28} style={styles.slideCountPill}>
+                <Text style={styles.slideCountText} numberOfLines={1}>
+                  {`${index + 1} / ${imageList.length}`}
+                </Text>
+              </BlurView>
+            ) : null}
+            {showTrend ? (
+              <BlurView tint="dark" intensity={28} style={styles.trendPill}>
+                <Text style={styles.trendText} numberOfLines={1}>
+                  {`↑ ${savesTrend} saves`}
+                </Text>
+              </BlurView>
+            ) : null}
+          </View>
         </View>
-
-        {distance ? (
-          <View style={styles.pin} pointerEvents="none">
-            <Ionicons
-              name="location"
-              size={28}
-              color={fieldGuide.ember}
-              style={styles.pinIcon}
-            />
-            <View style={styles.pinDistanceWrap}>
-              <Text style={styles.pinDistance} numberOfLines={1}>
-                {String(distance).toUpperCase()}
-              </Text>
-            </View>
-          </View>
-        ) : null}
-
-        {imageList.length > 1 ? (
-          <View style={styles.carouselDots} pointerEvents="none">
-            {imageList.map((_, i) => (
-              <View
-                key={i}
-                style={[styles.dot, i === index ? styles.dotActive : null]}
-              />
-            ))}
-          </View>
-        ) : null}
 
         <LinearGradient
           colors={[
@@ -357,9 +357,14 @@ export default function ChampionCard({ spot, onPress, style }) {
             {isOpen === true ? (
               <SignalChip label="Open now" variant="live" />
             ) : null}
+            {distanceChipLabel ? (
+              <SignalChip
+                label={distanceChipLabel}
+                icon={showDistanceIcon ? 'location-outline' : undefined}
+              />
+            ) : null}
             {category ? <SignalChip label={category} /> : null}
             <SignalChip label="Trending" variant="hot" />
-            {walkLabel ? <SignalChip label={walkLabel} /> : null}
           </View>
 
           <View style={styles.footer}>
@@ -452,6 +457,29 @@ const styles = StyleSheet.create({
     gap: 10,
     zIndex: 3,
   },
+  topBarRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  slideCountPill: {
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: fieldGuide.radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(244,239,230,0.14)',
+    backgroundColor: 'rgba(11,12,17,0.72)',
+    overflow: 'hidden',
+  },
+  slideCountText: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9,
+    letterSpacing: fieldGuide.tracking.wide(9),
+    textTransform: 'uppercase',
+    color: 'rgba(244,239,230,0.85)',
+    includeFontPadding: false,
+  },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -489,63 +517,6 @@ const styles = StyleSheet.create({
     color: fieldGuide.moss,
     includeFontPadding: false,
   },
-  pin: {
-    position: 'absolute',
-    top: '46%',
-    left: '58%',
-    transform: [{ translateX: -14 }, { translateY: -36 }],
-    zIndex: 2,
-    alignItems: 'center',
-  },
-  pinIcon: {
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.45,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  pinDistanceWrap: {
-    marginTop: 4,
-    paddingVertical: 3,
-    paddingHorizontal: 7,
-    borderRadius: fieldGuide.radius.full,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: fieldGuide.inkLine2,
-    backgroundColor: 'rgba(11,12,17,0.8)',
-  },
-  pinDistance: {
-    fontFamily: fieldGuide.fonts.mono,
-    fontSize: 8,
-    letterSpacing: fieldGuide.tracking.wide(8),
-    color: fieldGuide.cream,
-    includeFontPadding: false,
-  },
-  carouselDots: {
-    position: 'absolute',
-    bottom: 118,
-    alignSelf: 'center',
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 5,
-    zIndex: 1,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(244,239,230,0.45)',
-  },
-  dotActive: {
-    backgroundColor: 'rgba(244,239,230,0.95)',
-  },
   body: {
     position: 'absolute',
     left: 0,
@@ -578,6 +549,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   signalChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     paddingVertical: 5,
     paddingHorizontal: 8,
     borderRadius: fieldGuide.radius.full,

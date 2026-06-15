@@ -1,10 +1,10 @@
 /**
  * OnboardingScreen — 4-slide intro from 02-onboarding.html
  *
- * Skip + Get started → markOnboarded() → SignIn
+ * Skip + Get started → SignIn, then markOnboarded()
  */
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -40,18 +40,27 @@ const ILLUSTRATIONS = [
 ];
 
 export default function OnboardingScreen({ navigation }) {
-  const { markOnboarded } = useFirstLaunch();
+  const { markOnboarded, onboarded } = useFirstLaunch();
   const insets = useSafeAreaInsets();
   const slideWidth = Dimensions.get('window').width;
 
   const [index, setIndex] = useState(0);
   const indexRef = useRef(0);
+  const finishingRef = useRef(false);
   const translateX = useRef(new Animated.Value(0)).current;
   const dragX = useRef(new Animated.Value(0)).current;
 
+  useEffect(() => {
+    if (onboarded) {
+      navigation.replace('SignIn');
+    }
+  }, [onboarded, navigation]);
+
   const finish = useCallback(async () => {
-    await markOnboarded();
+    if (finishingRef.current) return;
+    finishingRef.current = true;
     navigation.replace('SignIn');
+    await markOnboarded();
   }, [markOnboarded, navigation]);
 
   const animateTo = useCallback(

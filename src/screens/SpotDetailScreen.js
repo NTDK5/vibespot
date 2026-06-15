@@ -39,6 +39,7 @@ import {
   RatingDots,
   ReviewRow,
 } from '../components/fieldguide';
+import VisitStampButton from '../components/fieldguide/spot/VisitStampButton';
 import { LivePulseDot } from '../components/home/LivePulseDot';
 import fieldGuide from '../theme/fieldGuide';
 import { useToast } from '../components/ToastProvider';
@@ -59,6 +60,7 @@ import {
   getSpotById,
   shareSpot as recordShare,
 } from '../services/spots.service';
+import { getMyReviews } from '../services/user.service';
 import { getSpotComments } from '../services/comments.service';
 import {
   isSpotSaved,
@@ -67,6 +69,7 @@ import {
 } from '../services/savedSpots.service';
 import {
   isSpotVisited,
+  markSpotAsVisited,
 } from '../services/visitedSpots.service';
 import {
   openStatus,
@@ -90,7 +93,16 @@ function safeArray(maybe) {
   if (Array.isArray(maybe?.comments)) return maybe.comments;
   if (Array.isArray(maybe?.items)) return maybe.items;
   if (Array.isArray(maybe?.data)) return maybe.data;
+  if (Array.isArray(maybe?.reviews)) return maybe.reviews;
   return [];
+}
+
+function reviewSpotId(review) {
+  return review?.spotId ?? review?.spot?.id ?? review?.spot_id ?? null;
+}
+
+function reviewUserId(review) {
+  return review?.userId ?? review?.user?.id ?? review?.user_id ?? null;
 }
 
 function extractCoords(spot) {
@@ -195,15 +207,6 @@ function buildSubtitleLine(spot, tags, vibeSummary, walkMin) {
   };
 }
 
-function openUntilLabel(status) {
-  if (status?.isOpen !== true) return null;
-  const label = String(status.label || '');
-  const match = label.match(/(\d{1,2}:\d{2})/);
-  if (match) return `Until ${match[1]}`;
-  if (/OPEN/i.test(label)) return 'Open now';
-  return label || 'Open now';
-}
-
 function pickSocialField(spot, keys = []) {
   for (const key of keys) {
     const value = spot?.[key];
@@ -274,14 +277,6 @@ function HeroBadge({ children, variant = 'default', pulse = false }) {
       ) : (
         <View style={styles.heroBadgeRow}>{children}</View>
       )}
-    </View>
-  );
-}
-
-function TagPill({ label }) {
-  return (
-    <View style={styles.tagPill}>
-      <Text style={styles.tagPillText}>{label}</Text>
     </View>
   );
 }
@@ -434,6 +429,12 @@ export const SpotDetailScreen = ({ navigation, route }) => {
     [reviewsPayload],
   );
 
+  const myReviewsQuery = useQuery({
+    queryKey: ['my-reviews', user?.id],
+    queryFn: getMyReviews,
+    enabled: !!user?.id && !!spotId,
+  });
+
   /* ── saved state ─────────────────────────────────────────────────── */
   const [saved, setSaved] = useState(false);
   const refreshSaved = useCallback(async () => {
@@ -452,6 +453,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
   );
 
   const [visited, setVisited] = useState(false);
+  const [visitBusy, setVisitBusy] = useState(false);
 
   const refreshVisited = useCallback(async () => {
     if (!spotId) return;
@@ -466,7 +468,11 @@ export const SpotDetailScreen = ({ navigation, route }) => {
   useFocusEffect(
     useCallback(() => {
       refreshVisited();
-    }, [refreshVisited]),
+      if (user?.id && spotId) {
+        myReviewsQuery.refetch();
+        commentsQuery.refetch();
+      }
+    }, [refreshVisited, user?.id, spotId, myReviewsQuery, commentsQuery]),
   );
 
   const toggleSave = useCallback(async () => {
@@ -516,6 +522,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
       await Promise.allSettled([
         spotQuery.refetch(),
         commentsQuery.refetch(),
+        myReviewsQuery.refetch(),
         similarQuery.refetch(),
         refreshSaved(),
         refreshVisited(),
@@ -523,7 +530,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
     } finally {
       setRefreshing(false);
     }
-  }, [spotQuery, commentsQuery, similarQuery, refreshSaved, refreshVisited]);
+  }, [spotQuery, commentsQuery, myReviewsQuery, similarQuery, refreshSaved, refreshVisited]);
 
   /* ── distance + walking minutes ──────────────────────────────────── */
   const distanceKm = useMemo(() => {
@@ -574,6 +581,25 @@ export const SpotDetailScreen = ({ navigation, route }) => {
     }
   }, [coords, toast]);
 
+  const handleMarkVisit = useCallback(async () => {
+    if (!spotId || visited || visitBusy) return;
+    setVisitBusy(true);
+    try {
+      const result = await markSpotAsVisited(spotId, {
+        lat: userLocation?.latitude,
+        lng: userLocation?.longitude,
+      });
+      if (result?.error) throw new Error(result.error);
+      setVisited(true);
+      toast.show("Stamped — you've been here.", { variant: 'success' });
+    } catch (err) {
+      logger.error('SpotDetail.markVisit', err);
+      toast.show('Could not stamp this visit.', { variant: 'error' });
+    } finally {
+      setVisitBusy(false);
+    }
+  }, [spotId, visited, visitBusy, userLocation, toast]);
+
   const handleWriteReview = useCallback(() => {
     tryNavigateToWriteReview({
       navigation,
@@ -583,6 +609,11 @@ export const SpotDetailScreen = ({ navigation, route }) => {
       user,
     });
   }, [navigation, spotId, visited, toast, user]);
+
+  const handleSignInForVisit = useCallback(() => {
+    toast.show('Sign in to stamp your visit.', { variant: 'info' });
+    navigation.navigate('SignIn');
+  }, [navigation, toast]);
 
   const openExternal = useCallback(async (url) => {
     try {
@@ -644,7 +675,6 @@ export const SpotDetailScreen = ({ navigation, route }) => {
   const vibeHook = buildVibeHook(spot, tags, vibeSummary);
   const subtitle = buildSubtitleLine(spot, tags, vibeSummary, walkMin);
   const champion = isChampionSpot(spot);
-  const openUntil = openUntilLabel(status);
   const isTrending = !!(spot.trending || spot.isTrending || spot.rankDelta > 0);
   const savesTrend = Number(
     spot.savedCount ?? spot.saveCount ?? spot.savesThisWeek ?? 0,
@@ -660,6 +690,77 @@ export const SpotDetailScreen = ({ navigation, route }) => {
       0,
   );
   const bestTimeValue = spot.bestTime || spot.best_visit_time || null;
+
+  const userHasReviewed = useMemo(() => {
+    if (!user?.id || !spotId) return false;
+    const uid = String(user.id);
+    const sid = String(spotId);
+
+    const inPreview = reviews.some((r) => {
+      const authorId = reviewUserId(r);
+      if (authorId == null) return false;
+      const rid = reviewSpotId(r);
+      return String(authorId) === uid && (rid == null || String(rid) === sid);
+    });
+    if (inPreview) return true;
+
+    const myReviews = safeArray(myReviewsQuery.data);
+    return myReviews.some((r) => {
+      const rid = reviewSpotId(r);
+      return rid != null && String(rid) === sid;
+    });
+  }, [user?.id, spotId, reviews, myReviewsQuery.data]);
+
+  const renderBottomSecondary = () => {
+    if (!user) {
+      return (
+        <VisitStampButton
+          variant="cta"
+          disabled
+          onDisabledPress={handleSignInForVisit}
+          onVisit={handleMarkVisit}
+          busy={visitBusy}
+        />
+      );
+    }
+    if (!visited) {
+      return (
+        <VisitStampButton
+          variant="cta"
+          onVisit={handleMarkVisit}
+          busy={visitBusy}
+        />
+      );
+    }
+    if (!userHasReviewed) {
+      return (
+        <Pressable
+          onPress={handleWriteReview}
+          accessibilityRole="button"
+          accessibilityLabel="Write a review"
+          style={({ pressed }) => [
+            styles.ctaIconBtn,
+            { opacity: pressed ? 0.9 : 1 },
+          ]}
+        >
+          <Ionicons name="star-outline" size={16} color={fieldGuide.ink} />
+        </Pressable>
+      );
+    }
+    return (
+      <Pressable
+        onPress={handleShare}
+        accessibilityRole="button"
+        accessibilityLabel="Share spot"
+        style={({ pressed }) => [
+          styles.ctaIconBtn,
+          { opacity: pressed ? 0.9 : 1 },
+        ]}
+      >
+        <Ionicons name="share-outline" size={16} color={fieldGuide.ink} />
+      </Pressable>
+    );
+  };
 
   /* ── render ─────────────────────────────────────────────────────── */
   return (
@@ -809,11 +910,6 @@ export const SpotDetailScreen = ({ navigation, route }) => {
               <TitleChip>{spot.district || spot.city}</TitleChip>
             ) : null}
             {price ? <TitleChip>{price}</TitleChip> : null}
-            {openUntil ? (
-              <TitleChip variant="open">{openUntil}</TitleChip>
-            ) : status.isOpen === false ? (
-              <TitleChip>Closed</TitleChip>
-            ) : null}
             {isTrending ? (
               <TitleChip variant="trend">↑ Trending</TitleChip>
             ) : null}
@@ -841,7 +937,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
             </Text>
           </View>
           <View style={styles.dotsBlock}>
-            <RatingDots value={avgRating || 0} showNumber={false} size="md" />
+            <RatingDots value={avgRating || 0} showNumber={false} size="sm" />
             {vibeSummary ? (
               <Text style={styles.vibeSummaryLabel}>{vibeSummary}</Text>
             ) : null}
@@ -864,24 +960,21 @@ export const SpotDetailScreen = ({ navigation, route }) => {
             primary={saved}
           />
           <ActionCell
-            icon="star-outline"
-            label="Review"
-            onPress={handleWriteReview}
-          />
-          <ActionCell
             icon="navigate-outline"
             label="Directions"
             onPress={openDirections}
           />
-          <ActionCell
-            icon="share-outline"
-            label="Share"
-            onPress={handleShare}
-          />
+          {!userHasReviewed ? (
+            <ActionCell
+              icon="share-outline"
+              label="Share"
+              onPress={handleShare}
+            />
+          ) : null}
         </View>
 
         {/* STORY */}
-        {(vibeHook || spot.description || tags.length > 0) ? (
+        {(vibeHook || spot.description) ? (
           <View style={styles.storySection}>
             {vibeHook ? (
               <Text style={styles.vibeHook}>
@@ -891,13 +984,6 @@ export const SpotDetailScreen = ({ navigation, route }) => {
             ) : null}
             {spot.description ? (
               <Text style={styles.storyBody}>{spot.description}</Text>
-            ) : null}
-            {tags.length > 0 ? (
-              <View style={styles.tagRow}>
-                {tags.slice(0, 8).map((t, i) => (
-                  <TagPill key={`${t}-${i}`} label={String(t)} />
-                ))}
-              </View>
             ) : null}
           </View>
         ) : null}
@@ -1046,17 +1132,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
               ? `Walk there · ${walkMin} min`
               : 'Get directions'}
           </EditorialButton>
-          <Pressable
-            onPress={handleWriteReview}
-            accessibilityRole="button"
-            accessibilityLabel="Write a review"
-            style={({ pressed }) => [
-              styles.ctaIconBtn,
-              { opacity: pressed ? 0.9 : 1 },
-            ]}
-          >
-            <Ionicons name="star-outline" size={16} color={fieldGuide.ink} />
-          </Pressable>
+          {renderBottomSecondary()}
         </View>
       </View>
 
@@ -1376,22 +1452,22 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   ratingBig: {
-    fontFamily: fieldGuide.fonts.displayHeavy,
-    fontSize: 36,
-    lineHeight: 42,
-    color: fieldGuide.cream,
-    letterSpacing: -0.02 * 36,
+    fontFamily: fieldGuide.fonts.display,
+    fontSize: 23,
+    lineHeight: 26,
+    color: fieldGuide.creamSoft,
+    letterSpacing: -0.01 * 23,
     includeFontPadding: false,
   },
   ratingSmall: {
-    fontFamily: fieldGuide.fonts.display,
-    fontSize: 14,
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 12,
     color: fieldGuide.creamMute,
   },
   reviewCountLabel: {
     marginTop: 4,
     fontFamily: fieldGuide.fonts.sans,
-    fontSize: 12,
+    fontSize: 11,
     color: fieldGuide.creamMute,
     includeFontPadding: false,
   },
@@ -1496,26 +1572,6 @@ const styles = StyleSheet.create({
     fontFamily: fieldGuide.fonts.sans,
     fontSize: 14,
     lineHeight: Math.round(14 * 1.55),
-    color: fieldGuide.creamSoft,
-    includeFontPadding: false,
-  },
-  tagRow: {
-    marginTop: 14,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  tagPill: {
-    paddingVertical: 5,
-    paddingHorizontal: 11,
-    borderRadius: fieldGuide.radius.full,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: fieldGuide.inkLine2,
-    backgroundColor: fieldGuide.inkElev,
-  },
-  tagPillText: {
-    fontFamily: fieldGuide.fonts.sansMedium,
-    fontSize: 11,
     color: fieldGuide.creamSoft,
     includeFontPadding: false,
   },

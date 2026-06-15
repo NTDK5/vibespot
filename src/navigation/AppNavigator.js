@@ -123,15 +123,16 @@ export const AppNavigator = () => {
 
   return (
     <NavigationContainer theme={navigationTheme}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+        screenOptions={{ headerShown: false }}
+        initialRouteName={
+          !user ? (onboarded ? 'SignIn' : 'Splash') : 'MainTabs'
+        }
+      >
         {!user ? (
           <>
-            {!onboarded && (
-              <>
-                <Stack.Screen name="Splash" component={SplashScreen} />
-                <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-              </>
-            )}
+            <Stack.Screen name="Splash" component={SplashScreen} />
+            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
             <Stack.Screen name="SignIn" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
             <Stack.Screen
