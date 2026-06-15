@@ -49,11 +49,15 @@ export function AnalyticsProvider({ children }) {
   }
 
   return (
-<PostHogProvider
-  apiKey={POSTHOG_KEY}
-  autocapture={{ captureScreens: false }}
-  options={{ host: POSTHOG_HOST, captureAppLifecycleEvents: true, ...(enableInDev ? { debug: true } : {}) }}
->
+    <PostHogProvider
+      apiKey={POSTHOG_KEY}
+      autocapture={{ captureScreens: false }}
+      options={{
+        host: POSTHOG_HOST,
+        captureAppLifecycleEvents: true,
+        disabled: __DEV__ && !enableInDev,
+      }}
+    >
       <AnalyticsBridge />
       {children}
     </PostHogProvider>
