@@ -6,7 +6,7 @@
  * Outputs:
  *   assets/icon.png (1024, ink #14161D + mark)
  *   assets/adaptive-icon-foreground.png (1024, mark on transparent)
- *   assets/splash.png (1284×2778, lockup centered on ink)
+ *   assets/splash.png (1284×2778, mark + wordmark + tagline, vertical)
  *   assets/favicon.png (48, mark)
  */
 
@@ -21,9 +21,10 @@ const brandDir = path.join(root, 'assets', 'brand');
 const assetsDir = path.join(root, 'assets');
 
 const INK = '#14161D';
+const EMBER = '#E8743A';
+const CREAM_SOFT = '#D8D0C4';
 
 const markSvg = await readFile(path.join(brandDir, 'logo-mark-alt.svg'));
-const lockupSvg = await readFile(path.join(brandDir, 'logo-lockup-alt.svg'));
 
 await mkdir(assetsDir, { recursive: true });
 
@@ -48,11 +49,43 @@ await sharp(markSvg).resize(1024, 1024).png().toFile(
 
 const splashW = 1284;
 const splashH = 2778;
-const lockupW = 920;
-const lockupPng = await sharp(lockupSvg)
-  .resize(lockupW, Math.round((lockupW * 200) / 720))
+const splashMarkSize = 920;
+const splashMarkPng = await sharp(markSvg)
+  .resize(splashMarkSize, splashMarkSize)
   .png()
   .toBuffer();
+
+const textBlockH = 320;
+const textSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${splashW}" height="${textBlockH}" viewBox="0 0 ${splashW} ${textBlockH}">
+  <text
+    x="50%"
+    y="108"
+    text-anchor="middle"
+    font-family="ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace"
+    font-size="108"
+    font-weight="600"
+    letter-spacing="28"
+    fill="${EMBER}"
+  >FENA</text>
+  <text
+    x="50%"
+    y="228"
+    text-anchor="middle"
+    font-family="ui-sans-serif, 'DM Sans', system-ui, -apple-system, sans-serif"
+    font-size="52"
+    font-weight="400"
+    fill="${CREAM_SOFT}"
+    fill-opacity="0.92"
+  >Discover places worth your time</text>
+</svg>`;
+
+const textPng = await sharp(Buffer.from(textSvg)).png().toBuffer();
+
+const columnGap = 64;
+const stackHeight = splashMarkSize + columnGap + textBlockH;
+const stackTop = Math.round((splashH - stackHeight) / 2);
+const markLeft = Math.round((splashW - splashMarkSize) / 2);
 
 await sharp({
   create: {
@@ -62,7 +95,10 @@ await sharp({
     background: INK,
   },
 })
-  .composite([{ input: lockupPng, gravity: 'centre' }])
+  .composite([
+    { input: splashMarkPng, top: stackTop, left: markLeft },
+    { input: textPng, top: stackTop + splashMarkSize + columnGap, left: 0 },
+  ])
   .png()
   .toFile(path.join(assetsDir, 'splash.png'));
 

@@ -2,11 +2,8 @@ import React from 'react';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
 
 import { useAuth } from '../hooks/useAuth';
-import { useApiReady } from '../hooks/useApiReady';
-import { useFirstLaunch } from '../hooks/useFirstLaunch';
 
 // Auth & onboarding screens (default-exported in Phase 2)
 import SplashScreen from '../screens/SplashScreen';
@@ -36,6 +33,7 @@ import { PhotoViewerScreen } from '../screens/PhotoViewerScreen';
 
 import fieldGuide from '../theme/fieldGuide';
 import FieldGuideTabBar from './FieldGuideTabBar';
+import AuthNavigationSync from './AuthNavigationSync';
 import { navigationRef } from './navigationRef';
 import { screen as trackScreen } from '../analytics';
 
@@ -108,21 +106,9 @@ const MainTabs = () => {
 
 /**
  * Root Navigator
- * Handles first-launch gating, the auth flow, and the main app stack.
+ * Splash is always the cold-start route; session routing happens there.
  */
 export const AppNavigator = () => {
-  const { user, loading: authLoading } = useAuth();
-  const { apiReady } = useApiReady();
-  const { ready: launchReady, onboarded } = useFirstLaunch();
-
-  if (authLoading || !launchReady || !apiReady) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color={fieldGuide.ember} />
-      </View>
-    );
-  }
-
   return (
     <NavigationContainer
       ref={navigationRef}
@@ -134,90 +120,69 @@ export const AppNavigator = () => {
         }
       }}
     >
+      <AuthNavigationSync />
       <Stack.Navigator
         screenOptions={{ headerShown: false }}
-        initialRouteName={
-          !user ? (onboarded ? 'SignIn' : 'Splash') : 'MainTabs'
-        }
+        initialRouteName="Splash"
       >
-        {!user ? (
-          <>
-            <Stack.Screen name="Splash" component={SplashScreen} />
-            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-            <Stack.Screen name="SignIn" component={LoginScreen} />
-            <Stack.Screen name="Register" component={RegisterScreen} />
-            <Stack.Screen
-              name="ForgotPassword"
-              component={ForgotPasswordScreen}
-            />
-            <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
-          </>
-        ) : (
-          <>
-            <Stack.Screen name="MainTabs" component={MainTabs} />
-            <Stack.Screen name="SpotDetail" component={SpotDetailsScreen} />
-            <Stack.Screen
-              name="AddSpot"
-              component={AddSpotScreen}
-              options={{ presentation: 'modal' }}
-            />
-            <Stack.Screen name="EditSpot" component={EditSpotScreen} />
-            <Stack.Screen name="BecomeSpotOwner" component={BecomeSpotOwnerScreen} />
-            <Stack.Screen name="MySpots" component={MySpotsScreen} />
-            <Stack.Screen name="SpotOwnerAnalytics" component={SpotOwnerAnalyticsScreen} />
-            <Stack.Screen name="Settings" component={SettingsScreen} />
-            <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-            <Stack.Screen
-              name="Notifications"
-              component={NotificationsScreen}
-            />
-            <Stack.Screen
-              name="CollectionDetail"
-              component={CollectionDetailScreen}
-            />
-            <Stack.Screen
-              name="CreateCollection"
-              component={CreateCollectionScreen}
-              options={{ presentation: 'modal' }}
-            />
-            <Stack.Screen name="Reviews" component={ReviewsScreen} />
-            <Stack.Screen
-              name="WriteReview"
-              component={WriteReviewScreen}
-              options={{ presentation: 'modal' }}
-            />
-            <Stack.Screen
-              name="PhotoViewer"
-              component={PhotoViewerScreen}
-              options={{
-                presentation: 'transparentModal',
-                animation: 'fade',
-                headerShown: false,
-              }}
-            />
-            {/* Reachable when authed but the backend says the email is
-                still unverified — register() stashes pendingVerificationEmail
-                and the screen drives the rest. */}
-            <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
-            {__DEV__ && (
-              <Stack.Screen
-                name="FieldGuidePreview"
-                component={FieldGuidePreviewScreen}
-                options={{ headerShown: false }}
-              />
-            )}
-          </>
+        <Stack.Screen name="Splash" component={SplashScreen} />
+        <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+        <Stack.Screen name="SignIn" component={LoginScreen} />
+        <Stack.Screen name="Register" component={RegisterScreen} />
+        <Stack.Screen
+          name="ForgotPassword"
+          component={ForgotPasswordScreen}
+        />
+        <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
+        <Stack.Screen name="MainTabs" component={MainTabs} />
+        <Stack.Screen name="SpotDetail" component={SpotDetailsScreen} />
+        <Stack.Screen
+          name="AddSpot"
+          component={AddSpotScreen}
+          options={{ presentation: 'modal' }}
+        />
+        <Stack.Screen name="EditSpot" component={EditSpotScreen} />
+        <Stack.Screen name="BecomeSpotOwner" component={BecomeSpotOwnerScreen} />
+        <Stack.Screen name="MySpots" component={MySpotsScreen} />
+        <Stack.Screen name="SpotOwnerAnalytics" component={SpotOwnerAnalyticsScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+        <Stack.Screen
+          name="Notifications"
+          component={NotificationsScreen}
+        />
+        <Stack.Screen
+          name="CollectionDetail"
+          component={CollectionDetailScreen}
+        />
+        <Stack.Screen
+          name="CreateCollection"
+          component={CreateCollectionScreen}
+          options={{ presentation: 'modal' }}
+        />
+        <Stack.Screen name="Reviews" component={ReviewsScreen} />
+        <Stack.Screen
+          name="WriteReview"
+          component={WriteReviewScreen}
+          options={{ presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="PhotoViewer"
+          component={PhotoViewerScreen}
+          options={{
+            presentation: 'transparentModal',
+            animation: 'fade',
+            headerShown: false,
+          }}
+        />
+        {__DEV__ && (
+          <Stack.Screen
+            name="FieldGuidePreview"
+            component={FieldGuidePreviewScreen}
+            options={{ headerShown: false }}
+          />
         )}
       </Stack.Navigator>
     </NavigationContainer>
   );
 };
-
-const styles = StyleSheet.create({
-  loading: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: fieldGuide.ink,
-  },
-});

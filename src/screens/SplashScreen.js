@@ -1,8 +1,11 @@
 /**
- * SplashScreen — FENA launch screen.
+ * SplashScreen — FENA launch screen (every cold start).
+ *
+ * Waits for auth restore + onboarding flag, enforces a minimum hold,
+ * then routes to Onboarding, SignIn, or MainTabs.
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,10 +19,14 @@ import { useFirstLaunch } from '../hooks/useFirstLaunch';
 const HOLD_MS = 1200;
 
 export default function SplashScreen({ navigation }) {
-  const { user } = useAuth();
-  const { onboarded } = useFirstLaunch();
+  const { user, loading: authLoading } = useAuth();
+  const { ready: launchReady, onboarded } = useFirstLaunch();
+  const mountedAt = useRef(Date.now());
 
   useEffect(() => {
+    if (authLoading || !launchReady) return;
+
+    const delay = Math.max(0, HOLD_MS - (Date.now() - mountedAt.current));
     const t = setTimeout(() => {
       if (!onboarded) {
         navigation.replace('Onboarding');
@@ -28,9 +35,10 @@ export default function SplashScreen({ navigation }) {
       } else {
         navigation.replace('MainTabs');
       }
-    }, HOLD_MS);
+    }, delay);
+
     return () => clearTimeout(t);
-  }, [navigation, onboarded, user]);
+  }, [authLoading, launchReady, onboarded, user, navigation]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>

@@ -42,6 +42,15 @@
     },
     "plugins": [
       [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#14161D",
+          "imageWidth": 420
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
