@@ -44,6 +44,7 @@ import {
   Segmented,
   CollectionCard,
   CollectionMenuSheet,
+  ShareDispatchSheet,
   SpotPhoto,
 } from '../components/fieldguide';
 import fieldGuide from '../theme/fieldGuide';
@@ -56,6 +57,7 @@ import {
   getUserCollections,
   getAllCollections,
   deleteCollection,
+  shareCollection,
 } from '../services/collections.service';
 import { getSavedSpots } from '../services/savedSpots.service';
 import { getVisitedSpots } from '../services/visitedSpots.service';
@@ -218,6 +220,7 @@ export const CollectionsScreen = ({ navigation }) => {
 
   const [tab, setTab] = useState(0);
   const [menuFor, setMenuFor] = useState(null);
+  const [shareFor, setShareFor] = useState(null);
 
   /* ── COLLECTIONS query ───────────────────────────────────────────── */
   const collectionsQuery = useQuery({
@@ -336,7 +339,19 @@ export const CollectionsScreen = ({ navigation }) => {
   };
 
   const handleShare = () => {
-    toast.show('Sharing collections is coming soon.', { variant: 'info' });
+    if (!menuFor) return;
+    if (!menuFor.isPublic) {
+      toast.show('Private pockets cannot be shared.', { variant: 'info' });
+      closeMenu();
+      return;
+    }
+    const target = menuFor;
+    closeMenu();
+    setShareFor(target);
+  };
+
+  const handleShareRecorded = () => {
+    if (shareFor?.id) shareCollection(shareFor.id).catch(() => {});
   };
 
   const handleDelete = async (id) => {
@@ -526,6 +541,15 @@ export const CollectionsScreen = ({ navigation }) => {
         onEdit={handleEdit}
         onShare={handleShare}
         onDelete={handleDelete}
+      />
+
+      <ShareDispatchSheet
+        visible={!!shareFor}
+        onClose={() => setShareFor(null)}
+        variant="collection"
+        collection={shareFor}
+        userName={user?.name || user?.displayName || ''}
+        onShared={handleShareRecorded}
       />
     </SafeAreaView>
   );

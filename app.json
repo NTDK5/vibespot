@@ -47,7 +47,17 @@
           "image": "./assets/splash.png",
           "resizeMode": "contain",
           "backgroundColor": "#14161D",
-          "imageWidth": 420
+          "ios": {
+            "enableFullScreenImage_legacy": true,
+            "resizeMode": "contain"
+          },
+          "android": {
+            "imageWidth": 200,
+            "resizeMode": "contain",
+            "drawable": {
+              "icon": "./assets/splash-android-icon.png"
+            }
+          }
         }
       ],
       [

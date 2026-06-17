@@ -51,6 +51,7 @@ import {
   MonoMeta,
   MosaicCover,
   Rule,
+  ShareDispatchSheet,
 } from '../components/fieldguide';
 import fieldGuide from '../theme/fieldGuide';
 import { useToast } from '../components/ToastProvider';
@@ -60,6 +61,7 @@ import {
   deleteCollection,
   getCollectionById,
   removeSpotFromCollection,
+  shareCollection,
   updateCollection,
 } from '../services/collections.service';
 import {
@@ -289,6 +291,7 @@ export const CollectionDetailScreen = ({ navigation, route }) => {
   const baselineOrderRef = useRef([]);
   const [reorderMode, setReorderMode] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -455,7 +458,16 @@ export const CollectionDetailScreen = ({ navigation, route }) => {
   };
 
   const handleShare = () => {
-    toast.show('Sharing is coming soon.', { variant: 'info' });
+    if (!collection) return;
+    if (!collection.isPublic) {
+      toast.show('Private pockets cannot be shared.', { variant: 'info' });
+      return;
+    }
+    setShareOpen(true);
+  };
+
+  const handleShareRecorded = () => {
+    if (id) shareCollection(id).catch(() => {});
   };
 
   const handleEdit = () => {
@@ -689,6 +701,15 @@ export const CollectionDetailScreen = ({ navigation, route }) => {
         onEdit={handleEdit}
         onShare={handleShare}
         onDelete={() => handleDelete()}
+      />
+
+      <ShareDispatchSheet
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        variant="collection"
+        collection={collection}
+        userName={user?.name || user?.displayName || ''}
+        onShared={handleShareRecorded}
       />
     </View>
   );

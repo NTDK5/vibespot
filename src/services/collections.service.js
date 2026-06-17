@@ -129,3 +129,15 @@ export const removeSpotFromCollection = async (collectionId, spotId) => {
     return { error: err.response?.data?.message || "Failed to remove spot from collection" };
   }
 };
+
+// Track collection share (increments sharedCount)
+export const shareCollection = async (id, options = {}) => {
+  try {
+    const response = await api.post(`/collections/${id}/share`, options);
+    return response.data;
+  } catch (err) {
+    return {
+      error: err.response?.data?.message || "Failed to track collection share",
+    };
+  }
+};

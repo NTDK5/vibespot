@@ -35,6 +35,8 @@ import fieldGuide from '../theme/fieldGuide';
 import FieldGuideTabBar from './FieldGuideTabBar';
 import AuthNavigationSync from './AuthNavigationSync';
 import { navigationRef } from './navigationRef';
+import { linkingConfig } from './linking';
+import ShareDeepLinkHandler from '../components/ShareDeepLinkHandler';
 import { screen as trackScreen } from '../analytics';
 
 // Dev-only gallery of every Field Guide component. Reached via a long
@@ -113,6 +115,7 @@ export const AppNavigator = () => {
     <NavigationContainer
       ref={navigationRef}
       theme={navigationTheme}
+      linking={linkingConfig}
       onStateChange={() => {
         const route = navigationRef.getCurrentRoute();
         if (route?.name) {
@@ -120,6 +123,7 @@ export const AppNavigator = () => {
         }
       }}
     >
+      <ShareDeepLinkHandler />
       <AuthNavigationSync />
       <Stack.Navigator
         screenOptions={{ headerShown: false }}

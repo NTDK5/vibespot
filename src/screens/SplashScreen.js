@@ -7,6 +7,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import * as Linking from 'expo-linking';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BRAND } from '../brand/fena';
@@ -15,6 +16,7 @@ import fieldGuide from '../theme/fieldGuide';
 import { MonoMeta } from '../components/fieldguide';
 import { useAuth } from '../hooks/useAuth';
 import { useFirstLaunch } from '../hooks/useFirstLaunch';
+import { parseShareDeepLink } from '../navigation/linking';
 
 const HOLD_MS = 1200;
 
@@ -27,10 +29,26 @@ export default function SplashScreen({ navigation }) {
     if (authLoading || !launchReady) return;
 
     const delay = Math.max(0, HOLD_MS - (Date.now() - mountedAt.current));
-    const t = setTimeout(() => {
+    const t = setTimeout(async () => {
+      const initialUrl = await Linking.getInitialURL().catch(() => null);
+      const shareTarget = parseShareDeepLink(initialUrl);
+
       if (!onboarded) {
         navigation.replace('Onboarding');
-      } else if (!user) {
+        return;
+      }
+
+      if (shareTarget?.type === 'spot' && shareTarget.spotId) {
+        navigation.replace('SpotDetail', { spotId: shareTarget.spotId });
+        return;
+      }
+
+      if (shareTarget?.type === 'collection' && shareTarget.collectionId) {
+        navigation.replace('CollectionDetail', { id: shareTarget.collectionId });
+        return;
+      }
+
+      if (!user) {
         navigation.replace('SignIn');
       } else {
         navigation.replace('MainTabs');

@@ -8,7 +8,7 @@
  *
  * Rows (top → bottom):
  *   1. Edit cover     → navigates to CreateCollection in edit mode.
- *   2. Share          → coming-soon (no backend yet).
+ *   2. Share          → opens ShareDispatchSheet (public pockets only).
  *   3. Delete         → rose label, calls onDelete after a confirm.
  *
  * Props:

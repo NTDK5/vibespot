@@ -7,6 +7,7 @@
  *   assets/icon.png (1024, ink #14161D + mark)
  *   assets/adaptive-icon-foreground.png (1024, mark on transparent)
  *   assets/splash.png (1284×2778, mark + wordmark + tagline, vertical)
+ *   assets/splash-android-icon.png (1024, mark only — Android 12+ native splash)
  *   assets/favicon.png (48, mark)
  */
 
@@ -23,6 +24,9 @@ const assetsDir = path.join(root, 'assets');
 const INK = '#14161D';
 const EMBER = '#E8743A';
 const CREAM_SOFT = '#D8D0C4';
+
+const TAGLINE_LINE_1 = 'Discover places worth';
+const TAGLINE_LINE_2 = 'your time';
 
 const markSvg = await readFile(path.join(brandDir, 'logo-mark-alt.svg'));
 
@@ -55,29 +59,39 @@ const splashMarkPng = await sharp(markSvg)
   .png()
   .toBuffer();
 
-const textBlockH = 320;
+const textBlockH = 360;
 const textSvg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${splashW}" height="${textBlockH}" viewBox="0 0 ${splashW} ${textBlockH}">
   <text
     x="50%"
-    y="108"
+    y="100"
     text-anchor="middle"
     font-family="ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace"
-    font-size="108"
+    font-size="96"
     font-weight="600"
-    letter-spacing="28"
+    letter-spacing="20"
     fill="${EMBER}"
   >FENA</text>
   <text
     x="50%"
-    y="228"
+    y="210"
     text-anchor="middle"
     font-family="ui-sans-serif, 'DM Sans', system-ui, -apple-system, sans-serif"
-    font-size="52"
+    font-size="48"
     font-weight="400"
     fill="${CREAM_SOFT}"
     fill-opacity="0.92"
-  >Discover places worth your time</text>
+  >${TAGLINE_LINE_1}</text>
+  <text
+    x="50%"
+    y="270"
+    text-anchor="middle"
+    font-family="ui-sans-serif, 'DM Sans', system-ui, -apple-system, sans-serif"
+    font-size="48"
+    font-weight="400"
+    fill="${CREAM_SOFT}"
+    fill-opacity="0.92"
+  >${TAGLINE_LINE_2}</text>
 </svg>`;
 
 const textPng = await sharp(Buffer.from(textSvg)).png().toBuffer();
@@ -102,6 +116,24 @@ await sharp({
   .png()
   .toFile(path.join(assetsDir, 'splash.png'));
 
+const androidIconMarkSize = 760;
+const androidIconMarkPng = await sharp(markSvg)
+  .resize(androidIconMarkSize, androidIconMarkSize)
+  .png()
+  .toBuffer();
+
+await sharp({
+  create: {
+    width: 1024,
+    height: 1024,
+    channels: 4,
+    background: INK,
+  },
+})
+  .composite([{ input: androidIconMarkPng, gravity: 'centre' }])
+  .png()
+  .toFile(path.join(assetsDir, 'splash-android-icon.png'));
+
 await sharp({
   create: {
     width: 48,
@@ -120,3 +152,5 @@ await sharp({
   .toFile(path.join(assetsDir, 'favicon.png'));
 
 console.log('Brand PNGs written to assets/');
+console.log('splash.png written — verify tagline is not clipped (two-line layout)');
+console.log('splash-android-icon.png written — mark only for Android 12+ native splash');

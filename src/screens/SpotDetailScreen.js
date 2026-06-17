@@ -16,7 +16,6 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   View,
@@ -27,7 +26,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 
-import { BRAND, formatSpotShareMessage } from '../brand/fena';
+import { BRAND } from '../brand/fena';
 import {
   CollectionPickerSheet,
   DuotoneVibe,
@@ -38,6 +37,7 @@ import {
   MiniMap,
   RatingDots,
   ReviewRow,
+  ShareDispatchSheet,
 } from '../components/fieldguide';
 import VisitStampButton from '../components/fieldguide/spot/VisitStampButton';
 import { LivePulseDot } from '../components/home/LivePulseDot';
@@ -553,23 +553,16 @@ export const SpotDetailScreen = ({ navigation, route }) => {
 
   /* ── action handlers ─────────────────────────────────────────────── */
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
-  const handleShare = useCallback(async () => {
+  const handleShare = useCallback(() => {
     if (!spot) return;
-    try {
-      await Share.share({
-        title: spot.title,
-        message: formatSpotShareMessage(spot.title, spot?.address || ''),
-        url: spot?.shareUrl || undefined,
-      });
-      if (spotId) {
-        // Best-effort: count the share. Ignore errors silently.
-        recordShare(spotId).catch(() => {});
-      }
-    } catch (err) {
-      logger.error('SpotDetail.share', err);
-    }
-  }, [spot, spotId]);
+    setShareOpen(true);
+  }, [spot]);
+
+  const handleShareRecorded = useCallback(() => {
+    if (spotId) recordShare(spotId).catch(() => {});
+  }, [spotId]);
 
   const openDirections = useCallback(async () => {
     if (!coords) {
@@ -1158,6 +1151,18 @@ export const SpotDetailScreen = ({ navigation, route }) => {
         spotId={spotId}
         onClose={() => setPickerOpen(false)}
         onCreateNew={handleCreatePocket}
+      />
+
+      <ShareDispatchSheet
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        variant="spot"
+        spot={spot}
+        spotId={spotId}
+        topVibes={spotVibes || []}
+        walkMin={walkMin}
+        userName={user?.name || user?.displayName || ''}
+        onShared={handleShareRecorded}
       />
     </View>
   );

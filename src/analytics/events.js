@@ -14,4 +14,7 @@ export const Events = Object.freeze({
   NOTIFICATION_OPENED: 'notification_opened',
   SERVICE_AREA_OUTSIDE_VIEWED: 'service_area_outside_viewed',
   SERVICE_AREA_EXPLORE_ADDIS_TAPPED: 'service_area_explore_addis_tapped',
+  SPOT_SHARED: 'spot_shared',
+  COLLECTION_SHARED: 'collection_shared',
+  SHARE_LINK_OPENED: 'share_link_opened',
 });

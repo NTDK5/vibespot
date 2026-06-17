@@ -68,6 +68,7 @@ export {
 export { default as MapStylePopover } from './sheets/MapStylePopover';
 export { default as CollectionMenuSheet } from './sheets/CollectionMenuSheet';
 export { default as CollectionPickerSheet } from './sheets/CollectionPickerSheet';
+export { default as ShareDispatchSheet } from './sheets/ShareDispatchSheet';
 
 // collection
 export { default as MosaicCover } from './collection/MosaicCover';
@@ -113,6 +114,7 @@ import FilterSheet from './sheets/FilterSheet';
 import MapStylePopover from './sheets/MapStylePopover';
 import CollectionMenuSheet from './sheets/CollectionMenuSheet';
 import CollectionPickerSheet from './sheets/CollectionPickerSheet';
+import ShareDispatchSheet from './sheets/ShareDispatchSheet';
 import MosaicCover from './collection/MosaicCover';
 import CollectionCard from './collection/CollectionCard';
 
@@ -157,6 +159,7 @@ export const FG = Object.freeze({
   MapStylePopover,
   CollectionMenuSheet,
   CollectionPickerSheet,
+  ShareDispatchSheet,
   MosaicCover,
   CollectionCard,
   IconSquare,
