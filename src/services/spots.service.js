@@ -71,6 +71,30 @@ export const getEditorsPicks = async () => {
 };
 
 // ----------------------------
+// Get curated Editor's Route (metadata + ordered stops)
+// ----------------------------
+export const getEditorsRoute = async () => {
+  try {
+    const response = await api.get("/spot/editors-route");
+    return response.data;
+  } catch (err) {
+    return { error: err.response?.data?.message || "Failed to fetch editor's route" };
+  }
+};
+
+// ----------------------------
+// Get Editor's Picks Challenge (weekly visit challenge)
+// ----------------------------
+export const getEditorsPickChallenge = async () => {
+  try {
+    const response = await api.get("/spot/editors-picks-challenge");
+    return response.data;
+  } catch (err) {
+    return { error: err.response?.data?.message || "Failed to fetch editor's picks challenge" };
+  }
+};
+
+// ----------------------------
 // Toggle Editor's Pick (admin only)
 // ----------------------------
 export const setEditorsPick = async (id, { isEditorsPick, weeklyRank = null }) => {

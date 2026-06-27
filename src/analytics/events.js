@@ -17,4 +17,10 @@ export const Events = Object.freeze({
   SPOT_SHARED: 'spot_shared',
   COLLECTION_SHARED: 'collection_shared',
   SHARE_LINK_OPENED: 'share_link_opened',
+  EDITOR_ROUTE_STARTED: 'editor_route_started',
+  EDITOR_ROUTE_STOP_OPENED: 'editor_route_stop_opened',
+  EDITORS_PICK_CHALLENGE_VIEWED: 'editors_pick_challenge_viewed',
+  EDITORS_PICK_CHALLENGE_STOP_TAPPED: 'editors_pick_challenge_stop_tapped',
+  EDITORS_PICK_CHALLENGE_COMPLETED: 'editors_pick_challenge_completed',
+  EDITORS_PICK_ROUTE_STARTED: 'editors_pick_route_started',
 });

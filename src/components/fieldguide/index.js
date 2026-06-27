@@ -69,6 +69,15 @@ export { default as MapStylePopover } from './sheets/MapStylePopover';
 export { default as CollectionMenuSheet } from './sheets/CollectionMenuSheet';
 export { default as CollectionPickerSheet } from './sheets/CollectionPickerSheet';
 export { default as ShareDispatchSheet } from './sheets/ShareDispatchSheet';
+export {
+  default as EditorsRouteCard,
+  EditorsRouteSkeleton,
+} from './home/EditorsRouteCard';
+export {
+  default as EditorsPickChallengeCard,
+  EditorsPickChallengeSkeleton,
+} from './home/EditorsPickChallengeCard';
+export { default as EditorsPickCompleteModal } from './home/EditorsPickCompleteModal';
 
 // collection
 export { default as MosaicCover } from './collection/MosaicCover';
@@ -115,6 +124,9 @@ import MapStylePopover from './sheets/MapStylePopover';
 import CollectionMenuSheet from './sheets/CollectionMenuSheet';
 import CollectionPickerSheet from './sheets/CollectionPickerSheet';
 import ShareDispatchSheet from './sheets/ShareDispatchSheet';
+import EditorsRouteCard, { EditorsRouteSkeleton } from './home/EditorsRouteCard';
+import EditorsPickChallengeCard, { EditorsPickChallengeSkeleton } from './home/EditorsPickChallengeCard';
+import EditorsPickCompleteModal from './home/EditorsPickCompleteModal';
 import MosaicCover from './collection/MosaicCover';
 import CollectionCard from './collection/CollectionCard';
 
@@ -160,6 +172,11 @@ export const FG = Object.freeze({
   CollectionMenuSheet,
   CollectionPickerSheet,
   ShareDispatchSheet,
+  EditorsRouteCard,
+  EditorsRouteSkeleton,
+  EditorsPickChallengeCard,
+  EditorsPickChallengeSkeleton,
+  EditorsPickCompleteModal,
   MosaicCover,
   CollectionCard,
   IconSquare,

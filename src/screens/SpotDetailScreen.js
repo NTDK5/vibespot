@@ -38,6 +38,7 @@ import {
   RatingDots,
   ReviewRow,
   ShareDispatchSheet,
+  EditorsPickCompleteModal,
 } from '../components/fieldguide';
 import VisitStampButton from '../components/fieldguide/spot/VisitStampButton';
 import { LivePulseDot } from '../components/home/LivePulseDot';
@@ -80,6 +81,10 @@ import {
 import { normalizeHoursFromSpot, HOURS_DAYS } from '../utils/hoursHelpers';
 import { distanceKmFromUser, kmToMiles, walkingMinutes } from '../utils/geo';
 import { tryNavigateToWriteReview } from '../utils/reviewAccess';
+import {
+  markEditorsChallengeCelebrated,
+  wasEditorsChallengeCelebrated,
+} from '../utils/editorsChallengeStorage';
 
 const SCREEN_W = Dimensions.get('window').width;
 const HERO_H = 520;
@@ -554,6 +559,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
   /* ── action handlers ─────────────────────────────────────────────── */
   const [pickerOpen, setPickerOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [challengeCongrats, setChallengeCongrats] = useState(null);
 
   const handleShare = useCallback(() => {
     if (!spot) return;
@@ -591,6 +597,22 @@ export const SpotDetailScreen = ({ navigation, route }) => {
       setVisited(true);
       track(Events.SPOT_VISIT_STAMPED, { spot_id: spotId });
       toast.show("Stamped — you've been here.", { variant: 'success' });
+
+      if (result?.editorsPickChallengeCompleted) {
+        const key = result.challengeKey;
+        const seen = key ? await wasEditorsChallengeCelebrated(key) : true;
+        if (!seen) {
+          setChallengeCongrats({
+            challengeKey: key,
+            bonusXp: result.bonusXp ?? 50,
+          });
+          track(Events.EDITORS_PICK_CHALLENGE_COMPLETED, {
+            challenge_key: key,
+            bonus_xp: result.bonusXp ?? 50,
+            source: 'spot_detail',
+          });
+        }
+      }
     } catch (err) {
       logger.error('SpotDetail.markVisit', err);
       toast.show('Could not stamp this visit.', { variant: 'error' });
@@ -598,6 +620,13 @@ export const SpotDetailScreen = ({ navigation, route }) => {
       setVisitBusy(false);
     }
   }, [spotId, visited, visitBusy, userLocation, toast]);
+
+  const dismissChallengeCongrats = useCallback(async () => {
+    if (challengeCongrats?.challengeKey) {
+      await markEditorsChallengeCelebrated(challengeCongrats.challengeKey);
+    }
+    setChallengeCongrats(null);
+  }, [challengeCongrats?.challengeKey]);
 
   const handleWriteReview = useCallback(() => {
     track(Events.REVIEW_STARTED, { spot_id: spotId });
@@ -1163,6 +1192,12 @@ export const SpotDetailScreen = ({ navigation, route }) => {
         walkMin={walkMin}
         userName={user?.name || user?.displayName || ''}
         onShared={handleShareRecorded}
+      />
+
+      <EditorsPickCompleteModal
+        visible={!!challengeCongrats}
+        bonusXp={challengeCongrats?.bonusXp ?? 50}
+        onDismiss={dismissChallengeCongrats}
       />
     </View>
   );

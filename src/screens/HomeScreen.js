@@ -25,6 +25,9 @@ import fieldGuide from '../theme/fieldGuide';
 import {
   ChampionCard,
   DuotoneVibe,
+  EditorsPickChallengeCard,
+  EditorsPickChallengeSkeleton,
+  EditorsPickCompleteModal,
   IndexStamp,
   LoadingScreen,
   MonoMeta,
@@ -45,7 +48,7 @@ import {
   getAllSpots,
   searchSpots,
   getNearbySpots,
-  getEditorsPicks,
+  getEditorsPickChallenge,
   getWeeklyChampionSpot,
 } from '../services/spots.service';
 import { getWeeklySpotRanks } from '../services/weeklyRank.service';
@@ -59,7 +62,16 @@ import { getVisitedSpots } from '../services/visitedSpots.service';
 
 import { CATEGORIES } from '../utils/constants';
 import { logger } from '../utils/logger';
+import { track, Events } from '../analytics';
 import { distanceKmFromUser, formatMiles, walkingMinutes } from '../utils/geo';
+import {
+  normalizeEditorsPickChallengeResponse,
+} from '../utils/editorsPickChallengeHelpers';
+import {
+  markEditorsChallengeCelebrated,
+  wasEditorsChallengeCelebrated,
+} from '../utils/editorsChallengeStorage';
+import { openEditorsRouteInMaps } from '../utils/editorsRouteHelpers';
 import { openStatus } from '../utils/spotHelpers';
 
 const PAGE_PAD = 22;
@@ -310,7 +322,9 @@ export const HomeScreen = ({ navigation }) => {
   const [spots, setSpots] = useState([]);
   const [nearbySpots, setNearbySpots] = useState([]);
   const [weeklyRanks, setWeeklyRanks] = useState([]);
-  const [editorsPicks, setEditorsPicks] = useState([]);
+  const [editorsChallenge, setEditorsChallenge] = useState(null);
+  const [editorsLoading, setEditorsLoading] = useState(true);
+  const [challengeCongrats, setChallengeCongrats] = useState(null);
   const [weeklyChampion, setWeeklyChampion] = useState(null);
   const [championSaved, setChampionSaved] = useState(false);
   const [stats, setStats] = useState({ nearbyCount: 0, visitedSpots: 0, savedSpots: 0 });
@@ -374,22 +388,28 @@ export const HomeScreen = ({ navigation }) => {
     }
   }, []);
 
-  const loadEditorsPicks = useCallback(async () => {
+  const loadEditorsSection = useCallback(async () => {
     try {
-      const result = await getEditorsPicks();
-      if (!result?.error && Array.isArray(result)) {
-        setEditorsPicks(result);
-      } else {
-        setEditorsPicks([]);
+      const result = await getEditorsPickChallenge();
+      const normalized = normalizeEditorsPickChallengeResponse(result);
+      setEditorsChallenge(normalized);
+      if (normalized?.picks?.length >= 3) {
+        track(Events.EDITORS_PICK_CHALLENGE_VIEWED, {
+          challenge_key: normalized.challengeKey,
+          visited_count: normalized.progress?.visitedCount ?? 0,
+          completed: normalized.progress?.completed ?? false,
+        });
       }
     } catch (error) {
       logger.error({
         service: 'home',
-        action: 'load_editors_picks_error',
-        message: "Error loading editor's picks",
+        action: 'load_editors_section_error',
+        message: "Error loading editor's picks challenge",
         metadata: { error: error?.message || String(error) },
       });
-      setEditorsPicks([]);
+      setEditorsChallenge(null);
+    } finally {
+      setEditorsLoading(false);
     }
   }, []);
 
@@ -442,7 +462,7 @@ export const HomeScreen = ({ navigation }) => {
         await Promise.allSettled([
           loadSpots(),
           loadWeeklyRanks(),
-          loadEditorsPicks(),
+          loadEditorsSection(),
           loadWeeklyChampion(),
           loadStats(),
         ]);
@@ -453,7 +473,7 @@ export const HomeScreen = ({ navigation }) => {
     return () => {
       cancelled = true;
     };
-  }, [loadSpots, loadWeeklyRanks, loadEditorsPicks, loadWeeklyChampion, loadStats]);
+  }, [loadSpots, loadWeeklyRanks, loadEditorsSection, loadWeeklyChampion, loadStats]);
 
   useEffect(() => {
     if (inServiceArea === false || (inServiceArea === null && !locationLoading && !location)) {
@@ -473,28 +493,35 @@ export const HomeScreen = ({ navigation }) => {
   useFocusEffect(
     useCallback(() => {
       if (initialLoading) return;
+      loadEditorsSection();
+    }, [initialLoading, loadEditorsSection]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (initialLoading) return;
       const coreEmpty =
         spots.length === 0 &&
-        editorsPicks.length === 0 &&
+        !editorsChallenge?.picks?.length &&
         weeklyRanks.length === 0 &&
         !weeklyChampion;
       if (!coreEmpty) return;
       Promise.allSettled([
         loadSpots(),
         loadWeeklyRanks(),
-        loadEditorsPicks(),
+        loadEditorsSection(),
         loadWeeklyChampion(),
         loadStats(),
       ]);
     }, [
       initialLoading,
       spots.length,
-      editorsPicks.length,
+      editorsChallenge?.picks?.length,
       weeklyRanks.length,
       weeklyChampion,
       loadSpots,
       loadWeeklyRanks,
-      loadEditorsPicks,
+      loadEditorsSection,
       loadWeeklyChampion,
       loadStats,
     ]),
@@ -506,7 +533,7 @@ export const HomeScreen = ({ navigation }) => {
       await Promise.all([
         loadSpots(),
         loadWeeklyRanks(),
-        loadEditorsPicks(),
+        loadEditorsSection(),
         loadWeeklyChampion(),
         loadStats(),
         locationLat != null && locationLng != null
@@ -519,7 +546,7 @@ export const HomeScreen = ({ navigation }) => {
   }, [
     loadSpots,
     loadWeeklyRanks,
-    loadEditorsPicks,
+    loadEditorsSection,
     loadWeeklyChampion,
     loadStats,
     loadNearby,
@@ -665,20 +692,54 @@ export const HomeScreen = ({ navigation }) => {
     }
   }, [weeklyChampion, goSpotDetail, toast]);
 
-  const renderPick = useCallback(
-    ({ item, index }) => {
-      const fieldSpot = toFieldSpot(item, { indexNumber: indexForSpot(item, index) });
-      if (!fieldSpot) return null;
-      return (
-        <SpotCard
-          variant="pick"
-          spot={fieldSpot}
-          onPress={() => goSpotDetail(item.id)}
-        />
-      );
-    },
-    [goSpotDetail],
-  );
+  const handleEditorsStartRoute = useCallback(async (spots, challenge) => {
+    track(Events.EDITORS_PICK_ROUTE_STARTED, {
+      stop_count: spots?.length ?? 0,
+      challenge_key: challenge?.challengeKey ?? null,
+    });
+    const result = await openEditorsRouteInMaps(spots);
+    if (!result.ok) {
+      toast.show(result.error || 'Could not open route.', { variant: 'info' });
+      const firstId = spots?.[0]?.id;
+      if (firstId) goSpotDetail(firstId);
+    }
+  }, [toast, goSpotDetail]);
+
+  const handleEditorsStopPress = useCallback((spotId) => {
+    track(Events.EDITORS_PICK_CHALLENGE_STOP_TAPPED, { spot_id: spotId });
+    goSpotDetail(spotId);
+  }, [goSpotDetail]);
+
+  useEffect(() => {
+    const key = editorsChallenge?.challengeKey;
+    const awarded = editorsChallenge?.progress?.bonusXpAwarded;
+    if (!key || !awarded) return;
+
+    (async () => {
+      const seen = await wasEditorsChallengeCelebrated(key);
+      if (!seen) {
+        setChallengeCongrats({
+          challengeKey: key,
+          bonusXp: editorsChallenge.progress?.bonusXpAmount ?? 50,
+        });
+        track(Events.EDITORS_PICK_CHALLENGE_COMPLETED, {
+          challenge_key: key,
+          bonus_xp: editorsChallenge.progress?.bonusXpAmount ?? 50,
+        });
+      }
+    })();
+  }, [
+    editorsChallenge?.challengeKey,
+    editorsChallenge?.progress?.bonusXpAwarded,
+    editorsChallenge?.progress?.bonusXpAmount,
+  ]);
+
+  const dismissChallengeCongrats = useCallback(async () => {
+    if (challengeCongrats?.challengeKey) {
+      await markEditorsChallengeCelebrated(challengeCongrats.challengeKey);
+    }
+    setChallengeCongrats(null);
+  }, [challengeCongrats?.challengeKey]);
 
   const renderNearby = useCallback(
     ({ item }) => {
@@ -700,10 +761,7 @@ export const HomeScreen = ({ navigation }) => {
     [goSpotDetail, location],
   );
 
-  const editorsLabel = useMemo(() => {
-    const n = String(editorsPicks.length).padStart(2, '0');
-    return `See all ${n}`;
-  }, [editorsPicks.length]);
+  const editorsLabel = 'All picks ↗';
 
   const showWithinWalking = !!location && nearbySpots.length > 0;
 
@@ -772,7 +830,7 @@ export const HomeScreen = ({ navigation }) => {
           )}
         </View>
 
-        {/* ─── EDITOR'S PICKS ───────────────────────────────── */}
+        {/* ─── EDITOR'S PICKS CHALLENGE ───────────────────────── */}
         <SectionHead
           title="Editor's picks"
           cta={{
@@ -780,20 +838,25 @@ export const HomeScreen = ({ navigation }) => {
             onPress: () => navigation.navigate('Explore', { filter: 'editors' }),
           }}
         />
-        {editorsPicks.length > 0 ? (
-          <FlatList
-            data={editorsPicks}
-            keyExtractor={(item, idx) => String(item?.id ?? idx)}
-            renderItem={renderPick}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.hScrollPad}
+        {editorsLoading && !editorsChallenge?.picks?.length ? (
+          <EditorsPickChallengeSkeleton />
+        ) : editorsChallenge?.picks?.length >= 3 ? (
+          <EditorsPickChallengeCard
+            challenge={editorsChallenge}
+            onStopPress={handleEditorsStopPress}
+            onStartRoute={handleEditorsStartRoute}
           />
         ) : (
           <View style={styles.hScrollPad}>
             <GhostPickCard />
           </View>
         )}
+
+        <EditorsPickCompleteModal
+          visible={!!challengeCongrats}
+          bonusXp={challengeCongrats?.bonusXp ?? 50}
+          onDismiss={dismissChallengeCongrats}
+        />
 
         {/* ─── TRENDING THIS WEEK ───────────────────────────── */}
         <SectionHead
