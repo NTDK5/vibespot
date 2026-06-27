@@ -25,7 +25,7 @@ After export, open `assets/splash.png` and confirm the full tagline is visible �
 | Platform | Native splash | Full tagline |
 |----------|---------------|--------------|
 | **iOS** | Full portrait `splash.png` (mark + FENA + tagline) via `enableFullScreenImage_legacy` | Yes, on native flash |
-| **Android 12+** | Centered logo mark only (`splash-android-icon.png`) on `#14161D` | No — Android uses a square icon splash; tagline appears on the JS `SplashScreen` (~1.2s) |
+| **Android 12+** | Centered logo mark only (`splash-android-icon.png`) on `#14161D` via `android.image` | No — Android uses a square icon splash; tagline appears on the JS `SplashScreen` (~1.2s) |
 
 Android intentionally uses a mark-only drawable so the portrait composition is not crushed into a ~200dp square. The branded tagline moment is the in-app splash (`SplashScreen.js`).
 
@@ -43,4 +43,4 @@ For EAS preview builds:
 npx eas build --platform android --profile preview --clear-cache
 ```
 
-Do not hand-edit `android/app/src/main/res/drawable-*` — let prebuild generate `splashscreen_logo` from the plugin config.
+Do not use `android.drawable.icon` — Expo copies the PNG to `splashscreen_logo.xml`, which breaks release builds. Use `android.image` instead.

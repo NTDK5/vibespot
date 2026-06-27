@@ -13,7 +13,7 @@
       "env": {
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       },
-      "prebuildCommand": "npx expo prebuild --platform android --no-install --clean"
+      "prebuildCommand": "npm run brand:export && npx expo prebuild --platform android --no-install --clean"
     },
     "preview": {
       "distribution": "internal",
@@ -23,7 +23,7 @@
       "env": {
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       },
-      "prebuildCommand": "npx expo prebuild --platform android --no-install --clean"
+      "prebuildCommand": "npm run brand:export && npx expo prebuild --platform android --no-install --clean"
     },
     "production": {
       "android": {
@@ -33,7 +33,7 @@
       "env": {
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       },
-      "prebuildCommand": "npx expo prebuild --platform android --no-install --clean"
+      "prebuildCommand": "npm run brand:export && npx expo prebuild --platform android --no-install --clean"
     }
   },
   "submit": {

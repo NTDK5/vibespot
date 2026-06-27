@@ -52,11 +52,9 @@
             "resizeMode": "contain"
           },
           "android": {
+            "image": "./assets/splash-android-icon.png",
             "imageWidth": 200,
-            "resizeMode": "contain",
-            "drawable": {
-              "icon": "./assets/splash-android-icon.png"
-            }
+            "resizeMode": "contain"
           }
         }
       ],
