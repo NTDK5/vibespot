@@ -13,6 +13,7 @@ import api from "../config/axios";
 import { normalizeAuthError } from "../utils/authErrors";
 import { authEvents } from "../utils/authEvents";
 import { track, Events } from "../analytics";
+import { readLaunchStorage } from "../bootstrap/launchStorage";
 
 export const AuthContext = createContext();
 
@@ -108,60 +109,68 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuthState = useCallback(async () => {
     try {
-      const token = await AsyncStorage.getItem("token");
+      const { token, userRaw } = await readLaunchStorage();
+
       if (!token) {
         await clearAuth();
+        setLoading(false);
         return;
       }
 
       let storedUser = null;
-      const storedUserRaw = await AsyncStorage.getItem("user");
-      const hasUser = !!storedUserRaw;
+      const hasUser = !!userRaw;
 
-      if (storedUserRaw) {
+      if (userRaw) {
         try {
-          storedUser = JSON.parse(storedUserRaw);
+          storedUser = JSON.parse(userRaw);
           setUser(storedUser);
         } catch {
           /* corrupt cache — ignore */
         }
       }
 
-      let meStatus = "skipped";
-      try {
-        const response = await api.get("/user/me");
-        meStatus = "ok";
-        if (response.data) {
-          setUser(response.data);
-          await AsyncStorage.setItem("user", JSON.stringify(response.data));
-        }
-      } catch (error) {
-        const status = error.response?.status;
-        if (status === 401 || status === 404) {
-          meStatus = String(status);
-          await clearAuth();
-        } else if (storedUser) {
-          meStatus = status ? String(status) : "network";
-          setUser(storedUser);
-          if (__DEV__) {
-            console.log("auth: offline restore");
-          }
-        } else {
-          meStatus = status ? String(status) : "network";
-        }
-      }
+      // Unblock UI after local storage read — do not wait on /user/me.
+      setLoading(false);
 
-      if (__DEV__) {
-        console.log("[auth restore]", {
-          hasToken: !!token,
-          hasUser,
-          meStatus,
+      api
+        .get("/user/me")
+        .then(async (response) => {
+          if (response.data) {
+            setUser(response.data);
+            await AsyncStorage.setItem("user", JSON.stringify(response.data));
+          }
+          if (__DEV__) {
+            console.log("[auth restore]", { hasToken: true, hasUser, meStatus: "ok" });
+          }
+        })
+        .catch(async (error) => {
+          const status = error.response?.status;
+          if (status === 401 || status === 404) {
+            if (__DEV__) {
+              console.log("[auth restore]", { hasToken: true, hasUser, meStatus: String(status) });
+            }
+            await clearAuth();
+          } else if (storedUser) {
+            setUser(storedUser);
+            if (__DEV__) {
+              console.log("[auth restore]", {
+                hasToken: true,
+                hasUser,
+                meStatus: status ? String(status) : "network",
+              });
+              console.log("auth: offline restore");
+            }
+          } else if (__DEV__) {
+            console.log("[auth restore]", {
+              hasToken: true,
+              hasUser,
+              meStatus: status ? String(status) : "network",
+            });
+          }
         });
-      }
     } catch (error) {
       console.error("Error checking auth state:", error);
       await clearAuth();
-    } finally {
       setLoading(false);
     }
   }, [clearAuth]);

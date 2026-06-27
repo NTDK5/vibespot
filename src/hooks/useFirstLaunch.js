@@ -14,6 +14,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import {
+  patchLaunchStorageCache,
+  readLaunchStorage,
+} from '../bootstrap/launchStorage';
+
 const STORAGE_KEY = 'fena.onboarded';
 
 export function useFirstLaunch() {
@@ -22,10 +27,10 @@ export function useFirstLaunch() {
 
   useEffect(() => {
     let cancelled = false;
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((v) => {
+    readLaunchStorage()
+      .then(({ onboarded: storedOnboarded }) => {
         if (cancelled) return;
-        setOnboarded(v === '1');
+        setOnboarded(storedOnboarded);
         setReady(true);
       })
       .catch(() => {
@@ -46,6 +51,7 @@ export function useFirstLaunch() {
       // the in-session flow can continue. On the next cold start the
       // user will see onboarding again.
     }
+    patchLaunchStorageCache({ onboarded: true });
     setOnboarded(true);
   }, []);
 

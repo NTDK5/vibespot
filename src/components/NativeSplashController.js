@@ -5,8 +5,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useFirstLaunch } from '../hooks/useFirstLaunch';
 
 /**
- * Hides the native expo splash once auth restore + onboarding flag are ready.
- * Branded SplashScreen takes over inside NavigationContainer.
+ * Hides the native expo splash once local auth + onboarding flags are ready.
+ * authLoading is storage-only (does not wait on /user/me).
  */
 export default function NativeSplashController() {
   const { loading: authLoading } = useAuth();

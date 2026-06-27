@@ -17,7 +17,7 @@ import {
   AnalyticsProvider,
   AnalyticsAuthBinder,
 } from './src/analytics/AnalyticsProvider';
-import { useFieldGuideFonts } from './src/theme/fonts';
+import { useCriticalFonts, DeferredFontLoader } from './src/theme/fonts';
 
 // Keep the native splash visible until auth + launch flags resolve.
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -34,7 +34,7 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
-  const [fontsLoaded, fontError] = useFieldGuideFonts();
+  const [fontsLoaded, fontError] = useCriticalFonts();
 
   if (!fontsLoaded && !fontError) {
     return null;
@@ -42,6 +42,7 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <DeferredFontLoader />
       <AnalyticsProvider>
         <QueryClientProvider client={queryClient}>
           <SafeAreaProvider>

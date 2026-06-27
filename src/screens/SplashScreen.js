@@ -1,8 +1,8 @@
 /**
  * SplashScreen — FENA launch screen (every cold start).
  *
- * Waits for auth restore + onboarding flag, enforces a minimum hold,
- * then routes to Onboarding, SignIn, or MainTabs.
+ * Waits for auth restore + onboarding flag, then routes to Onboarding,
+ * SignIn, MainTabs, or a share deep-link target.
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -18,44 +18,65 @@ import { useAuth } from '../hooks/useAuth';
 import { useFirstLaunch } from '../hooks/useFirstLaunch';
 import { parseShareDeepLink } from '../navigation/linking';
 
-const HOLD_MS = 1200;
+const HOLD_MS_FIRST_LAUNCH = 1200;
 
 export default function SplashScreen({ navigation }) {
   const { user, loading: authLoading } = useAuth();
   const { ready: launchReady, onboarded } = useFirstLaunch();
   const mountedAt = useRef(Date.now());
+  const routedRef = useRef(false);
 
   useEffect(() => {
-    if (authLoading || !launchReady) return;
+    if (authLoading || !launchReady || routedRef.current) return;
 
-    const delay = Math.max(0, HOLD_MS - (Date.now() - mountedAt.current));
-    const t = setTimeout(async () => {
+    let cancelled = false;
+
+    const route = async () => {
       const initialUrl = await Linking.getInitialURL().catch(() => null);
+      if (cancelled) return;
+
       const shareTarget = parseShareDeepLink(initialUrl);
+      const isDeepLink = !!(
+        shareTarget?.type === 'spot' && shareTarget.spotId
+      ) || !!(
+        shareTarget?.type === 'collection' && shareTarget.collectionId
+      );
 
-      if (!onboarded) {
-        navigation.replace('Onboarding');
-        return;
-      }
+      const holdMs = isDeepLink || onboarded ? 0 : HOLD_MS_FIRST_LAUNCH;
+      const delay = Math.max(0, holdMs - (Date.now() - mountedAt.current));
 
-      if (shareTarget?.type === 'spot' && shareTarget.spotId) {
-        navigation.replace('SpotDetail', { spotId: shareTarget.spotId });
-        return;
-      }
+      setTimeout(() => {
+        if (cancelled || routedRef.current) return;
+        routedRef.current = true;
 
-      if (shareTarget?.type === 'collection' && shareTarget.collectionId) {
-        navigation.replace('CollectionDetail', { id: shareTarget.collectionId });
-        return;
-      }
+        if (!onboarded) {
+          navigation.replace('Onboarding');
+          return;
+        }
 
-      if (!user) {
-        navigation.replace('SignIn');
-      } else {
-        navigation.replace('MainTabs');
-      }
-    }, delay);
+        if (shareTarget?.type === 'spot' && shareTarget.spotId) {
+          navigation.replace('SpotDetail', { spotId: shareTarget.spotId });
+          return;
+        }
 
-    return () => clearTimeout(t);
+        if (shareTarget?.type === 'collection' && shareTarget.collectionId) {
+          navigation.replace('CollectionDetail', { id: shareTarget.collectionId });
+          return;
+        }
+
+        if (!user) {
+          navigation.replace('SignIn');
+        } else {
+          navigation.replace('MainTabs');
+        }
+      }, delay);
+    };
+
+    route();
+
+    return () => {
+      cancelled = true;
+    };
   }, [authLoading, launchReady, onboarded, user, navigation]);
 
   return (
