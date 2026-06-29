@@ -11,10 +11,9 @@
     "brand:export": "node scripts/export-brand-pngs.mjs"
   },
   "dependencies": {
-    "@expo-google-fonts/dm-sans": "^0.4.2",
-    "@expo-google-fonts/jetbrains-mono": "^0.4.1",
+    "@expo-google-fonts/geist": "^0.4.2",
+    "@expo-google-fonts/geist-mono": "^0.4.2",
     "@expo-google-fonts/noto-serif-ethiopic": "^0.4.1",
-    "@expo-google-fonts/syne": "^0.4.2",
     "@expo/vector-icons": "^15.0.3",
     "@gorhom/bottom-sheet": "^5.2.8",
     "@react-native-async-storage/async-storage": "^2.1.0",

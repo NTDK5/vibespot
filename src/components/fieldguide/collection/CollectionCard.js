@@ -17,6 +17,8 @@
  *   onPress?: () => void
  *   onLongPress?: () => void
  *   onMenuPress?: () => void          tap the kebab specifically
+ *   onToggleLike?: (nextLiked: boolean) => void   tap the heart
+ *   onSharePress?: () => void         tap the share glyph (public only)
  *   style?: ViewStyle
  */
 
@@ -95,6 +97,12 @@ function resolveCreator(collection) {
   };
 }
 
+function formatCount(n) {
+  const v = Number(n) || 0;
+  if (v >= 1000) return `${(v / 1000).toFixed(v % 1000 >= 100 ? 1 : 0)}k`;
+  return String(v);
+}
+
 function privacyTag(collection) {
   if (collection?.isPublic) return { label: 'PUBLIC', accent: true };
   const sharedCount =
@@ -110,6 +118,8 @@ export default function CollectionCard({
   onPress,
   onLongPress,
   onMenuPress,
+  onToggleLike,
+  onSharePress,
   canShowMenu = true,
   style,
 }) {
@@ -121,6 +131,12 @@ export default function CollectionCard({
   const cityLabel = citySummary(cities, spotCount);
   const priv = privacyTag(collection);
   const creator = useMemo(() => resolveCreator(collection), [collection]);
+
+  const liked = !!collection?.isLiked;
+  const likeCount = Number(collection?.likeCount) || 0;
+  const shareCount = Number(collection?.sharedCount) || 0;
+  const canShare = !!collection?.isPublic && typeof onSharePress === 'function';
+  const canLike = typeof onToggleLike === 'function';
 
   const metaParts = [
     `${spotCount} SPOT${spotCount === 1 ? '' : 'S'}`,
@@ -205,6 +221,46 @@ export default function CollectionCard({
           </Pressable>
         ) : null}
       </View>
+
+      {(canLike || canShare || likeCount > 0 || shareCount > 0) ? (
+        <View style={styles.statRow}>
+          <Pressable
+            onPress={canLike ? () => onToggleLike(!liked) : undefined}
+            disabled={!canLike}
+            accessibilityRole="button"
+            accessibilityLabel={liked ? 'Unlike collection' : 'Like collection'}
+            hitSlop={8}
+            style={({ pressed }) => [styles.stat, { opacity: pressed && canLike ? 0.6 : 1 }]}
+          >
+            <Ionicons
+              name={liked ? 'heart' : 'heart-outline'}
+              size={15}
+              color={liked ? fieldGuide.ember : fieldGuide.creamMute}
+            />
+            <Text style={[styles.statLabel, liked && styles.statLabelActive]}>
+              {formatCount(likeCount)}
+            </Text>
+          </Pressable>
+
+          {canShare ? (
+            <Pressable
+              onPress={onSharePress}
+              accessibilityRole="button"
+              accessibilityLabel="Share collection"
+              hitSlop={8}
+              style={({ pressed }) => [styles.stat, { opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Ionicons name="arrow-redo-outline" size={15} color={fieldGuide.creamMute} />
+              <Text style={styles.statLabel}>{formatCount(shareCount)}</Text>
+            </Pressable>
+          ) : shareCount > 0 ? (
+            <View style={styles.stat}>
+              <Ionicons name="arrow-redo-outline" size={15} color={fieldGuide.creamMute} />
+              <Text style={styles.statLabel}>{formatCount(shareCount)}</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -308,5 +364,29 @@ const styles = StyleSheet.create({
     borderColor: fieldGuide.inkLine,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  statRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 18,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: fieldGuide.inkLine,
+  },
+  stat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statLabel: {
+    fontFamily: fieldGuide.fonts.monoMed,
+    fontSize: 11,
+    color: fieldGuide.creamMute,
+    includeFontPadding: false,
+  },
+  statLabelActive: {
+    color: fieldGuide.ember,
   },
 });

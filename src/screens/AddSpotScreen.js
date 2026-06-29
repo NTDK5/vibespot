@@ -13,7 +13,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +23,7 @@ import CategoryGrid from '../components/fieldguide/form/CategoryGrid';
 import PriceTierRow from '../components/fieldguide/form/PriceTierRow';
 import HoursEditor, { createEmptyHours } from '../components/fieldguide/form/HoursEditor';
 import SpotMediaUploader from '../components/fieldguide/form/SpotMediaUploader';
+import AmenityPicker from '../components/fieldguide/form/AmenityPicker';
 import { Pill } from '../components/fieldguide';
 import MonoMeta from '../components/fieldguide/primitives/MonoMeta';
 import SuccessSheet from '../components/fieldguide/state/SuccessSheet';
@@ -98,7 +98,6 @@ const initialState = (lat, lng) => ({
   address: '',
   bestTime: '',
   hours: createEmptyHours(),
-  featureInput: '',
   features: [],
   website: '',
   instagram: '',
@@ -125,20 +124,6 @@ function reducer(state, action) {
       if (state.vibeTags.length >= 5) return state;
       return { ...state, vibeTags: [...state.vibeTags, tag] };
     }
-    case 'addFeature': {
-      const trimmed = state.featureInput.trim();
-      if (!trimmed || state.features.includes(trimmed)) return state;
-      return {
-        ...state,
-        features: [...state.features, trimmed],
-        featureInput: '',
-      };
-    }
-    case 'removeFeature':
-      return {
-        ...state,
-        features: state.features.filter((f) => f !== action.feature),
-      };
     default:
       return state;
   }
@@ -442,36 +427,13 @@ export const AddSpotScreen = ({ navigation }) => {
               value={state.hours}
               onChange={(hours) => dispatch({ type: 'patch', payload: { hours } })}
             />
-            <MonoMeta size="eyebrow">Features</MonoMeta>
-            <View style={styles.featureRow}>
-              <TextInput
-                value={state.featureInput}
-                onChangeText={(featureInput) =>
-                  dispatch({ type: 'patch', payload: { featureInput } })
-                }
-                onSubmitEditing={() => dispatch({ type: 'addFeature' })}
-                placeholder="Wi-Fi, courtyard, cardamom bun…"
-                placeholderTextColor={fieldGuide.creamFaint}
-                style={styles.featureInput}
-              />
-              <Pressable
-                onPress={() => dispatch({ type: 'addFeature' })}
-                style={styles.featureAdd}
-              >
-                <Ionicons name="add" size={18} color={fieldGuide.cream} />
-              </Pressable>
-            </View>
-            <View style={styles.pillWrap}>
-              {state.features.map((f) => (
-                <Pill
-                  key={f}
-                  variant="default"
-                  onPress={() => dispatch({ type: 'removeFeature', feature: f })}
-                >
-                  {`${f.toUpperCase()} ×`}
-                </Pill>
-              ))}
-            </View>
+            <MonoMeta size="eyebrow">Services &amp; amenities</MonoMeta>
+            <AmenityPicker
+              value={state.features}
+              onChange={(features) =>
+                dispatch({ type: 'patch', payload: { features } })
+              }
+            />
           </>
         );
       case 4:

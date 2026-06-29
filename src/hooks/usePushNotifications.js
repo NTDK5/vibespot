@@ -3,7 +3,7 @@ import * as Notifications from 'expo-notifications';
 
 import { useAuth } from './useAuth';
 import { track, Events } from '../analytics';
-import { navigateFromPush } from '../navigation/navigationRef';
+import { navigateFromPush, navigationRef } from '../navigation/navigationRef';
 import { logger } from '../utils/logger';
 import {
   registerPushToken,
@@ -16,6 +16,18 @@ import {
   parseNotificationData,
   requestPushPermissions,
 } from '../services/pushNotifications.service';
+
+// Routes where a pending/stale notification must NOT hijack navigation.
+// Mirrors AuthNavigationSync so cold-start push handling never fires while
+// the user is still in the auth flow (e.g. right after Google sign-in).
+const AUTH_FLOW_ROUTES = new Set([
+  'Splash',
+  'Onboarding',
+  'SignIn',
+  'Register',
+  'ForgotPassword',
+  'VerifyEmail',
+]);
 
 function userPushOptIn(user) {
   const prefs = user?.preferences ?? {};
@@ -39,7 +51,9 @@ export function usePushNotifications() {
   const { user } = useAuth();
   const tokenRef = useRef(null);
   const userIdRef = useRef(null);
+  const handledColdStartRef = useRef(false);
 
+  // Live notification taps while the app is running.
   useEffect(() => {
     const responseSub = Notifications.addNotificationResponseReceivedListener(
       (response) => {
@@ -57,8 +71,31 @@ export function usePushNotifications() {
       /* foreground — handler shows banner */
     });
 
-    Notifications.getLastNotificationResponseAsync().then((response) => {
-      if (!response) return;
+    return () => {
+      responseSub.remove();
+      receivedSub.remove();
+    };
+  }, []);
+
+  // Cold-start: only act on a notification the user actually opened to launch
+  // the app — and only once they're authenticated and past the auth flow.
+  // This prevents a stale last-tapped notification from hijacking navigation
+  // (e.g. landing on Notifications right after Google sign-in).
+  useEffect(() => {
+    if (!user?.id || handledColdStartRef.current) return;
+    if (!navigationRef.isReady()) return;
+
+    const routeName = navigationRef.getCurrentRoute()?.name;
+    if (routeName && AUTH_FLOW_ROUTES.has(routeName)) return;
+
+    let cancelled = false;
+    (async () => {
+      const response = await Notifications.getLastNotificationResponseAsync().catch(
+        () => null,
+      );
+      if (cancelled || !response || handledColdStartRef.current) return;
+
+      handledColdStartRef.current = true;
       const data = parseNotificationData(response);
       track(Events.NOTIFICATION_OPENED, {
         type: data.type,
@@ -67,13 +104,14 @@ export function usePushNotifications() {
         cold_start: true,
       });
       navigateForPushPayload(data);
-    });
+      // Clear so it can't re-trigger on a later login/remount.
+      await Notifications.clearLastNotificationResponseAsync?.();
+    })();
 
     return () => {
-      responseSub.remove();
-      receivedSub.remove();
+      cancelled = true;
     };
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     let cancelled = false;

@@ -79,6 +79,7 @@ import {
   vibeForCategory,
 } from '../utils/spotHelpers';
 import { normalizeHoursFromSpot, HOURS_DAYS } from '../utils/hoursHelpers';
+import { resolveAmenities } from '../utils/amenities';
 import { distanceKmFromUser, kmToMiles, walkingMinutes } from '../utils/geo';
 import { tryNavigateToWriteReview } from '../utils/reviewAccess';
 import {
@@ -748,6 +749,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
       0,
   );
   const bestTimeValue = spot.bestTime || spot.best_visit_time || null;
+  const amenities = resolveAmenities(spot.features || spot.amenities);
 
   const renderBottomSecondary = () => {
     if (!user) {
@@ -1023,6 +1025,26 @@ export const SpotDetailScreen = ({ navigation, route }) => {
             {spot.description ? (
               <Text style={styles.storyBody}>{spot.description}</Text>
             ) : null}
+          </View>
+        ) : null}
+
+        {/* SERVICES & AMENITIES */}
+        {amenities.length ? (
+          <View style={styles.section}>
+            <SectionEyebrow>Services</SectionEyebrow>
+            <SectionHeading>What you’ll find here</SectionHeading>
+            <View style={styles.amenityGrid}>
+              {amenities.map((a) => (
+                <View key={a.key} style={styles.amenityItem}>
+                  <View style={styles.amenityIcon}>
+                    <Ionicons name={a.icon} size={15} color={fieldGuide.emberSoft} />
+                  </View>
+                  <Text style={styles.amenityLabel} numberOfLines={2}>
+                    {a.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
           </View>
         ) : null}
 
@@ -1629,6 +1651,36 @@ const styles = StyleSheet.create({
     fontFamily: fieldGuide.fonts.sans,
     fontSize: 14,
     lineHeight: Math.round(14 * 1.55),
+    color: fieldGuide.creamSoft,
+    includeFontPadding: false,
+  },
+
+  /* services & amenities */
+  amenityGrid: {
+    marginTop: 16,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  amenityItem: {
+    width: '50%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 9,
+    paddingRight: 10,
+  },
+  amenityIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(232,116,58,0.12)',
+  },
+  amenityLabel: {
+    flex: 1,
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 13.5,
     color: fieldGuide.creamSoft,
     includeFontPadding: false,
   },

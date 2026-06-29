@@ -200,6 +200,10 @@ function applySort(spots, mode, location) {
 
 function GridSpotCard({ spot, indexNumber, distanceLabel, savedByMe, onPress, onToggleSave }) {
   const status = openStatus(spot);
+  const rating = Number(spot?.ratingAvg ?? spot?.rating ?? 0);
+  const ratingLabel = rating > 0 ? `★ ${rating.toFixed(1)}` : null;
+  const isChampion =
+    spot?.weeklyChampionAt != null || !!spot?.isWeeklyChampion || !!spot?.weeklyChampion;
   return (
     <Pressable
       onPress={onPress}
@@ -217,14 +221,20 @@ function GridSpotCard({ spot, indexNumber, distanceLabel, savedByMe, onPress, on
         index={`NO. ${indexNumber}`}
         saved={savedByMe}
         onToggleSave={onToggleSave}
-      />
+      >
+        {isChampion ? (
+          <View style={styles.championRibbon}>
+            <Text style={styles.championText}>★ CHAMPION</Text>
+          </View>
+        ) : null}
+      </SpotPhoto>
 
       <Text style={styles.gridTitle} numberOfLines={2}>
         {spot?.title || 'Untitled'}
       </Text>
 
       <MonoMeta size="spot" style={styles.gridMeta}>
-        {[prettyCategory(spot?.category), spot?.district]
+        {[ratingLabel, prettyCategory(spot?.category), spot?.district]
           .filter(Boolean)
           .join('  ·  ')}
       </MonoMeta>
@@ -809,6 +819,22 @@ const styles = StyleSheet.create({
   },
   gridMeta: {
     marginTop: 4,
+  },
+  championRibbon: {
+    position: 'absolute',
+    left: 10,
+    bottom: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: fieldGuide.radius.full,
+    backgroundColor: fieldGuide.gold,
+  },
+  championText: {
+    fontFamily: fieldGuide.fonts.monoMed,
+    fontSize: 8.5,
+    letterSpacing: 1.2,
+    color: fieldGuide.ink,
+    includeFontPadding: false,
   },
   stampRow: {
     marginTop: 6,

@@ -170,6 +170,18 @@ function toFieldSpot(spot, { distance, indexNumber } = {}) {
     district: spot.district || spot.neighbourhood || spot.city || undefined,
     category: prettyCategory(spot.category),
     distance,
+    rating:
+      typeof spot.ratingAvg === 'number'
+        ? spot.ratingAvg
+        : typeof spot.rating === 'number'
+          ? spot.rating
+          : undefined,
+    ratingCount: spot.ratingCount ?? spot.reviewCount ?? undefined,
+    savedCount: spot.savedCount ?? spot.saveCount ?? undefined,
+    isWeeklyChampion:
+      spot.weeklyChampionAt != null ||
+      !!spot.isWeeklyChampion ||
+      !!spot.weeklyChampion,
     savedByMe: !!spot.savedByMe,
     image: imageUri ? { uri: imageUri } : undefined,
     blurb: spot.description || spot.blurb || spot.summary || undefined,

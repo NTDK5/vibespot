@@ -58,6 +58,7 @@ import {
   getAllCollections,
   deleteCollection,
   shareCollection,
+  likeCollection,
 } from '../services/collections.service';
 import { getSavedSpots } from '../services/savedSpots.service';
 import { getVisitedSpots } from '../services/visitedSpots.service';
@@ -79,6 +80,12 @@ import {
 /* ─────────────────────────────────────────────────────────────────── */
 
 const TABS = ['Collections', 'Saved spots', 'Visited spots'];
+
+const SORT_OPTIONS = [
+  { key: 'curated', label: 'CURATED' },
+  { key: 'popular', label: 'POPULAR' },
+  { key: 'recent', label: 'RECENT' },
+];
 
 function safeArray(maybe) {
   if (Array.isArray(maybe)) return maybe;
@@ -221,6 +228,7 @@ export const CollectionsScreen = ({ navigation }) => {
   const [tab, setTab] = useState(0);
   const [menuFor, setMenuFor] = useState(null);
   const [shareFor, setShareFor] = useState(null);
+  const [sortMode, setSortMode] = useState('curated');
 
   /* ── COLLECTIONS query ───────────────────────────────────────────── */
   const collectionsQuery = useQuery({
@@ -233,6 +241,26 @@ export const CollectionsScreen = ({ navigation }) => {
     () => safeArray(collectionsQuery.data),
     [collectionsQuery.data],
   );
+
+  // 'curated' keeps the backend's mine-first / prestige order. The other
+  // two re-rank the already-loaded list client-side (no refetch needed).
+  const sortedCollections = useMemo(() => {
+    if (sortMode === 'curated') return collections;
+    const arr = [...collections];
+    if (sortMode === 'popular') {
+      arr.sort(
+        (a, b) =>
+          (Number(b?.likeCount) || 0) - (Number(a?.likeCount) || 0) ||
+          (Number(b?.sharedCount) || 0) - (Number(a?.sharedCount) || 0),
+      );
+    } else if (sortMode === 'recent') {
+      arr.sort(
+        (a, b) =>
+          new Date(b?.createdAt || 0).getTime() - new Date(a?.createdAt || 0).getTime(),
+      );
+    }
+    return arr;
+  }, [collections, sortMode]);
 
   /* ── SAVED + VISITED (lazy) ──────────────────────────────────────── */
   const [savedSpots, setSavedSpots] = useState(null);
@@ -354,6 +382,77 @@ export const CollectionsScreen = ({ navigation }) => {
     if (shareFor?.id) shareCollection(shareFor.id).catch(() => {});
   };
 
+  const collectionsKey = useMemo(
+    () => ['user-collections', userId ?? 'guest'],
+    [userId],
+  );
+
+  const handleToggleLike = useCallback(
+    async (collection, nextLiked) => {
+      const id = collection?.id;
+      if (!id) return;
+      if (!userId) {
+        toast.show('Sign in to like collections.', { variant: 'info' });
+        return;
+      }
+
+      const snapshot = queryClient.getQueryData(collectionsKey);
+      queryClient.setQueryData(collectionsKey, (old) =>
+        Array.isArray(old)
+          ? old.map((c) =>
+              c?.id === id
+                ? {
+                    ...c,
+                    isLiked: nextLiked,
+                    likeCount: Math.max(0, (Number(c.likeCount) || 0) + (nextLiked ? 1 : -1)),
+                  }
+                : c,
+            )
+          : old,
+      );
+
+      try {
+        const res = await likeCollection(id);
+        if (res?.error) throw new Error(res.error);
+        // Reconcile with server truth if it disagrees with our optimistic guess.
+        if (typeof res?.liked === 'boolean' && res.liked !== nextLiked) {
+          queryClient.setQueryData(collectionsKey, (old) =>
+            Array.isArray(old)
+              ? old.map((c) =>
+                  c?.id === id
+                    ? {
+                        ...c,
+                        isLiked: res.liked,
+                        likeCount: Math.max(
+                          0,
+                          (Number(c.likeCount) || 0) + (res.liked ? 1 : -1) - (nextLiked ? 1 : -1),
+                        ),
+                      }
+                    : c,
+                )
+              : old,
+          );
+        }
+      } catch (err) {
+        logger.error('CollectionsScreen.likeCollection', err);
+        queryClient.setQueryData(collectionsKey, snapshot);
+        toast.show('Could not update like.', { variant: 'error' });
+      }
+    },
+    [userId, queryClient, collectionsKey, toast],
+  );
+
+  const handleCardShare = useCallback(
+    (collection) => {
+      if (!collection?.isPublic) {
+        toast.show('Private pockets cannot be shared.', { variant: 'info' });
+        return;
+      }
+      setShareFor(collection);
+    },
+    [toast],
+  );
+
   const handleDelete = async (id) => {
     if (!menuFor || !isCollectionOwner(menuFor, userId)) return;
     // Optimistic removal — pop from cache, roll back on error.
@@ -408,8 +507,30 @@ export const CollectionsScreen = ({ navigation }) => {
     }
     return (
       <FlatList
-        data={collections}
+        data={sortedCollections}
         keyExtractor={(item, i) => String(item?.id || i)}
+        ListHeaderComponent={
+          collections.length > 1 ? (
+            <View style={styles.sortRow}>
+              {SORT_OPTIONS.map((opt) => {
+                const active = sortMode === opt.key;
+                return (
+                  <Pressable
+                    key={opt.key}
+                    onPress={() => setSortMode(opt.key)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.sortLabel, active && styles.sortLabelActive]}>
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null
+        }
         renderItem={({ item }) => (
           <CollectionCard
             collection={item}
@@ -426,6 +547,8 @@ export const CollectionsScreen = ({ navigation }) => {
                 ? () => openMenu(item)
                 : undefined
             }
+            onToggleLike={(nextLiked) => handleToggleLike(item, nextLiked)}
+            onSharePress={() => handleCardShare(item)}
             canShowMenu={isCollectionOwner(item, userId)}
           />
         )}
@@ -588,6 +711,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 4,
     paddingBottom: TAB_BAR_PAD,
+  },
+  sortRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    paddingBottom: 16,
+  },
+  sortLabel: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 10,
+    letterSpacing: fieldGuide.tracking.widest(10),
+    color: fieldGuide.creamFaint,
+  },
+  sortLabelActive: {
+    color: fieldGuide.ember,
   },
   gridContent: {
     paddingHorizontal: 22,

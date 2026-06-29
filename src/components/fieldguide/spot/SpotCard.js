@@ -12,7 +12,8 @@
  * Props:
  *   spot: {
  *     id, title, vibe, indexNumber, district, category, distance,
- *     rating, savedByMe, image, blurb
+ *     rating, ratingCount, savedCount, isWeeklyChampion,
+ *     savedByMe, image, blurb
  *   }
  *   variant?: 'pick' | 'near' | 'feature'    default 'pick'
  *   onPress: () => void
@@ -26,6 +27,19 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import fieldGuide from '../../../theme/fieldGuide';
 import SpotPhoto from './SpotPhoto';
 import MonoMeta from '../primitives/MonoMeta';
+
+function ratingLabelFor(rating) {
+  const r = Number(rating) || 0;
+  if (r <= 0) return null;
+  return `★ ${r.toFixed(1)}`;
+}
+
+function savesLabelFor(savedCount) {
+  const n = Number(savedCount) || 0;
+  if (n <= 0) return null;
+  const compact = n >= 1000 ? `${(n / 1000).toFixed(n % 1000 >= 100 ? 1 : 0)}k` : String(n);
+  return `${compact} SAVED`;
+}
 
 const VARIANT = {
   pick:    { width: 220,    aspect: '3/4',   titleSize: 18, fullWidth: false },
@@ -60,10 +74,17 @@ export default function SpotCard({
     district,
     category,
     distance,
+    rating,
+    savedCount,
+    isWeeklyChampion,
     savedByMe,
     image,
     blurb,
   } = spot || {};
+
+  const ratingLabel = ratingLabelFor(rating);
+  // Saves are extra social proof — only on the roomier pick/feature cards.
+  const savesLabel = variant === 'near' ? null : savesLabelFor(savedCount);
 
   // Pick stamps usually read "NO. 042". Near/distance stamps already
   // carry a unit ("0.4 MI", "4 MIN") or a free-form label with a space
@@ -91,7 +112,13 @@ export default function SpotCard({
         index={indexLabel}
         saved={!!savedByMe}
         onToggleSave={onToggleSave}
-      />
+      >
+        {isWeeklyChampion ? (
+          <View style={styles.championRibbon}>
+            <Text style={styles.championText}>★ CHAMPION</Text>
+          </View>
+        ) : null}
+      </SpotPhoto>
 
       <Text
         style={[
@@ -108,17 +135,17 @@ export default function SpotCard({
 
       {variant === 'near' && distance ? (
         <MonoMeta size="spot" style={{ marginTop: 3 }}>
-          {String(distance).toUpperCase()}
+          {[ratingLabel, String(distance).toUpperCase()].filter(Boolean).join('  ·  ')}
         </MonoMeta>
       ) : variant === 'feature' && blurb ? (
         <>
-          <MetaRow parts={[category, district, distance]} />
+          <MetaRow parts={[ratingLabel, category, district, distance, savesLabel]} />
           <Text style={styles.blurb} numberOfLines={2}>
             {blurb}
           </Text>
         </>
       ) : (
-        <MetaRow parts={[category, district, distance]} />
+        <MetaRow parts={[ratingLabel, category, district, distance, savesLabel]} />
       )}
     </Pressable>
   );
@@ -141,5 +168,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: fieldGuide.creamSoft,
+  },
+  championRibbon: {
+    position: 'absolute',
+    left: 10,
+    bottom: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: fieldGuide.radius.full,
+    backgroundColor: fieldGuide.gold,
+  },
+  championText: {
+    fontFamily: fieldGuide.fonts.monoMed,
+    fontSize: 8.5,
+    letterSpacing: 1.2,
+    color: fieldGuide.ink,
+    includeFontPadding: false,
   },
 });

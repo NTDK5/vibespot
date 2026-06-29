@@ -29,7 +29,7 @@ export default function AuthNavigationSync() {
     if (user && AUTH_FLOW_ROUTES.has(routeName)) {
       navigationRef.reset({
         index: 0,
-        routes: [{ name: 'MainTabs' }],
+        routes: [{ name: 'MainTabs', params: { screen: 'Home' } }],
       });
       return;
     }

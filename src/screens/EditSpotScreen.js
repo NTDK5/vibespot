@@ -16,7 +16,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,6 +27,7 @@ import CategoryGrid from '../components/fieldguide/form/CategoryGrid';
 import PriceTierRow, { WIZARD_PRICE_TIERS } from '../components/fieldguide/form/PriceTierRow';
 import HoursEditor, { normalizeHoursFromSpot } from '../components/fieldguide/form/HoursEditor';
 import SpotMediaUploader from '../components/fieldguide/form/SpotMediaUploader';
+import AmenityPicker from '../components/fieldguide/form/AmenityPicker';
 import { Pill } from '../components/fieldguide';
 import MonoMeta from '../components/fieldguide/primitives/MonoMeta';
 import EditorialButton from '../components/fieldguide/form/EditorialButton';
@@ -90,7 +90,6 @@ export const EditSpotScreen = ({ route, navigation }) => {
   const [address, setAddress] = useState('');
   const [bestTime, setBestTime] = useState('');
   const [hours, setHours] = useState(normalizeHoursFromSpot(null));
-  const [featureInput, setFeatureInput] = useState('');
   const [features, setFeatures] = useState([]);
   const [lat, setLat] = useState(38.7886);
   const [lng, setLng] = useState(-9.008);
@@ -164,13 +163,6 @@ export const EditSpotScreen = ({ route, navigation }) => {
       if (prev.length >= 5) return prev;
       return [...prev, tag];
     });
-  };
-
-  const addFeature = () => {
-    const trimmed = featureInput.trim();
-    if (!trimmed || features.includes(trimmed)) return;
-    setFeatures([...features, trimmed]);
-    setFeatureInput('');
   };
 
   const buildTags = () => {
@@ -482,31 +474,10 @@ export const EditSpotScreen = ({ route, navigation }) => {
                 </Pill>
               ))}
             </View>
-            <View style={styles.featureRow}>
-              <TextInput
-                value={featureInput}
-                onChangeText={setFeatureInput}
-                onSubmitEditing={addFeature}
-                placeholder="Add a feature…"
-                placeholderTextColor={fieldGuide.creamFaint}
-                style={styles.featureInput}
-              />
-              <Pressable onPress={addFeature} style={styles.featureAdd}>
-                <Ionicons name="add" size={18} color={fieldGuide.cream} />
-              </Pressable>
-            </View>
-            <View style={styles.pillWrap}>
-              {features.map((f) => (
-                <Pill
-                  key={f}
-                  onPress={() =>
-                    setFeatures(features.filter((x) => x !== f))
-                  }
-                >
-                  {`${f.toUpperCase()} ×`}
-                </Pill>
-              ))}
-            </View>
+            <MonoMeta size="eyebrow" style={{ marginTop: 4 }}>
+              Services &amp; amenities
+            </MonoMeta>
+            <AmenityPicker value={features} onChange={setFeatures} />
           </View>
 
           <View style={styles.danger}>

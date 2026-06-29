@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   label: {
-    fontFamily: 'JetBrainsMono_400Regular',
+    fontFamily: 'GeistMono_400Regular',
     fontSize: 8.5,
     letterSpacing: 1.53,
     textTransform: 'uppercase',
