@@ -48,7 +48,7 @@ function navigateForPushPayload(data) {
  * Handles notification tap deep links.
  */
 export function usePushNotifications() {
-  const { user } = useAuth();
+  const { user, didLoginThisSession } = useAuth();
   const tokenRef = useRef(null);
   const userIdRef = useRef(null);
   const handledColdStartRef = useRef(false);
@@ -83,6 +83,16 @@ export function usePushNotifications() {
   // (e.g. landing on Notifications right after Google sign-in).
   useEffect(() => {
     if (!user?.id || handledColdStartRef.current) return;
+
+    // An active sign-in this session must always land on the normal
+    // post-login screen (Home). Never replay a stale tapped notification,
+    // and clear it so it can't fire on a later remount.
+    if (didLoginThisSession) {
+      handledColdStartRef.current = true;
+      Notifications.clearLastNotificationResponseAsync?.();
+      return;
+    }
+
     if (!navigationRef.isReady()) return;
 
     const routeName = navigationRef.getCurrentRoute()?.name;
@@ -111,7 +121,7 @@ export function usePushNotifications() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [user?.id, didLoginThisSession]);
 
   useEffect(() => {
     let cancelled = false;

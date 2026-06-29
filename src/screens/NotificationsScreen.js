@@ -19,6 +19,7 @@ import DuotoneVibe from '../components/fieldguide/spot/DuotoneVibe';
 import MonoMeta from '../components/fieldguide/primitives/MonoMeta';
 import fieldGuide from '../theme/fieldGuide';
 import { useToast } from '../components/ToastProvider';
+import { useAuth } from '../hooks/useAuth';
 import {
   getNotifications,
   markAllRead,
@@ -136,17 +137,25 @@ function NotifRow({ item, onPress }) {
 
 export const NotificationsScreen = ({ navigation }) => {
   const toast = useToast();
+  const { user } = useAuth();
   const [filter, setFilter] = useState(0);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    setLoading(true);
     if (USE_MOCK) {
       setItems(MOCK_NOTIFICATIONS);
       setLoading(false);
       return;
     }
+    // No authenticated session yet → don't fire the bearer-only call
+    // (avoids a 401 that can trigger a session-expired logout).
+    if (!user?.id) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     const data = await getNotifications();
     if (data?.error) {
       setItems([]);
@@ -162,7 +171,7 @@ export const NotificationsScreen = ({ navigation }) => {
       setItems(list);
     }
     setLoading(false);
-  }, [toast]);
+  }, [toast, user?.id]);
 
   useEffect(() => {
     load();

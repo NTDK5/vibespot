@@ -48,10 +48,12 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState(null);
+  const [didLoginThisSession, setDidLoginThisSession] = useState(false);
 
   const clearAuth = useCallback(async () => {
     await AsyncStorage.multiRemove(["token", "refreshToken", "user"]);
     setUser(null);
+    setDidLoginThisSession(false);
   }, []);
 
   const persistAuthSession = useCallback(
@@ -194,6 +196,7 @@ export const AuthProvider = ({ children }) => {
       if (resolvedUser?.emailVerified === false) {
         setPendingVerificationEmail(email);
       }
+      setDidLoginThisSession(true);
       track(Events.SIGN_IN_COMPLETED, { method: "email" });
       return { user: resolvedUser, error: null };
     } catch (err) {
@@ -212,6 +215,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const data = await googleLoginUser(idToken);
       const resolvedUser = await completeLoginFromResponse(data);
+      setDidLoginThisSession(true);
       track(Events.SIGN_IN_COMPLETED, { method: "google" });
       return { user: resolvedUser, error: null };
     } catch (err) {
@@ -233,6 +237,7 @@ export const AuthProvider = ({ children }) => {
       if (resolvedUser?.emailVerified === false) {
         setPendingVerificationEmail(email);
       }
+      setDidLoginThisSession(true);
       track(Events.SIGN_UP_COMPLETED, { method: "email" });
       return { user: resolvedUser, error: null };
     } catch (err) {
@@ -368,6 +373,7 @@ export const AuthProvider = ({ children }) => {
         logout,
         loginWithGoogle,
         loading,
+        didLoginThisSession,
         isSuperAdmin,
         isSpotOwner,
         spotOwnerApplication,
