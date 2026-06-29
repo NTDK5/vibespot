@@ -66,6 +66,20 @@ import { CATEGORIES } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { distanceKmFromUser, formatMiles, kmToMiles } from '../utils/geo';
 import { openStatus } from '../utils/spotHelpers';
+import {
+  MOODS,
+  moodLabel,
+  rankSpots,
+  matchedTagsForSpot,
+  suggestedMoodKey,
+} from '../utils/discovery';
+import {
+  getRecentSearches,
+  addRecentSearch,
+  clearRecentSearches,
+  getExplorePrefs,
+  saveExplorePrefs,
+} from '../utils/explorePrefs';
 
 /* ─────────────────────────────────────────────────────────────────── */
 /*  CONSTANTS / HELPERS                                                */
@@ -75,11 +89,15 @@ const PAGE_PAD = 22;
 const TAB_BAR_SPACE = 96;
 const FAB_BOTTOM_OFFSET = 70 + 16; // brief: safeBottom + 70 + 16
 const PAGE_LIMIT = 24;
+// When a mood is active we rank client-side, so pull a wider candidate
+// pool up front to make "Best match" meaningful across the first screen.
+// Capped at the backend's search limit (max 50, see spot.validator.js).
+const RANKED_LIMIT = 50;
 
 const PRICE_TIER_TO_API = ['free', 'low', 'medium', 'high', 'premium'];
 
 const SORT_LABEL = {
-  mood:     'MOOD',
+  mood:     'BEST MATCH',
   trending: 'TRENDING',
   closest:  'CLOSEST',
   rating:   'RATING',
@@ -162,7 +180,7 @@ function applyClientFilters(spots, filters, location, filterMode) {
   return list;
 }
 
-function applySort(spots, mode, location) {
+function applySort(spots, mode, location, moodKeys = []) {
   if (!Array.isArray(spots) || spots.length === 0) return spots;
   const arr = spots.slice();
   switch (mode) {
@@ -190,7 +208,9 @@ function applySort(spots, mode, location) {
       });
     case 'mood':
     default:
-      return arr;
+      // "Best match" — rank by mood/vibe relevance blended with quality
+      // and proximity (see utils/discovery).
+      return rankSpots(arr, moodKeys, location);
   }
 }
 
@@ -198,7 +218,28 @@ function applySort(spots, mode, location) {
 /*  GRID + LIST CARDS                                                  */
 /* ─────────────────────────────────────────────────────────────────── */
 
-function GridSpotCard({ spot, indexNumber, distanceLabel, savedByMe, onPress, onToggleSave }) {
+function VibeTagRow({ tags }) {
+  if (!Array.isArray(tags) || tags.length === 0) return null;
+  return (
+    <View style={styles.tagRow}>
+      {tags.map((t) => (
+        <View
+          key={t.label}
+          style={[styles.tagChip, t.matched && styles.tagChipMatched]}
+        >
+          <Text
+            style={[styles.tagChipText, t.matched && styles.tagChipTextMatched]}
+            numberOfLines={1}
+          >
+            {t.label}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function GridSpotCard({ spot, indexNumber, distanceLabel, savedByMe, matchTags, onPress, onToggleSave }) {
   const status = openStatus(spot);
   const rating = Number(spot?.ratingAvg ?? spot?.rating ?? 0);
   const ratingLabel = rating > 0 ? `★ ${rating.toFixed(1)}` : null;
@@ -239,6 +280,8 @@ function GridSpotCard({ spot, indexNumber, distanceLabel, savedByMe, onPress, on
           .join('  ·  ')}
       </MonoMeta>
 
+      <VibeTagRow tags={matchTags} />
+
       <View style={styles.stampRow}>
         {status.isOpen === true ? (
           <View style={styles.openWrap}>
@@ -258,7 +301,7 @@ function GridSpotCard({ spot, indexNumber, distanceLabel, savedByMe, onPress, on
   );
 }
 
-function ListSpotRow({ spot, indexNumber, distanceLabel, onPress }) {
+function ListSpotRow({ spot, indexNumber, distanceLabel, matchTags, onPress }) {
   const status = openStatus(spot);
   return (
     <Pressable
@@ -287,6 +330,7 @@ function ListSpotRow({ spot, indexNumber, distanceLabel, onPress }) {
             .filter(Boolean)
             .join('  ·  ')}
         </MonoMeta>
+        <VibeTagRow tags={matchTags} />
         <View style={styles.listStatusRow}>
           {status.isOpen === true ? (
             <View style={styles.openWrap}>
@@ -323,8 +367,10 @@ export const ExploreScreen = ({ navigation, route }) => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
+  const [selectedMoods, setSelectedMoods] = useState([]);
   const [filterMode, setFilterMode] = useState(initialFilter);
   const [sortMode, setSortMode] = useState(initialSort);
+  const [recent, setRecent] = useState([]);
   const [spots, setSpots] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -344,6 +390,44 @@ export const ExploreScreen = ({ navigation, route }) => {
   // honest when the user taps the SaveStamp twice quickly.
   const savedOptimistic = useRef(new Map());
   const initialFetchDone = useRef(false);
+  const prefsHydrated = useRef(false);
+
+  // Stable primitive key so effects can depend on mood selection without
+  // tripping on array identity changes.
+  const moodsKey = selectedMoods.join(',');
+  const hasMoodFilter = selectedMoods.length > 0;
+  const suggestedMood = useMemo(() => suggestedMoodKey(), []);
+
+  /* ── hydrate persisted prefs + recent searches (once) ───────── */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [prefs, recents] = await Promise.all([
+        getExplorePrefs(),
+        getRecentSearches(),
+      ]);
+      if (cancelled) return;
+      if (recents?.length) setRecent(recents);
+      // Route params win over persisted prefs (an explicit nav intent).
+      if (prefs && !initialCategory && !initialFilter && !route?.params?.sort) {
+        if (Array.isArray(prefs.moods) && prefs.moods.length) setSelectedMoods(prefs.moods);
+        if (prefs.sortMode) setSortMode(prefs.sortMode);
+        if (prefs.viewMode === 1) setViewMode(1);
+      }
+      prefsHydrated.current = true;
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ── persist discovery state after hydration ────────────────── */
+  useEffect(() => {
+    if (!prefsHydrated.current) return;
+    saveExplorePrefs({ moods: selectedMoods, sortMode, viewMode });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moodsKey, sortMode, viewMode]);
 
   /* ── re-sync from route params when re-entered with new args ── */
   useEffect(() => {
@@ -367,13 +451,17 @@ export const ExploreScreen = ({ navigation, route }) => {
           ? PRICE_TIER_TO_API[filters.priceTier]
           : undefined;
 
+      // Mood ranking happens client-side, so pull a wider pool when a
+      // mood is active to keep "Best match" meaningful.
+      const effLimit = hasMoodFilter ? RANKED_LIMIT : PAGE_LIMIT;
+
       const result = await searchSpots({
         q: searchQuery.trim() || undefined,
         category: selectedCategory || undefined,
         minRating: filters.minRating > 0 ? filters.minRating : undefined,
         priceRange: apiPrice,
         page: pageNum,
-        limit: PAGE_LIMIT,
+        limit: effLimit,
       });
       const list = Array.isArray(result?.data)
         ? result.data
@@ -382,7 +470,7 @@ export const ExploreScreen = ({ navigation, route }) => {
           : Array.isArray(result)
             ? result
             : [];
-      setHasMore(list.length >= PAGE_LIMIT);
+      setHasMore(list.length >= (hasMoodFilter ? RANKED_LIMIT : PAGE_LIMIT));
       setPage(pageNum);
       if (append) {
         setSpots((prev) => {
@@ -409,7 +497,7 @@ export const ExploreScreen = ({ navigation, route }) => {
         setLoadingMore(false);
       }
     }
-  }, [searchQuery, selectedCategory, filters.minRating, filters.priceTier]);
+  }, [searchQuery, selectedCategory, filters.minRating, filters.priceTier, hasMoodFilter]);
 
   useFocusEffect(
     useCallback(() => {
@@ -429,16 +517,21 @@ export const ExploreScreen = ({ navigation, route }) => {
   useEffect(() => {
     const t = setTimeout(() => {
       fetchSpots();
+      const term = searchQuery.trim();
+      if (term.length >= 2) {
+        addRecentSearch(term).then((next) => setRecent(next));
+      }
     }, 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
-  // Immediate re-fetch when category or server-side filters change.
+  // Immediate re-fetch when category, server-side filters, or the
+  // mood-driven candidate-pool size changes.
   useEffect(() => {
     fetchSpots();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory, filters.minRating, filters.priceTier]);
+  }, [selectedCategory, filters.minRating, filters.priceTier, hasMoodFilter]);
 
   /* ── derived list ───────────────────────────────────────────── */
 
@@ -448,11 +541,37 @@ export const ExploreScreen = ({ navigation, route }) => {
   );
 
   const sortedSpots = useMemo(
-    () => applySort(filteredSpots, sortMode, location),
-    [filteredSpots, sortMode, location],
+    () => applySort(filteredSpots, sortMode, location, selectedMoods),
+    [filteredSpots, sortMode, location, selectedMoods],
   );
 
   const totalCount = sortedSpots.length;
+
+  /* ── active-filter chips (removable) ────────────────────────── */
+  const activeFilterChips = useMemo(() => {
+    const chips = [];
+    selectedMoods.forEach((key) =>
+      chips.push({ id: `mood:${key}`, label: moodLabel(key), kind: 'mood', value: key }),
+    );
+    if (selectedCategory) {
+      const cat = CATEGORIES.find((c) => c.id === selectedCategory);
+      chips.push({ id: 'category', label: cat?.label || prettyCategory(selectedCategory), kind: 'category' });
+    }
+    if (filters.openNow) chips.push({ id: 'openNow', label: 'Open now', kind: 'openNow' });
+    if (typeof filters.priceTier === 'number' && filters.priceTier >= 0) {
+      chips.push({ id: 'price', label: `${'$'.repeat(filters.priceTier + 1)}`, kind: 'price' });
+    }
+    if (filters.minRating > 0) {
+      chips.push({ id: 'rating', label: `★ ${filters.minRating}+`, kind: 'rating' });
+    }
+    if (filters.maxDistanceMi < 5) {
+      chips.push({ id: 'distance', label: `≤ ${filters.maxDistanceMi} mi`, kind: 'distance' });
+    }
+    return chips;
+  }, [selectedMoods, selectedCategory, filters]);
+
+  const anyFilterActive =
+    activeFilterChips.length > 0 || !!searchQuery.trim() || !!filterMode;
 
   /* ── interactions ───────────────────────────────────────────── */
 
@@ -463,6 +582,57 @@ export const ExploreScreen = ({ navigation, route }) => {
 
   const handlePillPress = useCallback((catId) => {
     setSelectedCategory((curr) => (curr === catId ? null : catId));
+  }, []);
+
+  const toggleMood = useCallback((key) => {
+    // Selecting a mood implies "rank by best match".
+    setSortMode('mood');
+    setSelectedMoods((curr) =>
+      curr.includes(key) ? curr.filter((k) => k !== key) : [...curr, key],
+    );
+  }, []);
+
+  const removeChip = useCallback((chip) => {
+    switch (chip.kind) {
+      case 'mood':
+        setSelectedMoods((curr) => curr.filter((k) => k !== chip.value));
+        break;
+      case 'category':
+        setSelectedCategory(null);
+        break;
+      case 'openNow':
+        setFilters((f) => ({ ...f, openNow: false }));
+        break;
+      case 'price':
+        setFilters((f) => ({ ...f, priceTier: -1 }));
+        break;
+      case 'rating':
+        setFilters((f) => ({ ...f, minRating: 0 }));
+        break;
+      case 'distance':
+        setFilters((f) => ({ ...f, maxDistanceMi: 5 }));
+        break;
+      default:
+        break;
+    }
+  }, []);
+
+  const clearAll = useCallback(() => {
+    setSearchQuery('');
+    setSelectedMoods([]);
+    setSelectedCategory(null);
+    setFilterMode(null);
+    setFilters({ ...DEFAULT_FILTERS });
+    setSortMode('mood');
+  }, []);
+
+  const handleRecentPress = useCallback((term) => {
+    setSearchQuery(term);
+  }, []);
+
+  const handleClearRecent = useCallback(async () => {
+    await clearRecentSearches();
+    setRecent([]);
   }, []);
 
   const handleFiltersChange = useCallback((next) => {
@@ -528,12 +698,13 @@ export const ExploreScreen = ({ navigation, route }) => {
           indexNumber={indexForSpot(item, index)}
           distanceLabel={dist}
           savedByMe={!!item?.savedByMe}
+          matchTags={matchedTagsForSpot(item, selectedMoods)}
           onPress={() => goSpotDetail(item.id)}
           onToggleSave={() => toggleSave(item.id, !!item?.savedByMe)}
         />
       </View>
     );
-  }, [goSpotDetail, toggleSave, location]);
+  }, [goSpotDetail, toggleSave, location, selectedMoods]);
 
   const renderList = useCallback(({ item, index }) => {
     const km = distanceKmFromUser(location, item);
@@ -543,10 +714,11 @@ export const ExploreScreen = ({ navigation, route }) => {
         spot={item}
         indexNumber={indexForSpot(item, index)}
         distanceLabel={dist}
+        matchTags={matchedTagsForSpot(item, selectedMoods)}
         onPress={() => goSpotDetail(item.id)}
       />
     );
-  }, [goSpotDetail, location]);
+  }, [goSpotDetail, location, selectedMoods]);
 
   /* ── render ─────────────────────────────────────────────────── */
 
@@ -592,6 +764,72 @@ export const ExploreScreen = ({ navigation, route }) => {
         />
       </View>
 
+      {/* ─── RECENT SEARCHES ──────────────────────────────────── */}
+      {!searchQuery.trim() && !hasMoodFilter && recent.length > 0 ? (
+        <View style={styles.recentWrap}>
+          <View style={styles.recentHead}>
+            <Text style={styles.recentLabel}>RECENT</Text>
+            <Pressable onPress={handleClearRecent} hitSlop={6}>
+              <Text style={styles.recentClear}>CLEAR</Text>
+            </Pressable>
+          </View>
+          <Animated.ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.recentContent}
+          >
+            {recent.map((term) => (
+              <Pressable
+                key={term}
+                onPress={() => handleRecentPress(term)}
+                style={({ pressed }) => [styles.recentChip, { opacity: pressed ? 0.6 : 1 }]}
+              >
+                <Ionicons name="time-outline" size={12} color={fieldGuide.creamMute} />
+                <Text style={styles.recentChipText} numberOfLines={1}>{term}</Text>
+              </Pressable>
+            ))}
+          </Animated.ScrollView>
+        </View>
+      ) : null}
+
+      {/* ─── MOOD CHIP ROW ────────────────────────────────────── */}
+      <View style={styles.moodRowWrap}>
+        <Animated.ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.moodRowContent}
+        >
+          {MOODS.map((mood) => {
+            const active = selectedMoods.includes(mood.key);
+            const isSuggested = !active && mood.key === suggestedMood;
+            return (
+              <Pressable
+                key={mood.key}
+                onPress={() => toggleMood(mood.key)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`${mood.label} mood`}
+                style={({ pressed }) => [
+                  styles.moodChip,
+                  active && styles.moodChipActive,
+                  { opacity: pressed ? 0.7 : 1 },
+                ]}
+              >
+                <Ionicons
+                  name={mood.icon}
+                  size={14}
+                  color={active ? fieldGuide.ink : fieldGuide.creamSoft}
+                />
+                <Text style={[styles.moodChipText, active && styles.moodChipTextActive]}>
+                  {mood.label}
+                </Text>
+                {isSuggested ? <View style={styles.moodSuggestDot} /> : null}
+              </Pressable>
+            );
+          })}
+        </Animated.ScrollView>
+      </View>
+
       {/* ─── FILTER PILL ROW ──────────────────────────────────── */}
       <View style={styles.pillRowWrap}>
         <Animated.ScrollView
@@ -621,6 +859,38 @@ export const ExploreScreen = ({ navigation, route }) => {
           })}
         </Animated.ScrollView>
       </View>
+
+      {/* ─── ACTIVE FILTER CHIPS ──────────────────────────────── */}
+      {activeFilterChips.length > 0 ? (
+        <View style={styles.activeRowWrap}>
+          <Animated.ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.activeRowContent}
+          >
+            {activeFilterChips.map((chip) => (
+              <Pressable
+                key={chip.id}
+                onPress={() => removeChip(chip)}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove filter ${chip.label}`}
+                style={({ pressed }) => [styles.activeChip, { opacity: pressed ? 0.6 : 1 }]}
+              >
+                <Text style={styles.activeChipText} numberOfLines={1}>{chip.label}</Text>
+                <Ionicons name="close" size={12} color={fieldGuide.cream} />
+              </Pressable>
+            ))}
+            <Pressable
+              onPress={clearAll}
+              accessibilityRole="button"
+              accessibilityLabel="Clear all filters"
+              style={({ pressed }) => [styles.clearAllChip, { opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Text style={styles.clearAllText}>CLEAR ALL</Text>
+            </Pressable>
+          </Animated.ScrollView>
+        </View>
+      ) : null}
 
       {/* ─── RESULT HEAD ──────────────────────────────────────── */}
       <View style={styles.resultHead}>
@@ -674,12 +944,29 @@ export const ExploreScreen = ({ navigation, route }) => {
               <Text style={styles.emptyTitle}>Reading the room…</Text>
             </View>
           ) : (
-            <EmptyState
-              pageName="EXPLORE"
-              title="No matches in the index"
-              italic="index"
-              body="Try a different mood, or clear your search."
-            />
+            <View style={styles.emptyWrap}>
+              <EmptyState
+                pageName="EXPLORE"
+                title={anyFilterActive ? 'Nothing fits that mood' : 'No matches in the index'}
+                italic={anyFilterActive ? 'mood' : 'index'}
+                body={
+                  anyFilterActive
+                    ? 'Your filters are a little tight. Loosen them to widen the search.'
+                    : 'Try a different mood, or check back as new spots are added.'
+                }
+              />
+              {anyFilterActive ? (
+                <Pressable
+                  onPress={clearAll}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear all filters"
+                  style={({ pressed }) => [styles.emptyCta, { opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <Ionicons name="refresh" size={15} color={fieldGuide.ink} />
+                  <Text style={styles.emptyCtaText}>CLEAR FILTERS</Text>
+                </Pressable>
+              ) : null}
+            </View>
           )
         }
       />
@@ -764,6 +1051,188 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+
+  /* recent searches */
+  recentWrap: {
+    paddingTop: 12,
+  },
+  recentHead: {
+    paddingHorizontal: PAGE_PAD,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  recentLabel: {
+    fontFamily: fieldGuide.fonts.monoMed,
+    fontSize: 9,
+    letterSpacing: fieldGuide.tracking.widest(9),
+    color: fieldGuide.creamMute,
+    includeFontPadding: false,
+  },
+  recentClear: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9,
+    letterSpacing: fieldGuide.tracking.widest(9),
+    color: fieldGuide.ember,
+    includeFontPadding: false,
+  },
+  recentContent: {
+    paddingHorizontal: PAGE_PAD,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  recentChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: fieldGuide.radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
+    backgroundColor: fieldGuide.inkElev,
+    maxWidth: 180,
+  },
+  recentChipText: {
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 12.5,
+    color: fieldGuide.creamSoft,
+    includeFontPadding: false,
+  },
+
+  /* mood row */
+  moodRowWrap: {
+    paddingTop: 14,
+  },
+  moodRowContent: {
+    paddingHorizontal: PAGE_PAD,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  moodChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: fieldGuide.radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
+    backgroundColor: fieldGuide.inkElev,
+  },
+  moodChipActive: {
+    backgroundColor: fieldGuide.cream,
+    borderColor: fieldGuide.cream,
+  },
+  moodChipText: {
+    fontFamily: fieldGuide.fonts.sansMedium,
+    fontSize: 13,
+    color: fieldGuide.creamSoft,
+    includeFontPadding: false,
+  },
+  moodChipTextActive: {
+    color: fieldGuide.ink,
+  },
+  moodSuggestDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: fieldGuide.ember,
+  },
+
+  /* active filter chips */
+  activeRowWrap: {
+    paddingBottom: 12,
+  },
+  activeRowContent: {
+    paddingHorizontal: PAGE_PAD,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  activeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingLeft: 12,
+    paddingRight: 9,
+    paddingVertical: 6,
+    borderRadius: fieldGuide.radius.full,
+    backgroundColor: fieldGuide.inkElev,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.emberDim || fieldGuide.inkLine,
+  },
+  activeChipText: {
+    fontFamily: fieldGuide.fonts.sansMedium,
+    fontSize: 12.5,
+    color: fieldGuide.cream,
+    includeFontPadding: false,
+    maxWidth: 160,
+  },
+  clearAllChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    justifyContent: 'center',
+  },
+  clearAllText: {
+    fontFamily: fieldGuide.fonts.monoMed,
+    fontSize: 9.5,
+    letterSpacing: fieldGuide.tracking.widest(9.5),
+    color: fieldGuide.ember,
+    includeFontPadding: false,
+  },
+
+  /* vibe tag chips on cards */
+  tagRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
+  },
+  tagChip: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: fieldGuide.radius.sm,
+    backgroundColor: fieldGuide.inkElev,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine,
+  },
+  tagChipMatched: {
+    backgroundColor: fieldGuide.emberDim || fieldGuide.inkElev,
+    borderColor: fieldGuide.ember,
+  },
+  tagChipText: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 8,
+    letterSpacing: 0.6,
+    color: fieldGuide.creamMute,
+    includeFontPadding: false,
+  },
+  tagChipTextMatched: {
+    color: fieldGuide.ember,
+  },
+
+  /* empty CTA */
+  emptyCta: {
+    marginTop: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: fieldGuide.radius.full,
+    backgroundColor: fieldGuide.cream,
+  },
+  emptyCtaText: {
+    fontFamily: fieldGuide.fonts.monoMed,
+    fontSize: 10,
+    letterSpacing: fieldGuide.tracking.widest(10),
+    color: fieldGuide.ink,
+    includeFontPadding: false,
   },
 
   /* result head */
