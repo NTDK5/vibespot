@@ -17,7 +17,7 @@ const AUTH_FLOW_ROUTES = new Set([
  * Cold-start routing is handled by SplashScreen.
  */
 export default function AuthNavigationSync() {
-  const { user, loading } = useAuth();
+  const { user, loading, didLoginThisSession } = useAuth();
 
   useEffect(() => {
     if (loading || !navigationRef.isReady()) return;
@@ -25,6 +25,16 @@ export default function AuthNavigationSync() {
     const route = navigationRef.getCurrentRoute();
     const routeName = route?.name;
     if (!routeName || routeName === 'Splash') return;
+
+    // Safety net: active sign-in must never land on Notifications due to a
+    // stale push response racing AuthNavigationSync.
+    if (user && didLoginThisSession && routeName === 'Notifications') {
+      navigationRef.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs', params: { screen: 'Home' } }],
+      });
+      return;
+    }
 
     if (user && AUTH_FLOW_ROUTES.has(routeName)) {
       navigationRef.reset({
@@ -40,7 +50,7 @@ export default function AuthNavigationSync() {
         routes: [{ name: 'SignIn' }],
       });
     }
-  }, [user, loading]);
+  }, [user, loading, didLoginThisSession]);
 
   return null;
 }

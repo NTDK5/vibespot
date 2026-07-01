@@ -18,8 +18,6 @@ import {
 } from '../services/pushNotifications.service';
 
 // Routes where a pending/stale notification must NOT hijack navigation.
-// Mirrors AuthNavigationSync so cold-start push handling never fires while
-// the user is still in the auth flow (e.g. right after Google sign-in).
 const AUTH_FLOW_ROUTES = new Set([
   'Splash',
   'Onboarding',
@@ -35,6 +33,15 @@ function userPushOptIn(user) {
   return true;
 }
 
+function shouldIgnorePushNavigation({ didLoginThisSession, authLoading }) {
+  if (authLoading) return true;
+  if (didLoginThisSession) return true;
+  if (!navigationRef.isReady()) return true;
+  const routeName = navigationRef.getCurrentRoute()?.name;
+  if (routeName && AUTH_FLOW_ROUTES.has(routeName)) return true;
+  return false;
+}
+
 function navigateForPushPayload(data) {
   if (data.spotId) {
     navigateFromPush('SpotDetail', { spotId: data.spotId });
@@ -48,15 +55,29 @@ function navigateForPushPayload(data) {
  * Handles notification tap deep links.
  */
 export function usePushNotifications() {
-  const { user, didLoginThisSession } = useAuth();
+  const { user, loading: authLoading, didLoginThisSession } = useAuth();
   const tokenRef = useRef(null);
   const userIdRef = useRef(null);
   const handledColdStartRef = useRef(false);
+  const didLoginRef = useRef(didLoginThisSession);
+  const authLoadingRef = useRef(authLoading);
+
+  didLoginRef.current = didLoginThisSession;
+  authLoadingRef.current = authLoading;
 
   // Live notification taps while the app is running.
   useEffect(() => {
     const responseSub = Notifications.addNotificationResponseReceivedListener(
       (response) => {
+        if (
+          shouldIgnorePushNavigation({
+            didLoginThisSession: didLoginRef.current,
+            authLoading: authLoadingRef.current,
+          })
+        ) {
+          return;
+        }
+
         const data = parseNotificationData(response);
         track(Events.NOTIFICATION_OPENED, {
           type: data.type,
@@ -77,26 +98,25 @@ export function usePushNotifications() {
     };
   }, []);
 
-  // Cold-start: only act on a notification the user actually opened to launch
-  // the app — and only once they're authenticated and past the auth flow.
-  // This prevents a stale last-tapped notification from hijacking navigation
-  // (e.g. landing on Notifications right after Google sign-in).
+  // Clear stale "last tapped notification" as soon as an active login starts,
+  // before user state is persisted (prevents race with cold-start handler).
   useEffect(() => {
-    if (!user?.id || handledColdStartRef.current) return;
+    if (!didLoginThisSession) return;
+    handledColdStartRef.current = true;
+    Notifications.clearLastNotificationResponseAsync?.().catch(() => {});
+  }, [didLoginThisSession]);
 
-    // An active sign-in this session must always land on the normal
-    // post-login screen (Home). Never replay a stale tapped notification,
-    // and clear it so it can't fire on a later remount.
+  // Cold-start: only for session restore — not after an active sign-in.
+  useEffect(() => {
+    if (!user?.id || authLoading || handledColdStartRef.current) return;
+
     if (didLoginThisSession) {
       handledColdStartRef.current = true;
       Notifications.clearLastNotificationResponseAsync?.();
       return;
     }
 
-    if (!navigationRef.isReady()) return;
-
-    const routeName = navigationRef.getCurrentRoute()?.name;
-    if (routeName && AUTH_FLOW_ROUTES.has(routeName)) return;
+    if (shouldIgnorePushNavigation({ didLoginThisSession, authLoading })) return;
 
     let cancelled = false;
     (async () => {
@@ -104,6 +124,17 @@ export function usePushNotifications() {
         () => null,
       );
       if (cancelled || !response || handledColdStartRef.current) return;
+
+      // Re-check after async gap — login may have completed while we awaited.
+      if (
+        shouldIgnorePushNavigation({
+          didLoginThisSession: didLoginRef.current,
+          authLoading: authLoadingRef.current,
+        })
+      ) {
+        await Notifications.clearLastNotificationResponseAsync?.();
+        return;
+      }
 
       handledColdStartRef.current = true;
       const data = parseNotificationData(response);
@@ -114,14 +145,20 @@ export function usePushNotifications() {
         cold_start: true,
       });
       navigateForPushPayload(data);
-      // Clear so it can't re-trigger on a later login/remount.
       await Notifications.clearLastNotificationResponseAsync?.();
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [user?.id, didLoginThisSession]);
+  }, [user?.id, authLoading, didLoginThisSession]);
+
+  // Reset cold-start latch on logout so the next restored session can deep-link.
+  useEffect(() => {
+    if (!user?.id) {
+      handledColdStartRef.current = false;
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     let cancelled = false;

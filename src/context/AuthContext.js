@@ -189,6 +189,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     setLoading(true);
+    setDidLoginThisSession(true);
     try {
       const data = await loginUser({ email, password });
       const resolvedUser = await completeLoginFromResponse(data);
@@ -196,7 +197,6 @@ export const AuthProvider = ({ children }) => {
       if (resolvedUser?.emailVerified === false) {
         setPendingVerificationEmail(email);
       }
-      setDidLoginThisSession(true);
       track(Events.SIGN_IN_COMPLETED, { method: "email" });
       return { user: resolvedUser, error: null };
     } catch (err) {
@@ -212,13 +212,14 @@ export const AuthProvider = ({ children }) => {
 
   const loginWithGoogle = async (idToken) => {
     setLoading(true);
+    setDidLoginThisSession(true);
     try {
       const data = await googleLoginUser(idToken);
       const resolvedUser = await completeLoginFromResponse(data);
-      setDidLoginThisSession(true);
       track(Events.SIGN_IN_COMPLETED, { method: "google" });
       return { user: resolvedUser, error: null };
     } catch (err) {
+      setDidLoginThisSession(false);
       return {
         user: null,
         error: err.message || "Google login failed",
@@ -230,6 +231,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async ({ name, email, password, homeCity }) => {
     setLoading(true);
+    setDidLoginThisSession(true);
     try {
       const data = await registerUser({ name, email, password, homeCity });
       const resolvedUser = await completeLoginFromResponse(data);
@@ -237,10 +239,10 @@ export const AuthProvider = ({ children }) => {
       if (resolvedUser?.emailVerified === false) {
         setPendingVerificationEmail(email);
       }
-      setDidLoginThisSession(true);
       track(Events.SIGN_UP_COMPLETED, { method: "email" });
       return { user: resolvedUser, error: null };
     } catch (err) {
+      setDidLoginThisSession(false);
       const data = err?.response?.data;
       const details = Array.isArray(data?.details) ? data.details.join(" ") : null;
       return {
