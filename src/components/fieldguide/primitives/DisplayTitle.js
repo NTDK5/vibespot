@@ -18,7 +18,8 @@
 
 import React from 'react';
 import { StyleSheet, Text } from 'react-native';
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
 const SIZE_FS = { sm: 14, md: 22, lg: 28, xl: 36, hero: 42 };
 // Syne is a tall geometric face: descenders (g, p, y, j, q) sit lower
@@ -26,12 +27,15 @@ const SIZE_FS = { sm: 14, md: 22, lg: 28, xl: 36, hero: 42 };
 // base style keeps a touch of bottom padding to stop Android clipping.
 const SIZE_LH = { sm: 20, md: 30, lg: 38, xl: 48, hero: 56 };
 
-const WEIGHT_FAMILY = {
-  '300': fieldGuide.fonts.display,
-  '400': fieldGuide.fonts.display,
-  '500': fieldGuide.fonts.display,
-  '700': fieldGuide.fonts.displayHeavy,
-};
+function weightFamily(fieldGuide, weight) {
+  const map = {
+    '300': fieldGuide.fonts.display,
+    '400': fieldGuide.fonts.display,
+    '500': fieldGuide.fonts.display,
+    '700': fieldGuide.fonts.displayHeavy,
+  };
+  return map[weight] || map['400'];
+}
 
 export default function DisplayTitle({
   children,
@@ -44,9 +48,11 @@ export default function DisplayTitle({
   adjustsFontSizeToFit,
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const fs = SIZE_FS[size] || SIZE_FS.lg;
   const lh = SIZE_LH[size] || SIZE_LH.lg;
-  const family = WEIGHT_FAMILY[weight] || WEIGHT_FAMILY['400'];
+  const family = weightFamily(fieldGuide, weight);
   const fill = color || fieldGuide.cream;
   const emFill = italicColor || fieldGuide.emberSoft;
 
@@ -97,9 +103,11 @@ export default function DisplayTitle({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   base: {
     includeFontPadding: true,
     paddingBottom: 2,
   },
 });
+}

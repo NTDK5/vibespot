@@ -12,7 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BRAND } from '../brand/fena';
 import { FenaLogoMark } from '../components/brand';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { MonoMeta } from '../components/fieldguide';
 import { useAuth } from '../hooks/useAuth';
 import { useFirstLaunch } from '../hooks/useFirstLaunch';
@@ -21,6 +22,8 @@ import { parseShareDeepLink } from '../navigation/linking';
 const HOLD_MS_FIRST_LAUNCH = 1200;
 
 export default function SplashScreen({ navigation }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { user, loading: authLoading } = useAuth();
   const { ready: launchReady, onboarded } = useFirstLaunch();
   const mountedAt = useRef(Date.now());
@@ -101,7 +104,8 @@ export default function SplashScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.inkDeep,
@@ -141,3 +145,4 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
 });
+}

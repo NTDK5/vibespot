@@ -27,31 +27,35 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
-const STYLES = [
-  {
-    id: 'fieldguide',
-    label: 'Field Guide',
-    tag: 'DEFAULT',
-    available: true,
-    gradient: [fieldGuide.ink, fieldGuide.inkElev, fieldGuide.emberDeep],
-  },
-  {
-    id: 'satellite',
-    label: 'Satellite',
-    tag: 'COMING SOON',
-    available: false,
-    gradient: ['#0F2230', '#1F4A66', '#88BBC7'],
-  },
-  {
-    id: 'streets',
-    label: 'Streets',
-    tag: 'COMING SOON',
-    available: false,
-    gradient: ['#E8DFD0', '#D6CCB8', '#C9A24B'],
-  },
-];
+function mapStyleOptions(fieldGuide) {
+
+  return [
+    {
+      id: 'fieldguide',
+      label: 'Field Guide',
+      tag: 'DEFAULT',
+      available: true,
+      gradient: [fieldGuide.ink, fieldGuide.inkElev, fieldGuide.emberDeep],
+    },
+    {
+      id: 'satellite',
+      label: 'Satellite',
+      tag: 'COMING SOON',
+      available: false,
+      gradient: ['#0F2230', '#1F4A66', '#88BBC7'],
+    },
+    {
+      id: 'streets',
+      label: 'Streets',
+      tag: 'COMING SOON',
+      available: false,
+      gradient: ['#E8DFD0', '#D6CCB8', '#C9A24B'],
+    },
+  ];
+}
 
 export default function MapStylePopover({
   visible,
@@ -61,6 +65,9 @@ export default function MapStylePopover({
   anchor,
   onComingSoon,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const styleOptions = mapStyleOptions(fieldGuide);
   if (!visible) return null;
 
   const top = anchor?.top ?? 240;
@@ -89,7 +96,7 @@ export default function MapStylePopover({
       </Pressable>
 
       <View style={[styles.pop, { top, right }]}>
-        {STYLES.map((item) => {
+        {styleOptions.map((item) => {
           const active = item.id === value;
           return (
             <Pressable
@@ -132,7 +139,9 @@ export default function MapStylePopover({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+
+  return StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
   },
@@ -199,3 +208,4 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
 });
+}

@@ -16,7 +16,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import SheetHandle from '../primitives/SheetHandle';
 import MonoMeta from '../primitives/MonoMeta';
 import DisplayTitle from '../primitives/DisplayTitle';
@@ -28,6 +29,7 @@ const SHEET_HEIGHT = 420;
 const ANIM_MS = 220;
 
 export default function ChangePasswordSheet({ visible, onClose }) {
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
@@ -165,7 +167,8 @@ export default function ChangePasswordSheet({ visible, onClose }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   flex: { flex: 1 },
   flexEnd: { flex: 1, justifyContent: 'flex-end' },
   backdrop: {
@@ -186,3 +189,4 @@ const styles = StyleSheet.create({
   fields: { gap: 4, marginBottom: 20 },
   cancelBtn: { marginTop: 8 },
 });
+}

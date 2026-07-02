@@ -18,7 +18,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { useFirstLaunch } from '../hooks/useFirstLaunch';
 import { track, Events } from '../analytics';
 import { ONBOARDING_SLIDES } from '../components/onboarding/onboardingSlides';
@@ -41,6 +42,7 @@ const ILLUSTRATIONS = [
 ];
 
 export default function OnboardingScreen({ navigation }) {
+  const styles = useThemedStyles(createStyles);
   const { markOnboarded, onboarded } = useFirstLaunch();
   const insets = useSafeAreaInsets();
   const slideWidth = Dimensions.get('window').width;
@@ -216,7 +218,8 @@ export default function OnboardingScreen({ navigation }) {
 
 const NEXT_SIZE = 60;
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.inkDeep,
@@ -294,3 +297,4 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 });
+}

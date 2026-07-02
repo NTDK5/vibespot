@@ -12,11 +12,14 @@
 
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
 const CAP_SIZE = 56;
 
 export default function Dropcap({ letter, children, color, style }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const text = typeof children === 'string'
     ? <Text style={styles.body}>{children}</Text>
     : children;
@@ -36,7 +39,8 @@ export default function Dropcap({ letter, children, color, style }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -61,3 +65,4 @@ const styles = StyleSheet.create({
     color: fieldGuide.creamSoft,
   },
 });
+}

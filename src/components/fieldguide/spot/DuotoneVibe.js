@@ -17,10 +17,10 @@
  */
 
 import React from 'react';
+import { useTheme } from '../../../context/ThemeContext';
 import { Image, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import fieldGuide from '../../../theme/fieldGuide';
 
 // 135deg: top-left → bottom-right
 // 160deg: roughly top-left → bottom-right at steeper angle
@@ -59,6 +59,7 @@ const VIBE_LOCATIONS = {
 };
 
 export default function DuotoneVibe({ vibe, image, style }) {
+  const { fieldGuide } = useTheme();
   const colors = fieldGuide.vibes[vibe] || fieldGuide.vibes.cafe;
   const angle = VIBE_ANGLE[vibe] || VIBE_ANGLE.cafe;
   const locations = VIBE_LOCATIONS[vibe] || (

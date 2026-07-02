@@ -21,7 +21,8 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import DuotoneVibe from './DuotoneVibe';
 import IndexStamp from './IndexStamp';
 import SaveStamp from './SaveStamp';
@@ -45,6 +46,7 @@ export default function SpotPhoto({
   children,
   style,
 }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View
       style={[
@@ -65,7 +67,8 @@ export default function SpotPhoto({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   container: {
     width: '100%',
     borderRadius: fieldGuide.radius.lg,
@@ -74,3 +77,4 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
 });
+}

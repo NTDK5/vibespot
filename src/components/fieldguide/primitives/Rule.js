@@ -10,29 +10,33 @@
 
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import fieldGuide from '../../../theme/fieldGuide';
-
-const COLOR = {
-  default: fieldGuide.inkLine,
-  strong:  fieldGuide.inkLine2,
-  paper:   'rgba(20,22,29,0.12)',
-};
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
 export default function Rule({ variant = 'default', style }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const colors = {
+    default: fieldGuide.inkLine,
+    strong: fieldGuide.inkLine2,
+    paper: fieldGuide.line,
+  };
   return (
     <View
       style={[
         styles.base,
-        { backgroundColor: COLOR[variant] || COLOR.default },
+        { backgroundColor: colors[variant] || colors.default },
         style,
       ]}
     />
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   base: {
     height: StyleSheet.hairlineWidth,
     alignSelf: 'stretch',
   },
 });
+}

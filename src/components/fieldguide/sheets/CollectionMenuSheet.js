@@ -33,7 +33,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import SheetHandle from '../primitives/SheetHandle';
 import MonoMeta from '../primitives/MonoMeta';
 
@@ -49,6 +50,7 @@ export default function CollectionMenuSheet({
   onDelete,
   isOwner = true,
 }) {
+  const styles = useThemedStyles(createStyles);
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
 
@@ -186,6 +188,9 @@ export default function CollectionMenuSheet({
 }
 
 function Row({ icon, label, hint, onPress, danger = false, muted = false }) {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const color = danger
     ? fieldGuide.rose
     : muted
@@ -226,7 +231,8 @@ function Row({ icon, label, hint, onPress, danger = false, muted = false }) {
 const ROW_FS = 16;
 const HINT_FS = 11;
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   fill: { flex: 1 },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -304,3 +310,4 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 });
+}

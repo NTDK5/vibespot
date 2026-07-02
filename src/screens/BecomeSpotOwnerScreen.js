@@ -19,12 +19,15 @@ import { Ionicons } from '@expo/vector-icons';
 import EditorialButton from '../components/fieldguide/form/EditorialButton';
 import FloatingLabelInput from '../components/fieldguide/form/FloatingLabelInput';
 import MonoMeta from '../components/fieldguide/primitives/MonoMeta';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../hooks/useAuth';
 import { applySpotOwner } from '../services/ownerSpots.service';
 
 export default function BecomeSpotOwnerScreen({ navigation }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const toast = useToast();
   const { isSpotOwner, isSpotOwnerPending } = useAuth();
   const [businessName, setBusinessName] = useState('');
@@ -127,7 +130,8 @@ export default function BecomeSpotOwnerScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: fieldGuide.ink },
   flex: { flex: 1 },
   header: {
@@ -179,3 +183,4 @@ const styles = StyleSheet.create({
     backgroundColor: fieldGuide.inkElev,
   },
 });
+}

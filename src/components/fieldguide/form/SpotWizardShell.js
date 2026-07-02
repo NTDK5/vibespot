@@ -17,7 +17,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import DisplayTitle from '../primitives/DisplayTitle';
 import MonoMeta from '../primitives/MonoMeta';
 import EditorialButton from './EditorialButton';
@@ -41,6 +42,8 @@ export default function SpotWizardShell({
   stepSubtitle,
   children,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const progress = ((stepIndex + 1) / totalSteps) * 100;
 
@@ -143,7 +146,8 @@ export default function SpotWizardShell({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -258,3 +262,4 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+}

@@ -18,7 +18,7 @@ import {
 import AuthKeyboardScroll, {
   useAuthFieldScroll,
 } from '../components/auth/AuthKeyboardScroll';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
 import {
   DisplayTitle,
   EditorialButton,
@@ -34,6 +34,7 @@ import { isValidEmail } from '../utils/helpers';
 import { BRAND } from '../brand/fena';
 
 function ForgotPasswordScreenForm({ navigation }) {
+  const styles = useThemedStyles(createStyles);
   const { requestReset, resetPassword } = useAuth();
   const toast = useToast();
   const { registerField, scrollToField } = useAuthFieldScroll();
@@ -228,7 +229,9 @@ function ForgotPasswordScreen({ navigation }) {
 
 export default ForgotPasswordScreen;
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+
+  return StyleSheet.create({
   body: {
     flex: 1,
     paddingHorizontal: 22,
@@ -304,3 +307,4 @@ const styles = StyleSheet.create({
     color: fieldGuide.cream,
   },
 });
+}

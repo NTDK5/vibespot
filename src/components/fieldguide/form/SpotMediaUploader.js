@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import MonoMeta from '../primitives/MonoMeta';
 import DuotoneVibe from '../spot/DuotoneVibe';
 import { pickImage, pickMultipleImages } from '../../../services/upload';
@@ -25,6 +26,8 @@ export default function SpotMediaUploader({
   maxImages = 10,
   vibe = 'cafe',
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [local, setLocal] = useState(images);
 
   const sync = (next) => {
@@ -117,7 +120,8 @@ export default function SpotMediaUploader({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   wrap: {
     gap: 10,
   },
@@ -147,7 +151,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: 12,
     borderRadius: fieldGuide.radius.full,
-    backgroundColor: 'rgba(20,22,29,0.78)',
+    backgroundColor: fieldGuide.canvasElev,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(244,239,230,0.18)',
   },
@@ -180,7 +184,7 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: 'rgba(20,22,29,0.75)',
+    backgroundColor: fieldGuide.overlay,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -195,3 +199,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
+}

@@ -21,7 +21,8 @@ import { StyleSheet, TextInput, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
 export default function SearchBar({
   value,
@@ -33,6 +34,8 @@ export default function SearchBar({
   autoFocus,
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const isGlass = surface === 'glass';
 
   const content = (
@@ -71,7 +74,8 @@ export default function SearchBar({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -86,14 +90,14 @@ const styles = StyleSheet.create({
     backgroundColor: fieldGuide.inkElev,
   },
   glass: {
-    backgroundColor: 'rgba(20,22,29,0.78)',
+    backgroundColor: fieldGuide.canvasElev,
   },
   input: {
     flex: 1,
     marginLeft: 10,
     fontFamily: fieldGuide.fonts.sans,
     fontSize: 14,
-    color: fieldGuide.cream,
+    color: fieldGuide.text,
     paddingVertical: 0,
     includeFontPadding: false,
   },
@@ -101,3 +105,4 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
 });
+}

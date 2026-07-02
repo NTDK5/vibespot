@@ -7,7 +7,8 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { BRAND } from '../../brand/fena';
-import fieldGuide from '../../theme/fieldGuide';
+import { useThemedStyles } from '../../hooks/useThemedStyles';
+import { useTheme } from '../../context/ThemeContext';
 import { MonoMeta } from '../fieldguide';
 import FenaLogoMark from './FenaLogoMark';
 
@@ -16,6 +17,7 @@ export default function FenaAuthBrandHeader({
   accessibilityLabel = BRAND.logoA11yLabel,
   testID = 'fena-auth-brand-header',
 }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View
       style={styles.stack}
@@ -32,7 +34,8 @@ export default function FenaAuthBrandHeader({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   stack: {
     alignItems: 'center',
   },
@@ -52,3 +55,4 @@ const styles = StyleSheet.create({
     maxWidth: 280,
   },
 });
+}

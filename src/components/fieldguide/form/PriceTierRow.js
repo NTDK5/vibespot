@@ -5,7 +5,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import MonoMeta from '../primitives/MonoMeta';
 
 /** Display € tiers while preserving backend priceRange values. */
@@ -17,6 +18,7 @@ export const WIZARD_PRICE_TIERS = [
 ];
 
 export default function PriceTierRow({ value, onChange, style }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={style}>
       <MonoMeta size="eyebrow" style={styles.label}>
@@ -49,7 +51,8 @@ export default function PriceTierRow({ value, onChange, style }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   label: {
     marginBottom: 10,
   },
@@ -74,10 +77,11 @@ const styles = StyleSheet.create({
   priceText: {
     fontFamily: fieldGuide.fonts.serifMedium,
     fontSize: 18,
-    color: fieldGuide.cream,
+    color: fieldGuide.text,
     includeFontPadding: false,
   },
   priceTextOn: {
     color: '#FFF8F1',
   },
 });
+}

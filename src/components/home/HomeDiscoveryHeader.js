@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../../theme/fieldGuide';
+import { useThemedStyles } from '../../hooks/useThemedStyles';
+import { useTheme } from '../../context/ThemeContext';
 import { BRAND } from '../../brand/fena';
 import QuickStatChip from './QuickStatChip';
 import HomeFilterChips from './HomeFilterChips';
@@ -22,7 +23,7 @@ function goodTimeGreeting(date = new Date()) {
   return 'evening';
 }
 
-function ContextLine({ parts }) {
+function ContextLine({ parts, styles }) {
   return (
     <View style={styles.ctx}>
       {parts.map((part, i) => (
@@ -50,6 +51,8 @@ export default function HomeDiscoveryHeader({
   newTodayCount = 3,
   inServiceArea = null,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const greeting = useMemo(() => goodTimeGreeting(), []);
   const cityLabel =
     inServiceArea === false
@@ -170,7 +173,7 @@ export default function HomeDiscoveryHeader({
           Good {greeting},{' '}
           <Text style={styles.greetingName}>{firstName}</Text>
         </Text>
-        <ContextLine parts={contextParts} />
+        <ContextLine parts={contextParts} styles={styles} />
       </View>
 
       <ScrollView
@@ -207,7 +210,8 @@ export default function HomeDiscoveryHeader({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   header: {
     paddingHorizontal: 22,
     paddingTop: 6,
@@ -360,3 +364,4 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
 });
+}

@@ -12,9 +12,11 @@
 
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
 export default function SectionHead({ title, cta, style }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={[styles.row, style]}>
       <Text style={styles.title} numberOfLines={1}>
@@ -34,7 +36,8 @@ export default function SectionHead({ title, cta, style }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'baseline',
@@ -61,3 +64,4 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 });
+}

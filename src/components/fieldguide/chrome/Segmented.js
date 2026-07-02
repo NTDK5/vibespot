@@ -21,12 +21,14 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
 const FS = 10;
 
-function renderContent(item, active) {
-  const color = active ? fieldGuide.inkText : fieldGuide.creamMute;
+function renderContent(item, active, styles, fieldGuide) {
+
+  const color = active ? fieldGuide.onCreamFill : fieldGuide.creamMute;
 
   if (typeof item === 'function') return item({ active, color });
 
@@ -77,6 +79,8 @@ export default function Segmented({
   accessibilityLabels,
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={[styles.track, style]}>
       {items.map((item, i) => {
@@ -96,7 +100,7 @@ export default function Segmented({
               active ? styles.btnActive : null,
             ]}
           >
-            {renderContent(item, active)}
+            {renderContent(item, active, styles, fieldGuide)}
           </Pressable>
         );
       })}
@@ -104,7 +108,8 @@ export default function Segmented({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   track: {
     flexDirection: 'row',
     alignItems: 'stretch',
@@ -128,7 +133,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   btnActive: {
-    backgroundColor: fieldGuide.cream,
+    backgroundColor: fieldGuide.creamFill,
   },
   label: {
     fontFamily: fieldGuide.fonts.mono,
@@ -143,3 +148,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
+}

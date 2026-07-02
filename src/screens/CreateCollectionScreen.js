@@ -42,7 +42,8 @@ import {
   Rule,
 } from '../components/fieldguide';
 import SpotPickerSheet from '../components/fieldguide/sheets/SpotPickerSheet';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ToastProvider';
 import { useUserProgression } from '../hooks/useUserProgression';
 import { useBadgeProgress } from '../hooks/useBadgeProgress';
@@ -117,6 +118,7 @@ function spotsFromCollection(collection) {
 }
 
 function SpotCoverGrid({ spots }) {
+  const coverGridStyles = useThemedStyles(createCoverGridStyles);
   const tiles = [...spots.slice(0, 4)];
   while (tiles.length < 4) tiles.push(null);
   return (
@@ -138,7 +140,9 @@ function SpotCoverGrid({ spots }) {
   );
 }
 
-const coverGridStyles = StyleSheet.create({
+function createCoverGridStyles(fieldGuide) {
+
+  return StyleSheet.create({
   wrap: {
     aspectRatio: 16 / 10,
     flexDirection: 'row',
@@ -158,6 +162,7 @@ const coverGridStyles = StyleSheet.create({
     height: '100%',
   },
 });
+}
 
 function privacyToFlags(privacy) {
   if (privacy === 'public') return { isPublic: true, sharedWith: [] };
@@ -177,6 +182,9 @@ function flagsToPrivacy(collection) {
 /* ─────────────────────────────────────────────────────────────────── */
 
 export const CreateCollectionScreen = ({ navigation, route }) => {
+  const { fieldGuide } = useTheme();
+
+  const styles = useThemedStyles(createStyles);
   const id = route?.params?.id;
   const mode = route?.params?.mode === 'edit' ? 'edit' : 'create';
   const toast = useToast();
@@ -615,7 +623,9 @@ function SectionLabel({ children }) {
 /*  STYLES                                                             */
 /* ─────────────────────────────────────────────────────────────────── */
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -674,7 +684,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: fieldGuide.radius.full,
-    backgroundColor: 'rgba(20,22,29,0.72)',
+    backgroundColor: fieldGuide.overlay,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: fieldGuide.inkLine,
     flexDirection: 'row',
@@ -843,7 +853,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: fieldGuide.cream,
+    backgroundColor: fieldGuide.creamFill,
     position: 'absolute',
     top: 3,
   },
@@ -863,3 +873,4 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 });
+}

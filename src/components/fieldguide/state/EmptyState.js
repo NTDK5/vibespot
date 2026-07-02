@@ -20,7 +20,8 @@
 
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import DisplayTitle from '../primitives/DisplayTitle';
 import MonoMeta from '../primitives/MonoMeta';
 import EditorialButton from '../form/EditorialButton';
@@ -39,6 +40,8 @@ export default function EmptyState({
   secondaryCta,
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const resolvedEyebrow =
     eyebrow || (pageName ? `NO. 000 · ${pageName}` : 'NO. 000');
   const primary = primaryCta || cta;
@@ -95,7 +98,8 @@ export default function EmptyState({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   wrap: {
     paddingVertical: 40,
     paddingHorizontal: 28,
@@ -133,3 +137,4 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
 });
+}

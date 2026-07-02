@@ -8,10 +8,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import MonoMeta from '../components/fieldguide/primitives/MonoMeta';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { getOwnerSpotAnalytics } from '../services/ownerSpots.service';
 
 function Metric({ label, value, sub }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.metric}>
       <MonoMeta size="spot">{label}</MonoMeta>
@@ -22,6 +24,8 @@ function Metric({ label, value, sub }) {
 }
 
 export default function SpotOwnerAnalyticsScreen({ navigation, route }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { spotId, title } = route.params || {};
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -72,7 +76,8 @@ export default function SpotOwnerAnalyticsScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: fieldGuide.ink },
   header: {
     flexDirection: 'row',
@@ -110,3 +115,4 @@ const styles = StyleSheet.create({
   muted: { color: fieldGuide.creamMute },
   error: { color: fieldGuide.rose },
 });
+}

@@ -13,7 +13,8 @@
 
 import React from 'react';
 import { StyleSheet, Text } from 'react-native';
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
 const POSITIONS = {
   tl: { top: 12, left: 14 },
@@ -30,6 +31,7 @@ export default function IndexStamp({
   color = 'rgba(255,255,255,0.92)',
   style,
 }) {
+  const styles = useThemedStyles(createStyles);
   const pos = POSITIONS[position] || POSITIONS.tl;
   return (
     <Text
@@ -46,7 +48,8 @@ export default function IndexStamp({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   base: {
     position: 'absolute',
     fontFamily: fieldGuide.fonts.mono,
@@ -59,3 +62,4 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 });
+}

@@ -18,10 +18,14 @@ import { Ionicons } from '@expo/vector-icons';
 import EditorialButton from '../components/fieldguide/form/EditorialButton';
 import MonoMeta from '../components/fieldguide/primitives/MonoMeta';
 import EmptyState from '../components/fieldguide/state/EmptyState';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { listMyOwnerSpots } from '../services/ownerSpots.service';
 
 function StatusPill({ status }) {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const colors = {
     approved: fieldGuide.moss,
     rejected: fieldGuide.rose,
@@ -36,6 +40,8 @@ function StatusPill({ status }) {
 }
 
 export default function MySpotsScreen({ navigation }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [spots, setSpots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -106,7 +112,8 @@ export default function MySpotsScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: fieldGuide.ink },
   header: {
     flexDirection: 'row',
@@ -132,3 +139,4 @@ const styles = StyleSheet.create({
   pill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   pillText: { fontSize: 10, fontFamily: fieldGuide.fonts.monoMed, letterSpacing: 0.4 },
 });
+}

@@ -19,7 +19,8 @@ import { Ionicons } from '@expo/vector-icons';
 import FloatingLabelInput from '../components/fieldguide/form/FloatingLabelInput';
 import { Pill } from '../components/fieldguide';
 import MonoMeta from '../components/fieldguide/primitives/MonoMeta';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -56,6 +57,9 @@ function selectionToPreferences(selection) {
 }
 
 export const EditProfileScreen = ({ navigation }) => {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { user, updateLocalUser } = useAuth();
   const toast = useToast();
 
@@ -295,7 +299,8 @@ export const EditProfileScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -365,7 +370,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: fieldGuide.cream,
+    backgroundColor: fieldGuide.creamFill,
     borderWidth: 3,
     borderColor: fieldGuide.ink,
     alignItems: 'center',
@@ -418,3 +423,4 @@ const styles = StyleSheet.create({
     color: fieldGuide.creamMute,
   },
 });
+}

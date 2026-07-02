@@ -4,9 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { BRAND } from '../../brand/fena';
 import { Events, track } from '../../analytics';
-import fieldGuide from '../../theme/fieldGuide';
+import { useThemedStyles } from '../../hooks/useThemedStyles';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function ServiceAreaBanner({ navigation, onDismiss }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   useEffect(() => {
     track(Events.SERVICE_AREA_OUTSIDE_VIEWED);
   }, []);
@@ -54,7 +57,8 @@ export default function ServiceAreaBanner({ navigation, onDismiss }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   wrap: {
     marginHorizontal: 22,
     marginTop: 12,
@@ -105,3 +109,4 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 });
+}

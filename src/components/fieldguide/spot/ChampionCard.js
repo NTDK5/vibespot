@@ -30,7 +30,8 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import DuotoneVibe from './DuotoneVibe';
 import RatingDots from './RatingDots';
 
@@ -51,6 +52,7 @@ function toImageUri(value) {
 }
 
 function PulseDot() {
+  const { fieldGuide } = useTheme();
   const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -82,7 +84,7 @@ function PulseDot() {
           { transform: [{ scale: ringScale }], opacity: ringOpacity },
         ]}
       />
-      <View style={pulseStyles.dot} />
+      <View style={[pulseStyles.dot, { backgroundColor: fieldGuide.ember }]} />
     </View>
   );
 }
@@ -106,11 +108,12 @@ const pulseStyles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: fieldGuide.ember,
   },
 });
 
 function SignalChip({ label, variant = 'default', icon }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const palette = {
     default: {
       color: 'rgba(244,239,230,0.78)',
@@ -159,6 +162,7 @@ function buildDistanceChipLabel(distance, walkLabel) {
 }
 
 export default function ChampionCard({ spot, onPress, style }) {
+  const styles = useThemedStyles(createStyles);
   const {
     title = 'Champion',
     hook,
@@ -413,7 +417,8 @@ export default function ChampionCard({ spot, onPress, style }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   shadowWrap: {
     width: '100%',
     borderRadius: fieldGuide.radius.xl,
@@ -497,7 +502,7 @@ const styles = StyleSheet.create({
     fontSize: 9,
     letterSpacing: fieldGuide.tracking.wide(9),
     textTransform: 'uppercase',
-    color: fieldGuide.cream,
+    color: fieldGuide.onDark,
     includeFontPadding: false,
   },
   trendPill: {
@@ -532,7 +537,7 @@ const styles = StyleSheet.create({
     fontSize: TITLE_FS,
     lineHeight: Math.round(TITLE_FS * 1.08),
     letterSpacing: fieldGuide.tracking.tight(TITLE_FS),
-    color: fieldGuide.cream,
+    color: fieldGuide.onDark,
     includeFontPadding: false,
   },
   hook: {
@@ -603,7 +608,7 @@ const styles = StyleSheet.create({
     fontSize: BTN_FS,
     letterSpacing: fieldGuide.tracking.wide(BTN_FS),
     textTransform: 'uppercase',
-    color: fieldGuide.cream,
+    color: fieldGuide.onDark,
     includeFontPadding: false,
   },
   btnPrimary: {
@@ -619,7 +624,8 @@ const styles = StyleSheet.create({
     fontSize: BTN_FS,
     letterSpacing: fieldGuide.tracking.wide(BTN_FS),
     textTransform: 'uppercase',
-    color: fieldGuide.inkDeep,
+    color: fieldGuide.onEmber,
     includeFontPadding: false,
   },
 });
+}

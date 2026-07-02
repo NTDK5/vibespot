@@ -47,7 +47,8 @@ import {
   ShareDispatchSheet,
   SpotPhoto,
 } from '../components/fieldguide';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../hooks/useAuth';
 import { useUserProgression } from '../hooks/useUserProgression';
 import { useBadgeProgress } from '../hooks/useBadgeProgress';
@@ -163,6 +164,7 @@ async function fetchCollections(userId) {
 /* ─────────────────────────────────────────────────────────────────── */
 
 function SpotGridCard({ spot, fallbackIndex, onPress }) {
+  const styles = useThemedStyles(createStyles);
   const idxLabel = `NO. ${zeroPad(indexForSpot(spot) ?? fallbackIndex, 3)}`;
   const vibe = vibeForCategory(spot?.category);
   const district = spot?.district || spot?.city;
@@ -197,6 +199,9 @@ function SpotGridCard({ spot, fallbackIndex, onPress }) {
 /* ─────────────────────────────────────────────────────────────────── */
 
 export const CollectionsScreen = ({ navigation }) => {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { user } = useAuth();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -682,7 +687,8 @@ export default CollectionsScreen;
 
 const TAB_BAR_PAD = 100;
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -766,3 +772,4 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 });
+}

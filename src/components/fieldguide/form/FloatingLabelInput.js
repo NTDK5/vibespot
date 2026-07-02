@@ -20,7 +20,8 @@
 
 import React, { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import MonoMeta from '../primitives/MonoMeta';
 
 export default function FloatingLabelInput({
@@ -42,6 +43,8 @@ export default function FloatingLabelInput({
   style,
   inputStyle,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [focused, setFocused] = useState(false);
 
   const underlineColor = error
@@ -84,7 +87,8 @@ export default function FloatingLabelInput({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   field: {
     flexDirection: 'column',
   },
@@ -95,7 +99,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     fontFamily: fieldGuide.fonts.sans,
     fontSize: 18,
-    color: fieldGuide.cream,
+    color: fieldGuide.text,
     width: '100%',
     includeFontPadding: false,
   },
@@ -113,3 +117,4 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 });
+}

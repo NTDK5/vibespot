@@ -26,7 +26,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 
 const ROUTE_ICON = {
   Home:        'home-outline',
@@ -48,7 +49,9 @@ function resolveLabel(options, routeName) {
 }
 
 export default function FieldGuideTabBar({ state, descriptors, navigation }) {
+  const { fieldGuide } = useTheme();
   const insets = useSafeAreaInsets();
+  const styles = useThemedStyles(createStyles);
 
   return (
     <View
@@ -114,7 +117,8 @@ export default function FieldGuideTabBar({ state, descriptors, navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   bar: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -154,3 +158,4 @@ const styles = StyleSheet.create({
     backgroundColor: fieldGuide.ember,
   },
 });
+}

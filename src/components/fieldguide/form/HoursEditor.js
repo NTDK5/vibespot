@@ -12,7 +12,8 @@ import {
   View,
 } from 'react-native';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import MonoMeta from '../primitives/MonoMeta';
 import {
   HOURS_DAYS,
@@ -54,6 +55,8 @@ function formatHour(n) {
 }
 
 export default function HoursEditor({ value, onChange, style }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const hours = value || emptyHours();
 
   const setDay = (day, next) => {
@@ -127,7 +130,8 @@ export default function HoursEditor({ value, onChange, style }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   wrap: {
     gap: 10,
   },
@@ -189,3 +193,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+}

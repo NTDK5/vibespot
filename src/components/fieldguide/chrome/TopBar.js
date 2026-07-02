@@ -19,9 +19,10 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
-function IconButton({ name, onPress, transparent }) {
+function IconButton({ name, onPress, transparent, styles, fieldGuide }) {
   return (
     <Pressable
       onPress={onPress}
@@ -31,34 +32,44 @@ function IconButton({ name, onPress, transparent }) {
         styles.iconBtn,
         {
           borderColor: fieldGuide.inkLine,
-          backgroundColor: transparent
-            ? 'rgba(20,22,29,0.45)'
-            : 'transparent',
+          backgroundColor: transparent ? fieldGuide.overlay : 'transparent',
           opacity: pressed ? 0.7 : 1,
         },
       ]}
     >
-      <Ionicons name={name} size={18} color={fieldGuide.cream} />
+      <Ionicons name={name} size={18} color={transparent ? fieldGuide.onDark : fieldGuide.text} />
     </Pressable>
   );
 }
 
-function renderLeft(left, onLeftPress, transparent) {
+function renderLeft(left, onLeftPress, transparent, styles, fieldGuide) {
   if (left == null) return <View style={styles.slot} />;
   if (left === 'back') {
     return (
-      <IconButton name="chevron-back" onPress={onLeftPress} transparent={transparent} />
+      <IconButton
+        name="chevron-back"
+        onPress={onLeftPress}
+        transparent={transparent}
+        styles={styles}
+        fieldGuide={fieldGuide}
+      />
     );
   }
   if (left === 'close') {
     return (
-      <IconButton name="close" onPress={onLeftPress} transparent={transparent} />
+      <IconButton
+        name="close"
+        onPress={onLeftPress}
+        transparent={transparent}
+        styles={styles}
+        fieldGuide={fieldGuide}
+      />
     );
   }
   return <View style={styles.slot}>{left}</View>;
 }
 
-function renderRight(right) {
+function renderRight(right, styles) {
   if (right == null) return <View style={styles.slot} />;
   const arr = Array.isArray(right) ? right : [right];
   return (
@@ -78,6 +89,8 @@ export default function TopBar({
   onLeftPress,
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
 
   return (
@@ -92,7 +105,7 @@ export default function TopBar({
       ]}
     >
       <View style={styles.row}>
-        {renderLeft(left, onLeftPress, transparent)}
+        {renderLeft(left, onLeftPress, transparent, styles, fieldGuide)}
         {title ? (
           <Text style={styles.title} numberOfLines={1}>
             {title}
@@ -100,7 +113,7 @@ export default function TopBar({
         ) : (
           <View style={styles.titleSpacer} />
         )}
-        {renderRight(right)}
+        {renderRight(right, styles)}
       </View>
     </View>
   );
@@ -110,7 +123,8 @@ export default function TopBar({
 // re-implementing the border + hit area.
 TopBar.IconButton = IconButton;
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   bar: {
     width: '100%',
   },
@@ -128,7 +142,7 @@ const styles = StyleSheet.create({
     fontFamily: fieldGuide.fonts.serifMedium,
     fontSize: 22,
     letterSpacing: -0.01 * 22,
-    color: fieldGuide.cream,
+    color: fieldGuide.text,
     includeFontPadding: false,
   },
   titleSpacer: {
@@ -156,3 +170,4 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 });
+}

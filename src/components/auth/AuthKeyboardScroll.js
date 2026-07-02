@@ -27,7 +27,8 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
-import fieldGuide from '../../theme/fieldGuide';
+import { useThemedStyles } from '../../hooks/useThemedStyles';
+import { useTheme } from '../../context/ThemeContext';
 
 const SCROLL_MARGIN = 120;
 const KEYBOARD_SCROLL_DELAY_MS = Platform.OS === 'android' ? 150 : 100;
@@ -48,6 +49,7 @@ export default function AuthKeyboardScroll({
   contentContainerStyle,
   style,
 }) {
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const scrollRef = useRef(null);
   const contentRef = useRef(null);
@@ -122,7 +124,8 @@ export default function AuthKeyboardScroll({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -135,3 +138,4 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
 });
+}

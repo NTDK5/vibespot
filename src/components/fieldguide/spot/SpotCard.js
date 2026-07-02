@@ -24,7 +24,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import SpotPhoto from './SpotPhoto';
 import MonoMeta from '../primitives/MonoMeta';
 
@@ -66,6 +67,7 @@ export default function SpotCard({
   onToggleSave,
   style,
 }) {
+  const styles = useThemedStyles(createStyles);
   const v = VARIANT[variant] || VARIANT.pick;
   const {
     title,
@@ -151,7 +153,8 @@ export default function SpotCard({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   card: {
     flexDirection: 'column',
   },
@@ -186,3 +189,4 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 });
+}

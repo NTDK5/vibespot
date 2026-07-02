@@ -34,7 +34,8 @@ import Animated, {
   cancelAnimation,
 } from 'react-native-reanimated';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
 const VIEWBOX = 200;
 
@@ -46,6 +47,8 @@ export default function CompassDial({
   accent,
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const ringColor = color || fieldGuide.cream;
   const needleColor = accent || fieldGuide.ember;
 
@@ -187,4 +190,6 @@ export default function CompassDial({
 }
 
 // styles intentionally empty — sizes flow from the size prop.
-const styles = StyleSheet.create({});
+function createStyles(fieldGuide) {
+  return StyleSheet.create({});
+}

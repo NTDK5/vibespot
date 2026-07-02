@@ -17,7 +17,8 @@
 
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import MonoMeta from '../primitives/MonoMeta';
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
@@ -38,6 +39,8 @@ export default function HourBarChart({
   trackHeight = 4,
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={[styles.grid, style]}>
       {DAYS.map((d) => {
@@ -101,7 +104,8 @@ export default function HourBarChart({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   grid: {
     flexDirection: 'column',
   },
@@ -134,3 +138,4 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 });
+}

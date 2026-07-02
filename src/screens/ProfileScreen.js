@@ -27,7 +27,8 @@ import EmptyState from '../components/fieldguide/state/EmptyState';
 import AchievementSeal from '../components/fieldguide/profile/AchievementSeal';
 import ReviewRow from '../components/fieldguide/spot/ReviewRow';
 import { XPBadgeCelebration } from '../components/ui/XPBadgeCelebration';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../hooks/useAuth';
 import { useUserProgression } from '../hooks/useUserProgression';
 import { useBadgeProgress } from '../hooks/useBadgeProgress';
@@ -79,6 +80,7 @@ function toNumber(value, fallback = 0) {
 }
 
 function StatCell({ number, label, trend }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.statCell}>
       <Text style={styles.statNumber}>{String(number ?? '—')}</Text>
@@ -89,6 +91,7 @@ function StatCell({ number, label, trend }) {
 }
 
 function ProfileInlineEmpty({ title }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.inlineEmpty}>
       <Text style={styles.inlineEmptyTitle}>{title}</Text>
@@ -97,6 +100,9 @@ function ProfileInlineEmpty({ title }) {
 }
 
 function ActivityRow({ icon, iconBg, title, meta, preview, onPress }) {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -128,6 +134,9 @@ function ActivityRow({ icon, iconBg, title, meta, preview, onPress }) {
 }
 
 function SavedSpotRow({ spot, onPress }) {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -151,6 +160,9 @@ function SavedSpotRow({ spot, onPress }) {
 }
 
 export const ProfileScreen = ({ navigation }) => {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const {
     user,
     isSuperAdmin,
@@ -840,7 +852,8 @@ export const ProfileScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -1152,3 +1165,4 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
 });
+}

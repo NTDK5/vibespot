@@ -13,26 +13,34 @@ jest.mock('../../src/hooks/useAuth', () => ({
   }),
 }));
 
-jest.mock('../../src/context/ThemeContext', () => ({
-  useTheme: () => ({
-    theme: {
-      primary: '#000',
-      text: '#000',
-      surface: '#fff',
-    },
+jest.mock('../../src/context/ThemeContext', () => {
+  const { buildFieldGuide, buildLegacyTheme } = require('../../src/theme/fieldGuideThemes');
+  const fieldGuide = buildFieldGuide(true);
+  return {
+    useTheme: () => ({
+      theme: buildLegacyTheme(fieldGuide, true),
+      fieldGuide,
+      isDark: true,
+      preference: 'dark',
+      setPreference: jest.fn(),
+    }),
+  };
+});
+
+jest.mock('../../src/hooks/useGoogleAuth', () => ({
+  useGoogleAuth: () => ({
+    busyGoogle: false,
+    signInWithGoogle: mockPromptAsync,
   }),
-}));
-
-jest.mock('expo-auth-session/providers/google', () => ({
-  useIdTokenAuthRequest: () => [{}, null, mockPromptAsync],
-}));
-
-jest.mock('expo-auth-session', () => ({
-  makeRedirectUri: () => 'fena://redirect',
 }));
 
 jest.mock('expo-linear-gradient', () => ({
   LinearGradient: ({ children }) => <>{children}</>,
+}));
+
+jest.mock('react-native-safe-area-context', () => ({
+  SafeAreaView: ({ children }) => <>{children}</>,
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
 describe('LoginScreen', () => {

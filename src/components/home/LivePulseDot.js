@@ -1,9 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 
-import fieldGuide from '../../theme/fieldGuide';
+import { useThemedStyles } from '../../hooks/useThemedStyles';
+import { useTheme } from '../../context/ThemeContext';
 
-export function LivePulseDot({ color = fieldGuide.moss, size = 7, style }) {
+export function LivePulseDot({ color, size = 7, style }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const dotColor = color ?? fieldGuide.moss;
   const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -38,7 +42,7 @@ export function LivePulseDot({ color = fieldGuide.moss, size = 7, style }) {
           width: size,
           height: size,
           borderRadius: size / 2,
-          backgroundColor: color,
+          backgroundColor: dotColor,
           transform: [{ scale }],
         },
         style,
@@ -47,7 +51,8 @@ export function LivePulseDot({ color = fieldGuide.moss, size = 7, style }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   dot: {
     shadowColor: fieldGuide.moss,
     shadowOffset: { width: 0, height: 0 },
@@ -56,3 +61,4 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 });
+}

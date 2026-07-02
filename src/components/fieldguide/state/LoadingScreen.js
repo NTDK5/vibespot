@@ -14,15 +14,17 @@
 
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import CompassDial from '../signature/CompassDial';
 import MonoMeta from '../primitives/MonoMeta';
 
 function Skeleton() {
+  const styles = useThemedStyles(createStyles);
   return (
-    <View style={skel.row} pointerEvents="none">
+    <View style={styles.skelRow} pointerEvents="none">
       {[0, 1, 2].map((i) => (
-        <View key={i} style={skel.card} />
+        <View key={i} style={styles.skelCard} />
       ))}
     </View>
   );
@@ -33,6 +35,7 @@ export default function LoadingScreen({
   skeleton = true,
   style,
 }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={[styles.wrap, style]}>
       {skeleton ? <Skeleton /> : null}
@@ -48,7 +51,8 @@ export default function LoadingScreen({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   wrap: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -72,10 +76,7 @@ const styles = StyleSheet.create({
   tag: {
     marginTop: 8,
   },
-});
-
-const skel = StyleSheet.create({
-  row: {
+  skelRow: {
     position: 'absolute',
     top: 48,
     left: 22,
@@ -84,10 +85,11 @@ const skel = StyleSheet.create({
     gap: 14,
     opacity: 0.35,
   },
-  card: {
+  skelCard: {
     flex: 1,
     aspectRatio: 16 / 10,
     borderRadius: fieldGuide.radius.md,
     backgroundColor: fieldGuide.inkElev,
   },
 });
+}

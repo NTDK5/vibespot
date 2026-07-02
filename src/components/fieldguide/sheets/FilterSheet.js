@@ -44,7 +44,8 @@ import {
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import SheetHandle from '../primitives/SheetHandle';
 import MonoMeta from '../primitives/MonoMeta';
 import DisplayTitle from '../primitives/DisplayTitle';
@@ -85,6 +86,7 @@ export function filtersEqual(a = DEFAULT_FILTERS, b = DEFAULT_FILTERS) {
 /* ─────────────────────────────────────────────────────────────────── */
 
 function FieldRow({ label, children, style }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={[styles.fieldRow, style]}>
       <Text style={styles.fieldLabel}>{label.toUpperCase()}</Text>
@@ -94,6 +96,7 @@ function FieldRow({ label, children, style }) {
 }
 
 function PaperSwitch({ value, onValueChange }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <Pressable
       onPress={() => onValueChange(!value)}
@@ -117,6 +120,7 @@ function PaperSwitch({ value, onValueChange }) {
 }
 
 function PriceTiers({ value, onChange }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.tierRow}>
       {PRICE_TIERS.map((label, i) => {
@@ -146,6 +150,8 @@ function PriceTiers({ value, onChange }) {
 }
 
 function RatingPicker({ value, onChange }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.ratingRow}>
       <View style={styles.ratingDotsRow}>
@@ -183,6 +189,7 @@ function RatingPicker({ value, onChange }) {
 }
 
 function SortRadio({ value, onChange }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.sortCol}>
       {SORT_OPTIONS.map((opt) => {
@@ -223,6 +230,8 @@ export default function FilterSheet({
   onReset,
   resultCount,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
 
@@ -389,7 +398,8 @@ export default function FilterSheet({
 /*  STYLES                                                             */
 /* ─────────────────────────────────────────────────────────────────── */
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(11,12,17,0.55)',
@@ -430,13 +440,13 @@ const styles = StyleSheet.create({
   fieldRow: {
     paddingVertical: 18,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(20,22,29,0.12)',
+    borderBottomColor: fieldGuide.line,
   },
   fieldLabel: {
     fontFamily: fieldGuide.fonts.mono,
     fontSize: 10,
     letterSpacing: fieldGuide.tracking.widest(10),
-    color: 'rgba(20,22,29,0.62)',
+    color: fieldGuide.textMute,
     textTransform: 'uppercase',
     includeFontPadding: false,
     marginBottom: 12,
@@ -453,7 +463,7 @@ const styles = StyleSheet.create({
     backgroundColor: fieldGuide.ember,
   },
   switchOff: {
-    backgroundColor: 'rgba(20,22,29,0.18)',
+    backgroundColor: fieldGuide.line,
   },
   switchKnob: {
     width: 20,
@@ -474,7 +484,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: fieldGuide.radius.full,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(20,22,29,0.18)',
+    borderColor: fieldGuide.line,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
@@ -540,7 +550,7 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 9,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(20,22,29,0.32)',
+    borderColor: fieldGuide.line2,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -568,7 +578,7 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 28,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(20,22,29,0.12)',
+    borderTopColor: fieldGuide.line,
     backgroundColor: fieldGuide.paper,
   },
   footerInner: {
@@ -581,3 +591,4 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
 });
+}

@@ -16,7 +16,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import { MonoMeta, SearchBar, SheetHandle } from '../index';
 import { getSavedSpots } from '../../../services/savedSpots.service';
 import { searchSpots } from '../../../services/spots.service';
@@ -44,6 +45,8 @@ export default function SpotPickerSheet({
   onClose,
   onChangeSelected,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [spots, setSpots] = useState([]);
@@ -182,7 +185,8 @@ export default function SpotPickerSheet({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   sheet: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -281,3 +285,4 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 });
+}

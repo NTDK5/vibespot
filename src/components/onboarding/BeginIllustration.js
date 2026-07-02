@@ -11,18 +11,23 @@ import Svg, {
   Stop,
 } from 'react-native-svg';
 
-import fieldGuide from '../../theme/fieldGuide';
+import { useThemedStyles } from '../../hooks/useThemedStyles';
+import { useTheme } from '../../context/ThemeContext';
 import FenaLogoMark from '../brand/FenaLogoMark';
 import { OnboardingHero, SignalChip } from './OnboardingPrimitives';
 
-function OrbitPin({ style, color = fieldGuide.ember }) {
+function OrbitPin({ style, color }) {
+  const { fieldGuide } = useTheme();
+
+  const pinColor = color ?? fieldGuide.ember;
+  const styles = useThemedStyles(createStyles);
   return (
     <View
       style={[
         styles.orbitPin,
         {
-          backgroundColor: color,
-          shadowColor: color,
+          backgroundColor: pinColor,
+          shadowColor: pinColor,
         },
         style,
       ]}
@@ -31,7 +36,12 @@ function OrbitPin({ style, color = fieldGuide.ember }) {
 }
 
 export default function BeginIllustration({ chip }) {
+  const { fieldGuide, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const glowId = useId().replace(/:/g, '');
+  const skyBase = isDark ? fieldGuide.canvasDeep : fieldGuide.paperSoft;
+  const starFill = isDark ? 'rgba(244,239,230,0.2)' : 'rgba(20,22,29,0.15)';
+  const orbitStroke = isDark ? 'rgba(244,239,230,0.08)' : 'rgba(20,22,29,0.08)';
 
   return (
     <OnboardingHero chip={<SignalChip bold={chip.bold} text={chip.text} dotVariant={chip.dot} />}>
@@ -39,12 +49,12 @@ export default function BeginIllustration({ chip }) {
         <Defs>
           <RadialGradient id={glowId} cx="50%" cy="45%" r="50%">
             <Stop offset="0%" stopColor="#E8743A" stopOpacity={0.15} />
-            <Stop offset="100%" stopColor="#0B0C11" stopOpacity={0} />
+            <Stop offset="100%" stopColor={skyBase} stopOpacity={0} />
           </RadialGradient>
         </Defs>
-        <Rect width="354" height="420" fill="#0B0C11" />
+        <Rect width="354" height="420" fill={skyBase} />
         <Rect width="354" height="420" fill={`url(#${glowId})`} />
-        <G fill="rgba(244,239,230,0.2)">
+        <G fill={starFill}>
           <Circle cx="60" cy="80" r="1" />
           <Circle cx="290" cy="70" r="0.9" />
           <Circle cx="120" cy="55" r="0.8" />
@@ -58,7 +68,7 @@ export default function BeginIllustration({ chip }) {
               cx="100"
               cy="100"
               r="78"
-              stroke="rgba(244,239,230,0.08)"
+              stroke={orbitStroke}
               strokeWidth={1}
               strokeDasharray="4 6"
             />
@@ -93,7 +103,8 @@ export default function BeginIllustration({ chip }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   converge: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 2,
@@ -148,3 +159,4 @@ const styles = StyleSheet.create({
     transform: [{ translateY: -5 }],
   },
 });
+}

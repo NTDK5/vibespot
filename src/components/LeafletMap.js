@@ -3,7 +3,7 @@ import { View, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Asset } from 'expo-asset';
 import { useTheme } from '../context/ThemeContext';
-import { fieldGuideTileStyle } from '../utils/mapStyle';
+import { fieldGuideTileStyle, getFieldGuideTileStyle } from '../utils/mapStyle';
 
 /**
  * Advanced Leaflet Map Component
@@ -42,7 +42,11 @@ export const LeafletMap = ({
   const webViewRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
   const [markerImageBase64, setMarkerImageBase64] = useState(null);
-  const { isDark } = useTheme(); // Use 'isDark' property from useTheme
+  const { isDark, fieldGuide } = useTheme();
+  const resolvedTileStyle = useMemo(
+    () => (tileStyle === fieldGuideTileStyle ? getFieldGuideTileStyle(isDark) : tileStyle),
+    [tileStyle, isDark],
+  );
 
   // ── Stable-mount snapshots ─────────────────────────────────────────
   // The HTML we hand to WebView is interpolated from props. If those
@@ -57,7 +61,7 @@ export const LeafletMap = ({
   const initialInteractiveRef     = useRef(interactive);
   const initialShowUserLocRef     = useRef(showUserLocation);
   const initialUserLocationRef    = useRef(userLocation);
-  const initialTileStyleRef       = useRef(tileStyle);
+  const initialTileStyleRef       = useRef(resolvedTileStyle);
   const initialMarkersRef         = useRef(markers);
   const initialPinTemplateRef     = useRef(pinTemplate);
   // markerImageBase64 starts null and resolves asynchronously; the
@@ -835,9 +839,9 @@ export const LeafletMap = ({
   `, []);
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }, { height }, style]}>
+    <View style={[styles.container, { backgroundColor: fieldGuide.ink }, { height }, style]}>
       {!mapReady && (
-        <View style={[styles.loadingContainer, { backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }]}>
+        <View style={[styles.loadingContainer, { backgroundColor: fieldGuide.ink }]}>
           <ActivityIndicator size="large" color="#667eea" />
         </View>
       )}

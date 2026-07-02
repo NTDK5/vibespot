@@ -20,7 +20,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import { LivePulseDot } from '../../home/LivePulseDot';
 import DisplayTitle from '../primitives/DisplayTitle';
 import MonoMeta from '../primitives/MonoMeta';
@@ -36,6 +37,7 @@ const THUMB = 64;
 const NODE = 26;
 
 function ChallengeStopThumb({ vibe, imageUri }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.thumb}>
       {imageUri ? (
@@ -48,6 +50,9 @@ function ChallengeStopThumb({ vibe, imageUri }) {
 }
 
 function ChallengeNode({ stop }) {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const state = getChallengeNodeState(stop);
   const pulse = useRef(new Animated.Value(0)).current;
 
@@ -99,6 +104,7 @@ function ChallengeNode({ stop }) {
 }
 
 function ChallengeStopRow({ stop, onPress }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.stopRow}>
       <View style={styles.nodeCol}>
@@ -156,6 +162,7 @@ function SkeletonBlock({ pulse, style }) {
 }
 
 export function EditorsPickChallengeSkeleton({ style }) {
+  const styles = useThemedStyles(createStyles);
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -199,6 +206,8 @@ export default function EditorsPickChallengeCard({
   onStartRoute,
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const stops = useMemo(
     () => buildChallengeStops(challenge?.picks, challenge?.progress?.visitedSpotIds),
     [challenge?.picks, challenge?.progress?.visitedSpotIds],
@@ -309,7 +318,8 @@ export default function EditorsPickChallengeCard({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   card: {
     marginHorizontal: 22,
     marginBottom: 8,
@@ -503,3 +513,4 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
 });
+}

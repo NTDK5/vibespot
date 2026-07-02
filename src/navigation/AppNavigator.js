@@ -1,5 +1,5 @@
-import React from 'react';
-import { NavigationContainer, DarkTheme } from '@react-navigation/native';
+import React, { useMemo } from 'react';
+import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
@@ -31,7 +31,7 @@ import { ReviewsScreen } from '../screens/ReviewsScreen';
 import { WriteReviewScreen } from '../screens/WriteReviewScreen';
 import { PhotoViewerScreen } from '../screens/PhotoViewerScreen';
 
-import fieldGuide from '../theme/fieldGuide';
+import { useTheme } from '../context/ThemeContext';
 import FieldGuideTabBar from './FieldGuideTabBar';
 import AuthNavigationSync from './AuthNavigationSync';
 import { navigationRef } from './navigationRef';
@@ -50,19 +50,20 @@ import FieldGuidePreviewScreen from '../components/fieldguide/preview/FieldGuide
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Field Guide navigation theme — ink canvas, cream text, ember primary.
-// Eliminates the white flash that DefaultTheme paints between transitions.
-const navigationTheme = {
-  ...DarkTheme,
-  colors: {
-    ...DarkTheme.colors,
-    background: fieldGuide.ink,
-    card: fieldGuide.ink,
-    text: fieldGuide.cream,
-    border: fieldGuide.inkLine,
-    primary: fieldGuide.ember,
-  },
-};
+function buildNavigationTheme(fieldGuide, isDark) {
+  const base = isDark ? DarkTheme : DefaultTheme;
+  return {
+    ...base,
+    colors: {
+      ...base.colors,
+      background: fieldGuide.ink,
+      card: fieldGuide.ink,
+      text: fieldGuide.cream,
+      border: fieldGuide.inkLine,
+      primary: fieldGuide.ember,
+    },
+  };
+}
 
 /**
  * Main Tab Navigator (for authenticated users)
@@ -111,8 +112,15 @@ const MainTabs = () => {
  * Splash is always the cold-start route; session routing happens there.
  */
 export const AppNavigator = () => {
+  const { fieldGuide, isDark, preference } = useTheme();
+  const navigationTheme = useMemo(
+    () => buildNavigationTheme(fieldGuide, isDark),
+    [fieldGuide, isDark],
+  );
+
   return (
     <NavigationContainer
+      key={`nav-${preference}-${isDark ? 'dark' : 'light'}`}
       ref={navigationRef}
       theme={navigationTheme}
       linking={linkingConfig}
@@ -126,7 +134,10 @@ export const AppNavigator = () => {
       <ShareDeepLinkHandler />
       <AuthNavigationSync />
       <Stack.Navigator
-        screenOptions={{ headerShown: false }}
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: fieldGuide.ink },
+        }}
         initialRouteName="Splash"
       >
         <Stack.Screen name="Splash" component={SplashScreen} />

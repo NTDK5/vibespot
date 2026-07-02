@@ -20,7 +20,8 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import DisplayTitle from '../primitives/DisplayTitle';
 import MonoMeta from '../primitives/MonoMeta';
 import EditorialButton from '../form/EditorialButton';
@@ -35,6 +36,8 @@ export default function ErrorScreen({
   onContact,
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={[styles.wrap, style]}>
       <View style={styles.stampWrap}>
@@ -83,7 +86,8 @@ export default function ErrorScreen({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   wrap: {
     flex: 1,
     paddingHorizontal: 28,
@@ -120,3 +124,4 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
 });
+}

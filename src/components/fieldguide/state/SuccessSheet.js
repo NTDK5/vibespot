@@ -31,7 +31,8 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import DisplayTitle from '../primitives/DisplayTitle';
 import EditorialButton from '../form/EditorialButton';
 import PostmarkStamp from '../signature/PostmarkStamp';
@@ -46,6 +47,8 @@ export default function SuccessSheet({
   perimeterText = 'SAVED · STAMP NO. 042 · ',
   ctaLabel = 'Continue',
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const translate = useSharedValue(visible ? 0 : 400);
   const backdrop = useSharedValue(visible ? 1 : 0);
 
@@ -132,7 +135,8 @@ export default function SuccessSheet({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   sheet: {
     position: 'absolute',
     left: 0,
@@ -168,7 +172,7 @@ const styles = StyleSheet.create({
     fontFamily: fieldGuide.fonts.sans,
     fontSize: 14,
     lineHeight: 22,
-    color: 'rgba(20,22,29,0.62)',
+    color: fieldGuide.textMute,
     textAlign: 'center',
     maxWidth: 320,
   },
@@ -178,3 +182,4 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
 });
+}

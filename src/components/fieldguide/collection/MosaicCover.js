@@ -34,10 +34,13 @@
 import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import DuotoneVibe from '../spot/DuotoneVibe';
 
-function Tile({ vibe, image, children, style }) {
+function Tile({ vibe, image, children, style, styles }) {
+
+  const { fieldGuide } = useTheme();
   return (
     <View style={[styles.tile, style]}>
       {image ? (
@@ -61,6 +64,8 @@ export default function MosaicCover({
   radius = 0,
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const sourceCount = Math.max(vibes.length, images.length);
   const filledVibes = [...vibes];
   const filledImages = [...images];
@@ -86,27 +91,27 @@ export default function MosaicCover({
       ]}
     >
       {sourceCount <= 1 ? (
-        <Tile vibe={v0} image={i0} />
+        <Tile vibe={v0} image={i0} styles={styles} />
       ) : sourceCount === 2 ? (
         <>
           <View style={{ flex: 1 }}>
-            <Tile vibe={v0} image={i0} />
+            <Tile vibe={v0} image={i0} styles={styles} />
           </View>
           <View style={{ flex: 1 }}>
-            <Tile vibe={v1} image={i1} />
+            <Tile vibe={v1} image={i1} styles={styles} />
           </View>
         </>
       ) : sourceCount === 3 ? (
         <>
           <View style={{ flex: 2 }}>
-            <Tile vibe={v0} image={i0} />
+            <Tile vibe={v0} image={i0} styles={styles} />
           </View>
           <View style={{ flex: 1, gap }}>
             <View style={{ flex: 1 }}>
-              <Tile vibe={v1} image={i1} />
+              <Tile vibe={v1} image={i1} styles={styles} />
             </View>
             <View style={{ flex: 1 }}>
-              <Tile vibe={v2} image={i2} />
+              <Tile vibe={v2} image={i2} styles={styles} />
             </View>
           </View>
         </>
@@ -114,24 +119,24 @@ export default function MosaicCover({
         <>
           {/* Left "span 2" tile */}
           <View style={{ flex: 2 }}>
-            <Tile vibe={v0} image={i0} />
+            <Tile vibe={v0} image={i0} styles={styles} />
           </View>
 
           {/* Right 2×2 grid */}
           <View style={{ flex: 2, gap }}>
             <View style={[styles.rightRow, { gap }]}>
-              <View style={{ flex: 1 }}><Tile vibe={v1} image={i1} /></View>
-              <View style={{ flex: 1 }}><Tile vibe={v2} image={i2} /></View>
+              <View style={{ flex: 1 }}><Tile vibe={v1} image={i1} styles={styles} /></View>
+              <View style={{ flex: 1 }}><Tile vibe={v2} image={i2} styles={styles} /></View>
             </View>
             <View style={[styles.rightRow, { gap }]}>
-              <View style={{ flex: 1 }}><Tile vibe={v3} image={i3} /></View>
+              <View style={{ flex: 1 }}><Tile vibe={v3} image={i3} styles={styles} /></View>
               <View style={{ flex: 1 }}>
                 {hasOverlay ? (
                   <View style={[styles.tile, styles.overlay]}>
                     <Text style={styles.overlayText}>{`+${extraCount}`}</Text>
                   </View>
                 ) : (
-                  <Tile vibe={v4} image={i4} />
+                  <Tile vibe={v4} image={i4} styles={styles} />
                 )}
               </View>
             </View>
@@ -142,7 +147,8 @@ export default function MosaicCover({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   rightRow: {
     flex: 1,
     flexDirection: 'row',
@@ -169,3 +175,4 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 });
+}

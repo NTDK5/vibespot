@@ -55,7 +55,7 @@ export const ToastProvider = ({ children }) => {
           ? theme.warning
           : theme.surfaceHighest || theme.surface;
 
-  const textColor = toast?.variant === "info" ? theme.text : "#0B0D12";
+  const textColor = toast?.variant === 'info' ? theme.text : '#fff';
 
   return (
     <ToastContext.Provider value={ctx}>

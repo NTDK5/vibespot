@@ -25,24 +25,29 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import MonoMeta from '../primitives/MonoMeta';
 import Pill from '../chrome/Pill';
 import RatingDots from './RatingDots';
 import { getDisplayableReviewPhotos } from '../../../utils/reviewPhotos';
 
-const AVATAR_PALETTE = [
-  { bg: fieldGuide.emberSoft, color: fieldGuide.ink },
-  { bg: fieldGuide.moss,      color: fieldGuide.ink },
-  { bg: fieldGuide.gold,      color: fieldGuide.ink },
-  { bg: fieldGuide.rose,      color: '#FFFFFF' },
-];
+function avatarPalette(fieldGuide) {
 
-function avatarColors(seed) {
+  return [
+    { bg: fieldGuide.emberSoft, color: fieldGuide.inkText },
+    { bg: fieldGuide.moss, color: fieldGuide.inkText },
+    { bg: fieldGuide.gold, color: fieldGuide.inkText },
+    { bg: fieldGuide.rose, color: '#FFFFFF' },
+  ];
+}
+
+function avatarColors(seed, fieldGuide) {
   const s = String(seed || '');
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
+  const palette = avatarPalette(fieldGuide);
+  return palette[h % palette.length];
 }
 
 function initial(name) {
@@ -92,6 +97,8 @@ export default function FullReviewCard({
   onPressPhoto,
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   // TODO(backend): rating may be missing in the current payload. We
   // present 5 ember dots as a hopeful default; once the backend wires
   // a numeric rating in, FullReviewCard will pick it up automatically.
@@ -100,7 +107,7 @@ export default function FullReviewCard({
   const photos = getDisplayableReviewPhotos(review);
   const tags = Array.isArray(review?.tags) ? review.tags.filter(Boolean) : [];
   const name = review?.user?.displayName || review?.user?.name || 'Explorer';
-  const palette = avatarColors(review?.user?.id || name);
+  const palette = avatarColors(review?.user?.id || name, fieldGuide);
   const text = review?.text || review?.content || '';
   const when = timeAgo(review?.createdAt || review?.timestamp);
   const meta = metaLine(review?.user, photos.length);
@@ -234,7 +241,9 @@ export default function FullReviewCard({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+
+  return StyleSheet.create({
   card: {
     paddingVertical: 20,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -318,3 +327,4 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 });
+}

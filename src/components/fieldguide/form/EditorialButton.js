@@ -29,30 +29,34 @@ import {
   View,
 } from 'react-native';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
-const VARIANTS = {
-  primary: {
-    bg: fieldGuide.ember,
-    color: '#FFF8F1',
-    border: 'transparent',
-  },
-  cream: {
-    bg: fieldGuide.cream,
-    color: fieldGuide.inkText,
-    border: 'transparent',
-  },
-  ghost: {
-    bg: 'transparent',
-    color: fieldGuide.cream,
-    border: fieldGuide.inkLine2,
-  },
-  danger: {
-    bg: fieldGuide.rose,
-    color: fieldGuide.cream,
-    border: 'transparent',
-  },
-};
+function getVariants(fieldGuide) {
+
+  return {
+    primary: {
+      bg: fieldGuide.ember,
+      color: fieldGuide.onEmber,
+      border: 'transparent',
+    },
+    cream: {
+      bg: fieldGuide.creamFill,
+      color: fieldGuide.onCreamFill,
+      border: 'transparent',
+    },
+    ghost: {
+      bg: 'transparent',
+      color: fieldGuide.text,
+      border: fieldGuide.inkLine2,
+    },
+    danger: {
+      bg: fieldGuide.rose,
+      color: fieldGuide.onEmber,
+      border: 'transparent',
+    },
+  };
+}
 
 const SIZES = {
   md: { py: 15, px: 22, fs: 14 },
@@ -72,7 +76,10 @@ export default function EditorialButton({
   accessibilityLabel,
   style,
 }) {
-  const v = VARIANTS[variant] || VARIANTS.primary;
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const variants = getVariants(fieldGuide);
+  const v = variants[variant] || variants.primary;
   const s = SIZES[size] || SIZES.md;
   const isInert = disabled || loading;
 
@@ -123,7 +130,8 @@ export default function EditorialButton({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   base: {
     borderRadius: fieldGuide.radius.full,
     alignItems: 'center',
@@ -147,3 +155,4 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 });
+}

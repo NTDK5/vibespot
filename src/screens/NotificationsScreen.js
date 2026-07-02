@@ -17,7 +17,8 @@ import Segmented from '../components/fieldguide/chrome/Segmented';
 import EmptyState from '../components/fieldguide/state/EmptyState';
 import DuotoneVibe from '../components/fieldguide/spot/DuotoneVibe';
 import MonoMeta from '../components/fieldguide/primitives/MonoMeta';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -69,6 +70,7 @@ function iconForType(type) {
 }
 
 function NotifBody({ item }) {
+  const styles = useThemedStyles(createStyles);
   const parts = String(item.body || '').split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
   return (
     <Text style={styles.notifText}>
@@ -94,6 +96,9 @@ function NotifBody({ item }) {
 }
 
 function NotifRow({ item, onPress }) {
+  const { fieldGuide } = useTheme();
+
+  const styles = useThemedStyles(createStyles);
   const iconStyle =
     item.type === 'champion'
       ? styles.icChampion
@@ -136,6 +141,7 @@ function NotifRow({ item, onPress }) {
 }
 
 export const NotificationsScreen = ({ navigation }) => {
+  const styles = useThemedStyles(createStyles);
   const toast = useToast();
   const { user } = useAuth();
   const [filter, setFilter] = useState(0);
@@ -268,7 +274,8 @@ export const NotificationsScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -399,3 +406,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
+}

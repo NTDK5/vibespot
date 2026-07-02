@@ -26,7 +26,8 @@ import React, { useMemo } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import MonoMeta from '../primitives/MonoMeta';
 import MosaicCover from './MosaicCover';
 import { vibeForCategory } from '../../../utils/spotHelpers';
@@ -123,6 +124,8 @@ export default function CollectionCard({
   canShowMenu = true,
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const spotCount = deriveSpotCount(collection);
   const cities = useMemo(() => deriveCities(collection), [collection]);
   const vibes = useMemo(() => deriveVibes(collection), [collection]);
@@ -267,7 +270,8 @@ export default function CollectionCard({
 
 const META_FS = 9.5;
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   card: {
     backgroundColor: fieldGuide.inkElev,
     borderRadius: fieldGuide.radius.lg,
@@ -390,3 +394,4 @@ const styles = StyleSheet.create({
     color: fieldGuide.ember,
   },
 });
+}

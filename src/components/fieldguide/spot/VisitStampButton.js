@@ -15,7 +15,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, G } from 'react-native-svg';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
 const HOLD_MS = 800;
 const RING_R = 17;
@@ -30,6 +31,8 @@ export default function VisitStampButton({
   style,
   onDisabledPress,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const isCta = variant === 'cta';
   const progress = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
@@ -37,7 +40,7 @@ export default function VisitStampButton({
   const completingRef = useRef(false);
   const [holding, setHolding] = useState(false);
 
-  const iconColor = isCta ? fieldGuide.ink : fieldGuide.cream;
+  const iconColor = isCta ? fieldGuide.onCreamFill : fieldGuide.text;
   const ringTrackColor = isCta ? fieldGuide.inkLine2 : fieldGuide.inkLine2;
 
   const resetProgress = useCallback(() => {
@@ -173,7 +176,8 @@ export default function VisitStampButton({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   action: {
     flex: 1,
     paddingVertical: 12,
@@ -188,7 +192,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: fieldGuide.cream,
+    backgroundColor: fieldGuide.creamFill,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -207,7 +211,8 @@ const styles = StyleSheet.create({
     fontFamily: fieldGuide.fonts.mono,
     fontSize: 9,
     letterSpacing: fieldGuide.tracking.widest(9),
-    color: fieldGuide.cream,
+    color: fieldGuide.text,
     includeFontPadding: false,
   },
 });
+}

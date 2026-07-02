@@ -53,7 +53,8 @@ import {
   Rule,
   ShareDispatchSheet,
 } from '../components/fieldguide';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../hooks/useAuth';
 import { logger } from '../utils/logger';
@@ -164,6 +165,9 @@ function ItemRow({
   onMoveUp,
   onMoveDown,
 }) {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const vibe = vibeForCategory(item?.category);
   const district = item?.district || item?.city;
   const noLabel = zeroPad(indexForSpot(item) ?? index + 1, 2);
@@ -272,6 +276,9 @@ function ItemRow({
 /* ─────────────────────────────────────────────────────────────────── */
 
 export const CollectionDetailScreen = ({ navigation, route }) => {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const id = route?.params?.id ?? route?.params?.collectionId;
   const insets = useSafeAreaInsets();
   const toast = useToast();
@@ -717,7 +724,8 @@ export const CollectionDetailScreen = ({ navigation, route }) => {
 
 export default CollectionDetailScreen;
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -934,3 +942,4 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 });
+}

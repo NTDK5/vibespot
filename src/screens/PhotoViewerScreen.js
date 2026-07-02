@@ -52,7 +52,8 @@ import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ToastProvider';
 import { logger } from '../utils/logger';
 import { getSpotById } from '../services/spots.service';
@@ -79,6 +80,9 @@ function formatMonthYear(input) {
 }
 
 export const PhotoViewerScreen = ({ navigation, route }) => {
+  const { fieldGuide } = useTheme();
+
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const toast = useToast();
 
@@ -464,6 +468,7 @@ export default PhotoViewerScreen;
 /* ─────────────────────────────────────────────────────────────────── */
 
 function GlassButton({ children, onPress, accessibilityLabel }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -484,7 +489,8 @@ function GlassButton({ children, onPress, accessibilityLabel }) {
 /*  STYLES                                                              */
 /* ─────────────────────────────────────────────────────────────────── */
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: fieldGuide.inkDeep,
@@ -680,3 +686,4 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.85)',
   },
 });
+}

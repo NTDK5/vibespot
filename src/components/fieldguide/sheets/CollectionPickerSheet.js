@@ -31,7 +31,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import SheetHandle from '../primitives/SheetHandle';
 import MonoMeta from '../primitives/MonoMeta';
 import {
@@ -57,6 +58,8 @@ export default function CollectionPickerSheet({
   onClose,
   onCreateNew,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
 
@@ -245,6 +248,9 @@ export default function CollectionPickerSheet({
 }
 
 function CreateRow({ onPress }) {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -271,6 +277,9 @@ function CreateRow({ onPress }) {
 }
 
 function Row({ collection, busy, onPress }) {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const isIn = !!collection?.hasSpot;
   return (
     <Pressable
@@ -312,7 +321,8 @@ function Row({ collection, busy, onPress }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   fill: { flex: 1 },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -427,3 +437,4 @@ const styles = StyleSheet.create({
     color: fieldGuide.creamMute,
   },
 });
+}

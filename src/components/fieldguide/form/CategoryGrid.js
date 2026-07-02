@@ -6,7 +6,8 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import MonoMeta from '../primitives/MonoMeta';
 
 export default function CategoryGrid({
@@ -16,6 +17,8 @@ export default function CategoryGrid({
   counts = {},
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={[styles.grid, style]}>
       {categories.map((cat) => {
@@ -39,11 +42,11 @@ export default function CategoryGrid({
             <Ionicons
               name={cat.icon || 'ellipse-outline'}
               size={22}
-              color={on ? '#FFF8F1' : fieldGuide.cream}
+              color={on ? fieldGuide.onEmber : fieldGuide.text}
             />
             <MonoMeta
               size="spot"
-              color={on ? 'rgba(255,248,241,0.95)' : fieldGuide.cream}
+              color={on ? 'rgba(255,248,241,0.95)' : fieldGuide.text}
               style={styles.name}
             >
               {cat.label.toUpperCase()}
@@ -58,7 +61,8 @@ export default function CategoryGrid({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -93,3 +97,4 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.7)',
   },
 });
+}

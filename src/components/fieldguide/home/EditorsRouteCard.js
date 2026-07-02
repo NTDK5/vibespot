@@ -20,7 +20,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import { LivePulseDot } from '../../home/LivePulseDot';
 import DisplayTitle from '../primitives/DisplayTitle';
 import MonoMeta from '../primitives/MonoMeta';
@@ -37,6 +38,7 @@ const SPINE_DASH = 5;
 const SPINE_GAP = 4;
 
 function DashedSpine({ segments = 6 }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.spine}>
       {Array.from({ length: segments }).map((_, i) => (
@@ -47,6 +49,7 @@ function DashedSpine({ segments = 6 }) {
 }
 
 function RouteStopThumb({ vibe, imageUri }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.thumb}>
       {imageUri ? (
@@ -59,6 +62,9 @@ function RouteStopThumb({ vibe, imageUri }) {
 }
 
 function WalkLegRow({ leg }) {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   if (!leg?.label) return null;
   return (
     <View style={styles.legRow} accessibilityElementsHidden importantForAccessibility="no">
@@ -72,6 +78,7 @@ function WalkLegRow({ leg }) {
 }
 
 function RouteStopRow({ stop, isLast, onPress }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.stopRow}>
       <View style={styles.nodeCol}>
@@ -133,6 +140,7 @@ function SkeletonBlock({ pulse, style }) {
 }
 
 export function EditorsRouteSkeleton({ style }) {
+  const styles = useThemedStyles(createStyles);
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -177,6 +185,8 @@ export default function EditorsRouteCard({
   onStartRoute,
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const route = useMemo(
     () => buildEditorsRoute(picks, routeMeta || {}),
     [picks, routeMeta],
@@ -311,7 +321,8 @@ export default function EditorsRouteCard({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   card: {
     marginHorizontal: 22,
     marginBottom: 8,
@@ -552,3 +563,4 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
 });
+}

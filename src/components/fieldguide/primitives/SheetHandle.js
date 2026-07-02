@@ -10,9 +10,12 @@
 
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
 export default function SheetHandle({ color, style }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View
       style={[
@@ -24,7 +27,8 @@ export default function SheetHandle({ color, style }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   handle: {
     width: 36,
     height: 4,
@@ -33,3 +37,4 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
 });
+}

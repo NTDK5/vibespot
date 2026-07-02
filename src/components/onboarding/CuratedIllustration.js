@@ -3,10 +3,12 @@ import { StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Ellipse, Rect } from 'react-native-svg';
 
-import fieldGuide from '../../theme/fieldGuide';
+import { useThemedStyles } from '../../hooks/useThemedStyles';
+import { useTheme } from '../../context/ThemeContext';
 import { OnboardingHero, SignalChip } from './OnboardingPrimitives';
 
 function SpotCard({ name, meta, badge, badgeVariant, style }) {
+  const styles = useThemedStyles(createStyles);
   const badgeStyle =
     badgeVariant === 'gold'
       ? styles.badgeGold
@@ -39,6 +41,7 @@ function SpotCard({ name, meta, badge, badgeVariant, style }) {
 }
 
 export default function CuratedIllustration({ chip }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <OnboardingHero chip={<SignalChip bold={chip.bold} text={chip.text} dotVariant={chip.dot} />}>
       <Svg width="100%" height="100%" viewBox="0 0 354 420" preserveAspectRatio="xMidYMid slice">
@@ -71,7 +74,8 @@ export default function CuratedIllustration({ chip }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   stack: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
@@ -161,3 +165,4 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 });
+}

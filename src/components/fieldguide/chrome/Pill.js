@@ -36,35 +36,39 @@ import {
   View,
 } from 'react-native';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
-const VARIANT_STYLES = {
-  default: {
-    bg: 'transparent',
-    border: fieldGuide.inkLine2,
-    color: fieldGuide.creamSoft,
-  },
-  solid: {
-    bg: fieldGuide.cream,
-    border: fieldGuide.cream,
-    color: fieldGuide.inkText,
-  },
-  ember: {
-    bg: fieldGuide.ember,
-    border: fieldGuide.ember,
-    color: '#FFF8F1',
-  },
-  moss: {
-    bg: fieldGuide.moss,
-    border: fieldGuide.moss,
-    color: fieldGuide.cream,
-  },
-  glass: {
-    bg: 'rgba(20,22,29,0.78)',
-    border: fieldGuide.inkLine,
-    color: fieldGuide.cream,
-  },
-};
+function getVariantStyles(fieldGuide, isDark) {
+
+  return {
+    default: {
+      bg: 'transparent',
+      border: fieldGuide.inkLine2,
+      color: fieldGuide.creamSoft,
+    },
+    solid: {
+      bg: fieldGuide.creamFill,
+      border: fieldGuide.creamFill,
+      color: fieldGuide.onCreamFill,
+    },
+    ember: {
+      bg: fieldGuide.ember,
+      border: fieldGuide.ember,
+      color: fieldGuide.onEmber,
+    },
+    moss: {
+      bg: fieldGuide.moss,
+      border: fieldGuide.moss,
+      color: fieldGuide.onDark,
+    },
+    glass: {
+      bg: isDark ? 'rgba(20,22,29,0.78)' : 'rgba(244,239,230,0.82)',
+      border: fieldGuide.inkLine,
+      color: isDark ? fieldGuide.onDark : fieldGuide.text,
+    },
+  };
+}
 
 export function Pill({
   children,
@@ -74,7 +78,9 @@ export function Pill({
   onPress,
   style,
 }) {
-  const v = VARIANT_STYLES[variant] || VARIANT_STYLES.default;
+  const { fieldGuide, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const v = getVariantStyles(fieldGuide, isDark)[variant] || getVariantStyles(fieldGuide, isDark).default;
   const content = (
     <View
       style={[
@@ -108,6 +114,7 @@ export function Pill({
 }
 
 export function PillRow({ children, gap = 8, paddingHorizontal = 22, style }) {
+  const styles = useThemedStyles(createStyles);
   const items = React.Children.toArray(children).filter(Boolean);
   return (
     <ScrollView
@@ -130,7 +137,8 @@ export function PillRow({ children, gap = 8, paddingHorizontal = 22, style }) {
 
 const PILL_FS = 9.5;
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -160,5 +168,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+}
 
 export default Pill;

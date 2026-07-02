@@ -5,7 +5,8 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import MonoMeta from '../primitives/MonoMeta';
 
 const GLYPHS = {
@@ -29,6 +30,7 @@ function glyphFor(badge) {
 }
 
 export default function AchievementSeal({ badge, style }) {
+  const styles = useThemedStyles(createStyles);
   const unlocked = !!badge?.unlocked;
   const glyph = glyphFor(badge);
 
@@ -47,7 +49,8 @@ export default function AchievementSeal({ badge, style }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   wrap: {
     width: 92,
     alignItems: 'center',
@@ -88,3 +91,4 @@ const styles = StyleSheet.create({
     letterSpacing: fieldGuide.tracking.wider(8.5),
   },
 });
+}

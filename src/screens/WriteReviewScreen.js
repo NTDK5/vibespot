@@ -43,7 +43,8 @@ import {
   MonoMeta,
   Pill,
 } from '../components/fieldguide';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ToastProvider';
 import { logger } from '../utils/logger';
 import {
@@ -95,6 +96,9 @@ function safeArray(maybe) {
 }
 
 export const WriteReviewScreen = ({ navigation, route }) => {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const spotId = route?.params?.spotId ?? route?.params?.id;
   const toast = useToast();
   const insets = useSafeAreaInsets();
@@ -641,7 +645,8 @@ export const WriteReviewScreen = ({ navigation, route }) => {
 
 export default WriteReviewScreen;
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -870,7 +875,7 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: 'rgba(20,22,29,0.75)',
+    backgroundColor: fieldGuide.overlay,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -913,3 +918,4 @@ const styles = StyleSheet.create({
     color: fieldGuide.creamMute,
   },
 });
+}

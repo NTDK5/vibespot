@@ -3,9 +3,11 @@ import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { HomeScreen } from '../../src/screens/HomeScreen';
 
 // Mocks
+const mockLocation = { latitude: 0, longitude: 0 };
+
 jest.mock('../../src/hooks/useLocation', () => ({
     useLocation: () => ({
-        location: { latitude: 0, longitude: 0 },
+        location: mockLocation,
         loading: false,
     }),
 }));
@@ -16,22 +18,38 @@ jest.mock('../../src/hooks/useAuth', () => ({
     }),
 }));
 
-jest.mock('../../src/context/ThemeContext', () => ({
-    useTheme: () => ({
-        theme: {
-            primary: '#000',
-            background: '#fff',
-            surface: '#fff',
-            text: '#000',
-        },
-    }),
-}));
+jest.mock('../../src/context/ThemeContext', () => {
+    const { buildFieldGuide, buildLegacyTheme } = require('../../src/theme/fieldGuideThemes');
+    const fieldGuide = buildFieldGuide(true);
+    return {
+        useTheme: () => ({
+            theme: buildLegacyTheme(fieldGuide, true),
+            fieldGuide,
+            isDark: true,
+            preference: 'dark',
+            setPreference: jest.fn(),
+        }),
+    };
+});
 
 jest.mock('../../src/hooks/usePersonalizedSpots', () => ({
     usePersonalizedSpots: () => ({
         data: { spots: [] },
         isLoading: false,
     }),
+}));
+
+jest.mock('../../src/hooks/useServiceArea', () => ({
+    useServiceArea: () => ({
+        inServiceArea: true,
+        showBanner: false,
+        dismissBanner: jest.fn(),
+        locationLoading: false,
+    }),
+}));
+
+jest.mock('../../src/components/ToastProvider', () => ({
+    useToast: () => ({ show: jest.fn(), hide: jest.fn() }),
 }));
 
 const mockSearchSpots = jest.fn();
@@ -42,6 +60,7 @@ jest.mock('../../src/services/spots.service', () => ({
     searchSpots: (params) => mockSearchSpots(params),
     getNearbySpots: jest.fn(() => []),
     getEditorsPicks: jest.fn(() => []),
+    getEditorsPickChallenge: jest.fn(() => null),
     getWeeklyChampionSpot: jest.fn(() => null),
 }));
 
@@ -54,62 +73,37 @@ jest.mock('expo-linear-gradient', () => ({
     LinearGradient: ({ children }) => <>{children}</>,
 }));
 
+jest.mock('@react-navigation/native', () => ({
+    useFocusEffect: jest.fn(),
+}));
+
 jest.mock('react-native-safe-area-context', () => ({
     SafeAreaView: ({ children }) => <>{children}</>,
+    useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
 describe('HomeScreen', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        mockGetAllSpots.mockResolvedValue([]);
+        mockGetAllSpots.mockResolvedValue({ data: [] });
         mockSearchSpots.mockResolvedValue([]);
     });
 
     it('should render categories', async () => {
         const { getByText } = render(<HomeScreen navigation={{ navigate: jest.fn() }} />);
-        await waitFor(() => expect(getByText('Explore')).toBeTruthy());
+        await waitFor(() => expect(getByText('By mood')).toBeTruthy());
     });
 
     it('should trigger search when category is selected', async () => {
-        const { getByText } = render(<HomeScreen navigation={{ navigate: jest.fn() }} />);
+        const navigate = jest.fn();
+        const { getByText } = render(<HomeScreen navigation={{ navigate }} />);
 
-        // Find a category and press it (e.g. "Art")
-        // Assuming "Art" is in the list
-        const categoryButton = getByText('Art');
-        fireEvent.press(categoryButton);
+        await waitFor(() => expect(getByText('Art')).toBeTruthy());
 
-        // This should trigger state update and eventually call searchSpots or open modal
-        // In current implementation, it opens modal and sets searchCategory
-        // which effectively triggers search inside the modal or via effects
-
-        // Wait for the effect
-        await waitFor(() => {
-            // Since the modal opens and uses the same search logic (if implemented that way)
-            // OR if we directly call searchSpots in effect
-        });
-
-        // Actually, in the code, `setSearchCategory` triggers `handleSearch` via `useEffect`.
-        // So we expect `searchSpots` to be called with `{ category: 'art' }` (or whatever ID for Art)
-        // or `{ q: '', category: 'art' }`
-
-        // Wait for searchSpots to be called
-        /*
-          The modified HomeScreen.js has a useEffect:
-          useEffect(() => {
-            if (searchQuery.length > 2 || searchCategory) {
-              handleSearch(searchQuery, searchCategory);
-            } ...
-          }, [searchQuery, searchCategory]);
-        */
-
-        // We need to know the ID for "Art". From constants.js: { id: 'art', label: 'Art' }
+        fireEvent.press(getByText('Art'));
 
         await waitFor(() => {
-            expect(mockSearchSpots).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    category: 'art'
-                })
-            );
+            expect(navigate).toHaveBeenCalledWith('Explore', { category: 'art' });
         });
     });
 });

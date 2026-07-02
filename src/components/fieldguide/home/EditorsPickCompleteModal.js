@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import DisplayTitle from '../primitives/DisplayTitle';
 import MonoMeta from '../primitives/MonoMeta';
 import EditorialButton from '../form/EditorialButton';
@@ -24,6 +25,8 @@ export default function EditorsPickCompleteModal({
   onDismiss,
   bonusXp = 50,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   useEffect(() => {
     if (!visible) return;
     (async () => {
@@ -82,7 +85,8 @@ export default function EditorsPickCompleteModal({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -149,3 +153,4 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
 });
+}

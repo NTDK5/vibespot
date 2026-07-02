@@ -27,6 +27,8 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { useTheme } from '../context/ThemeContext';
+import { useThemedStyles } from '../hooks/useThemedStyles';
 import {
   ActivityIndicator,
   Animated,
@@ -79,7 +81,6 @@ import { useToast } from '../components/ToastProvider';
 import { getNearbySpots, getSurpriseMeSpot } from '../services/spots.service';
 import { isSpotSaved, saveSpot, unsaveSpot } from '../services/savedSpots.service';
 import { CATEGORIES } from '../utils/constants';
-import fieldGuide from '../theme/fieldGuide';
 import { logger } from '../utils/logger';
 import {
   categoryColor,
@@ -102,21 +103,24 @@ const SCREEN_W = Dimensions.get('window').width;
 const REGION_MOVED_KM = 0.3;
 
 // Map color tokens used by the pin SVGs inside the WebView.
-const PIN_HEX = {
-  ember: fieldGuide.ember,
-  cream: fieldGuide.cream,
-  moss:  fieldGuide.moss,
-  rose:  fieldGuide.rose,
-  gold:  fieldGuide.gold,
-};
-
-const PIN_FG = {
-  ember: '#FFF8F1',
-  cream: fieldGuide.ink,
-  moss:  '#FFF8F1',
-  rose:  '#FFF8F1',
-  gold:  '#FFF8F1',
-};
+function getPinColors(fieldGuide) {
+  return {
+    hex: {
+      ember: fieldGuide.ember,
+      cream: fieldGuide.creamFill,
+      moss: fieldGuide.moss,
+      rose: fieldGuide.rose,
+      gold: fieldGuide.gold,
+    },
+    fg: {
+      ember: '#FFF8F1',
+      cream: fieldGuide.onCreamFill,
+      moss: '#FFF8F1',
+      rose: '#FFF8F1',
+      gold: '#FFF8F1',
+    },
+  };
+}
 
 /* ─────────────────────────────────────────────────────────────────── */
 /*  PIN TEMPLATE                                                        */
@@ -150,7 +154,8 @@ function glyphFor(category) {
 
 // Renders the HTML for a single pin. Mirrors the .pin / .pin.large /
 // .pin.{cream|moss|rose|gold} structure in screens/09-map.html.
-function renderPinHtml(spot, { isEditorsPick = false, isHighlighted = false } = {}) {
+function renderPinHtml(spot, { isEditorsPick = false, isHighlighted = false, fieldGuide } = {}) {
+  const { hex: PIN_HEX, fg: PIN_FG } = getPinColors(fieldGuide);
   const colorKey = categoryColor(spot?.category, { isEditorsPick });
   const bg = PIN_HEX[colorKey] || PIN_HEX.ember;
   const fg = PIN_FG[colorKey] || PIN_FG.ember;
@@ -256,6 +261,9 @@ const hexToRgba = (hex, alpha = 1) => {
 /* ─────────────────────────────────────────────────────────────────── */
 
 export const MapScreen = ({ navigation, route }) => {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const safeTop = Math.max(insets.top, 12);
   const safeBot = Math.max(insets.bottom, 0);
@@ -500,11 +508,12 @@ export const MapScreen = ({ navigation, route }) => {
     const html = renderPinHtml(spot, {
       isEditorsPick: isPick,
       isHighlighted: surpriseSpot && String(surpriseSpot.id) === String(spot.id),
+      fieldGuide,
     });
     const size = isPick ? [56, 66] : [28, 36];
     const anchor = isPick ? [28, 66] : [14, 36];
     return { html, size, anchor };
-  }, [editorsPick, surpriseSpot]);
+  }, [editorsPick, surpriseSpot, fieldGuide]);
 
   /* ─────────────────────────────────────────────────────────────── */
   /*  PREVIEW SHEET                                                  */
@@ -689,8 +698,8 @@ export const MapScreen = ({ navigation, route }) => {
   const previewSaved = !!(selectedSpot && savedMap[selectedSpot.id]);
 
   return (
-    <SafeAreaView edges={['top']} style={s.safe}>
-      <View style={s.root}>
+    <SafeAreaView edges={['top']} style={styles.safe}>
+      <View style={styles.root}>
         {/* Layer 0 — the map engine */}
         <LeafletMap
           ref={mapRef}
@@ -704,21 +713,21 @@ export const MapScreen = ({ navigation, route }) => {
           showUserLocation={!!location}
           userLocation={location}
           height={Dimensions.get('window').height}
-          style={s.map}
+          style={styles.map}
         />
 
         {pinsLoading ? (
-          <View pointerEvents="none" style={s.pinsLoadingOverlay}>
-            <View style={s.pinsLoadingBackdrop} />
-            <View style={s.pinsLoadingPill}>
+          <View pointerEvents="none" style={styles.pinsLoadingOverlay}>
+            <View style={styles.pinsLoadingBackdrop} />
+            <View style={styles.pinsLoadingPill}>
               <CompassDial size={28} spinning />
-              <MonoMeta size="tab" style={s.pinsLoadingLabel}>
+              <MonoMeta size="tab" style={styles.pinsLoadingLabel}>
                 Plotting the field…
               </MonoMeta>
               <ActivityIndicator
                 size="small"
                 color={fieldGuide.ember}
-                style={s.pinsLoadingSpinner}
+                style={styles.pinsLoadingSpinner}
               />
             </View>
           </View>
@@ -727,9 +736,9 @@ export const MapScreen = ({ navigation, route }) => {
         {/* Layer 1 — top controls */}
         <View
           pointerEvents="box-none"
-          style={[s.topControls, { top: safeTop + 10 }]}
+          style={[styles.topControls, { top: safeTop + 10 }]}
         >
-          <View style={s.searchWrap}>
+          <View style={styles.searchWrap}>
             <SearchBar
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -741,14 +750,14 @@ export const MapScreen = ({ navigation, route }) => {
             onPress={() => toast?.show('Filter sheet coming in Phase 4.', { variant: 'info' })}
             accessibilityLabel="Open filters"
           >
-            <Ionicons name="options-outline" size={18} color={fieldGuide.cream} />
+            <Ionicons name="options-outline" size={18} color={fieldGuide.onDark} />
           </IconSquare>
         </View>
 
         {showBanner ? (
           <View
             pointerEvents="box-none"
-            style={[s.serviceBanner, { top: safeTop + 112 }]}
+            style={[styles.serviceBanner, { top: safeTop + 112 }]}
           >
             <ServiceAreaBanner
               navigation={navigation}
@@ -760,14 +769,14 @@ export const MapScreen = ({ navigation, route }) => {
         {/* Layer 1 — chip filter row */}
         <View
           pointerEvents="box-none"
-          style={[s.chipRow, { top: safeTop + 64 }]}
+          style={[styles.chipRow, { top: safeTop + 64 }]}
         >
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={s.chipScroll}
+            contentContainerStyle={styles.chipScroll}
           >
-            <View style={s.chipItem}>
+            <View style={styles.chipItem}>
               <Pill
                 variant={selectedCategory ? 'glass' : 'ember'}
                 dot={!selectedCategory}
@@ -779,7 +788,7 @@ export const MapScreen = ({ navigation, route }) => {
             {CATEGORIES.map((cat) => {
               const active = selectedCategory === cat.id;
               return (
-                <View key={cat.id} style={s.chipItem}>
+                <View key={cat.id} style={styles.chipItem}>
                   <Pill
                     variant={active ? 'ember' : 'glass'}
                     dot={active}
@@ -797,19 +806,19 @@ export const MapScreen = ({ navigation, route }) => {
         {regionMoved ? (
           <View
             pointerEvents="box-none"
-            style={[s.searchAreaWrap, { top: safeTop + 116 }]}
+            style={[styles.searchAreaWrap, { top: safeTop + 116 }]}
           >
             <Pressable
               onPress={onSearchThisArea}
               accessibilityRole="button"
               accessibilityLabel="Search this area"
               style={({ pressed }) => [
-                s.searchAreaBtn,
+                styles.searchAreaBtn,
                 { transform: [{ scale: pressed ? 0.97 : 1 }] },
               ]}
             >
               <Ionicons name="refresh" size={12} color={fieldGuide.inkText} />
-              <Text style={s.searchAreaText}>Search this area</Text>
+              <Text style={styles.searchAreaText}>Search this area</Text>
             </Pressable>
           </View>
         ) : null}
@@ -817,21 +826,21 @@ export const MapScreen = ({ navigation, route }) => {
         {/* Layer 1 — side rail */}
         <View
           pointerEvents="box-none"
-          style={[s.sideRail, { top: safeTop + 130 }]}
+          style={[styles.sideRail, { top: safeTop + 130 }]}
         >
           <IconSquare
             radius={12}
             onPress={onCenterOnUser}
             accessibilityLabel="Center on my location"
           >
-            <Ionicons name="locate" size={18} color={fieldGuide.cream} />
+            <Ionicons name="locate" size={18} color={fieldGuide.onDark} />
           </IconSquare>
           <IconSquare
             radius={12}
             onPress={() => setStylePopoverOpen((v) => !v)}
             accessibilityLabel="Map style"
           >
-            <Ionicons name="earth-outline" size={18} color={fieldGuide.cream} />
+            <Ionicons name="earth-outline" size={18} color={fieldGuide.onDark} />
           </IconSquare>
           <IconSquare
             radius={12}
@@ -868,8 +877,8 @@ export const MapScreen = ({ navigation, route }) => {
             setRevealing(false);
           }}
         >
-          <Reanimated.View style={[s.revealRoot, modalAnimatedStyle]}>
-            <View style={s.revealBg} />
+          <Reanimated.View style={[styles.revealRoot, modalAnimatedStyle]}>
+            <View style={styles.revealBg} />
 
             {[...Array(20)].map((_, i) => {
               const angle = (i * 360) / 20;
@@ -880,7 +889,7 @@ export const MapScreen = ({ navigation, route }) => {
                 <Reanimated.View
                   key={i}
                   style={[
-                    s.particle,
+                    styles.particle,
                     { left: '50%', top: '50%', marginLeft: x, marginTop: y },
                     particleAnimatedStyle,
                   ]}
@@ -890,31 +899,31 @@ export const MapScreen = ({ navigation, route }) => {
               );
             })}
 
-            <Reanimated.View style={[s.revealCircle, revealCircleStyle, { borderColor: vibeColor }]} />
-            <Reanimated.View style={[s.revealCircle, revealCircleStyle, { borderColor: vibeColor, borderWidth: 3 }]} />
+            <Reanimated.View style={[styles.revealCircle, revealCircleStyle, { borderColor: vibeColor }]} />
+            <Reanimated.View style={[styles.revealCircle, revealCircleStyle, { borderColor: vibeColor, borderWidth: 3 }]} />
 
-            <Reanimated.View style={[s.sparkleContainer, sparkleAnimatedStyle]}>
+            <Reanimated.View style={[styles.sparkleContainer, sparkleAnimatedStyle]}>
               <Ionicons name="sparkles" size={80} color={vibeColor} />
             </Reanimated.View>
 
             {surpriseSpot ? (
-              <Reanimated.View style={[s.revealCard, spotCardAnimatedStyle]}>
+              <Reanimated.View style={[styles.revealCard, spotCardAnimatedStyle]}>
                 <Image
                   source={{ uri: surpriseSpot.thumbnail || surpriseSpot.images?.[0] }}
-                  style={s.revealImg}
+                  style={styles.revealImg}
                 />
-                <View style={[s.revealOverlay, { backgroundColor: hexToRgba(vibeColor, 0.9) }]}>
-                  <Text style={s.revealTitle}>{surpriseSpot.title}</Text>
-                  <View style={s.revealBadge}>
+                <View style={[styles.revealOverlay, { backgroundColor: hexToRgba(vibeColor, 0.9) }]}>
+                  <Text style={styles.revealTitle}>{surpriseSpot.title}</Text>
+                  <View style={styles.revealBadge}>
                     <Ionicons name="location" size={14} color={fieldGuide.cream} />
-                    <Text style={s.revealAddress} numberOfLines={1}>
+                    <Text style={styles.revealAddress} numberOfLines={1}>
                       {surpriseSpot.address}
                     </Text>
                   </View>
                 </View>
               </Reanimated.View>
             ) : (
-              <Text style={s.revealLoading}>Discovering your surprise…</Text>
+              <Text style={styles.revealLoading}>Discovering your surprise…</Text>
             )}
           </Reanimated.View>
         </Modal>
@@ -926,17 +935,17 @@ export const MapScreen = ({ navigation, route }) => {
           snapPoints={snapPoints}
           enablePanDownToClose
           handleComponent={null}
-          backgroundStyle={s.sheetBg}
+          backgroundStyle={styles.sheetBg}
           onClose={() => setSelectedSpot(null)}
         >
           {selectedSpot ? (
-            <BottomSheetView style={[s.sheet, { paddingBottom: safeBot + 16 }]}>
-              <View style={s.sheetHandleRow}>
+            <BottomSheetView style={[styles.sheet, { paddingBottom: safeBot + 16 }]}>
+              <View style={styles.sheetHandleRow}>
                 <SheetHandle />
               </View>
 
-              <View style={s.sheetTopRow}>
-                <View style={s.sheetThumb}>
+              <View style={styles.sheetTopRow}>
+                <View style={styles.sheetThumb}>
                   <SpotPhoto
                     vibe={vibeForCategory(selectedSpot.category)}
                     image={
@@ -951,24 +960,24 @@ export const MapScreen = ({ navigation, route }) => {
                     showSaveStamp={false}
                   />
                 </View>
-                <View style={s.sheetInfo}>
-                  <Text style={s.sheetTitle} numberOfLines={1}>
+                <View style={styles.sheetInfo}>
+                  <Text style={styles.sheetTitle} numberOfLines={1}>
                     {selectedSpot.title || selectedSpot.name || 'Untitled spot'}
                   </Text>
                   {previewMeta ? (
-                    <MonoMeta size="spot" style={s.sheetMeta}>
+                    <MonoMeta size="spot" style={styles.sheetMeta}>
                       {previewMeta}
                     </MonoMeta>
                   ) : null}
                   {selectedSpot.description ? (
-                    <Text style={s.sheetBlurb} numberOfLines={2}>
+                    <Text style={styles.sheetBlurb} numberOfLines={2}>
                       {selectedSpot.description}
                     </Text>
                   ) : null}
                 </View>
               </View>
 
-              <View style={s.sheetActions}>
+              <View style={styles.sheetActions}>
                 <EditorialButton
                   size="sm"
                   variant="cream"
@@ -976,7 +985,7 @@ export const MapScreen = ({ navigation, route }) => {
                     closeBottomSheet();
                     navigation.navigate('SpotDetail', { spotId: selectedSpot.id });
                   }}
-                  style={s.actionFlex}
+                  style={styles.actionFlex}
                 >
                   Open
                 </EditorialButton>
@@ -988,10 +997,10 @@ export const MapScreen = ({ navigation, route }) => {
                     <Ionicons
                       name={previewSaved ? 'bookmark' : 'bookmark-outline'}
                       size={14}
-                      color={fieldGuide.cream}
+                      color={fieldGuide.text}
                     />
                   }
-                  style={s.actionFlex}
+                  style={styles.actionFlex}
                 >
                   {previewSaved ? 'Saved' : 'Save'}
                 </EditorialButton>
@@ -1000,9 +1009,9 @@ export const MapScreen = ({ navigation, route }) => {
                   variant="ghost"
                   onPress={() => onDirections(selectedSpot)}
                   accessibilityLabel="Directions"
-                  style={s.actionIcon}
+                  style={styles.actionIcon}
                 >
-                  <Ionicons name="navigate-outline" size={14} color={fieldGuide.cream} />
+                  <Ionicons name="navigate-outline" size={14} color={fieldGuide.text} />
                 </EditorialButton>
               </View>
             </BottomSheetView>
@@ -1017,7 +1026,8 @@ export const MapScreen = ({ navigation, route }) => {
 /*  STYLES                                                             */
 /* ─────────────────────────────────────────────────────────────────── */
 
-const s = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -1106,7 +1116,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: fieldGuide.cream,
+    backgroundColor: fieldGuide.creamFill,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: fieldGuide.radius.full,
@@ -1121,7 +1131,7 @@ const s = StyleSheet.create({
     fontSize: 10,
     letterSpacing: fieldGuide.tracking.widest(10),
     textTransform: 'uppercase',
-    color: fieldGuide.inkText,
+    color: fieldGuide.onCreamFill,
     includeFontPadding: false,
   },
 
@@ -1288,5 +1298,6 @@ const s = StyleSheet.create({
     zIndex: 15,
   },
 });
+}
 
 export default MapScreen;

@@ -2,10 +2,12 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Ellipse, Path, Rect } from 'react-native-svg';
 
-import fieldGuide from '../../theme/fieldGuide';
+import { useThemedStyles } from '../../hooks/useThemedStyles';
+import { useTheme } from '../../context/ThemeContext';
 import { OnboardingHero, SignalChip } from './OnboardingPrimitives';
 
 function PinStamp({ color }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
       <Path
@@ -19,6 +21,7 @@ function PinStamp({ color }) {
 }
 
 function SaveNode({ label, title, color, indent = 0 }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={[styles.node, indent > 0 && { marginLeft: indent }]}>
       <View style={styles.stamp}>
@@ -33,6 +36,8 @@ function SaveNode({ label, title, color, indent = 0 }) {
 }
 
 export default function SaveIllustration({ chip }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <OnboardingHero chip={<SignalChip bold={chip.bold} text={chip.text} dotVariant={chip.dot} />}>
       <Svg width="100%" height="100%" viewBox="0 0 354 420" preserveAspectRatio="xMidYMid slice">
@@ -57,7 +62,8 @@ export default function SaveIllustration({ chip }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   pathWrap: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 2,
@@ -109,3 +115,4 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 });
+}

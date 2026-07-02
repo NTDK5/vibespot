@@ -2,7 +2,8 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../../theme/fieldGuide';
+import { useThemedStyles } from '../../hooks/useThemedStyles';
+import { useTheme } from '../../context/ThemeContext';
 
 const ICONS = {
   near: 'compass-outline',
@@ -10,11 +11,14 @@ const ICONS = {
   save: 'bookmark-outline',
 };
 
-const ICON_STYLES = {
-  near: { bg: 'rgba(232, 116, 58, 0.14)', color: fieldGuide.ember },
-  visit: { bg: 'rgba(201, 162, 75, 0.14)', color: fieldGuide.gold },
-  save: { bg: 'rgba(122, 155, 106, 0.14)', color: fieldGuide.moss },
-};
+function iconStyles(fieldGuide) {
+
+  return {
+    near: { bg: 'rgba(232, 116, 58, 0.14)', color: fieldGuide.ember },
+    visit: { bg: 'rgba(201, 162, 75, 0.14)', color: fieldGuide.gold },
+    save: { bg: 'rgba(122, 155, 106, 0.14)', color: fieldGuide.moss },
+  };
+}
 
 export default function QuickStatChip({
   variant = 'near',
@@ -24,8 +28,11 @@ export default function QuickStatChip({
   trend,
   onPress,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const iconName = ICONS[variant] || ICONS.near;
-  const iconStyle = ICON_STYLES[variant] || ICON_STYLES.near;
+  const stylesByVariant = iconStyles(fieldGuide);
+  const iconStyle = stylesByVariant[variant] || stylesByVariant.near;
 
   return (
     <Pressable
@@ -52,7 +59,8 @@ export default function QuickStatChip({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -110,3 +118,4 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 });
+}

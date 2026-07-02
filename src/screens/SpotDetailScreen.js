@@ -42,7 +42,8 @@ import {
 } from '../components/fieldguide';
 import VisitStampButton from '../components/fieldguide/spot/VisitStampButton';
 import { LivePulseDot } from '../components/home/LivePulseDot';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ToastProvider';
 import { logger } from '../utils/logger';
 import { track, Events } from '../analytics';
@@ -227,14 +228,17 @@ function pickSocialField(spot, keys = []) {
 /* ─────────────────────────────────────────────────────────────────── */
 
 function SectionEyebrow({ children }) {
+  const styles = useThemedStyles(createStyles);
   return <Text style={styles.sectionEyebrow}>{children}</Text>;
 }
 
 function SectionHeading({ children, style }) {
+  const styles = useThemedStyles(createStyles);
   return <Text style={[styles.sectionHeading, style]}>{children}</Text>;
 }
 
 function TitleChip({ children, variant = 'default' }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View
       style={[
@@ -258,6 +262,9 @@ function TitleChip({ children, variant = 'default' }) {
 }
 
 function HeroBadge({ children, variant = 'default', pulse = false }) {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View
       style={[
@@ -289,6 +296,7 @@ function HeroBadge({ children, variant = 'default', pulse = false }) {
 }
 
 function SimilarSpotCard({ item, onPress, userLocation }) {
+  const styles = useThemedStyles(createStyles);
   const km = userLocation ? distanceKmFromUser(userLocation, item) : null;
   const dist = km != null ? formatMi(km) : null;
   const rating = Number(item?.ratingAvg ?? item?.rating ?? 0);
@@ -341,6 +349,9 @@ function SimilarSpotCard({ item, onPress, userLocation }) {
 /* ─────────────────────────────────────────────────────────────────── */
 
 function ContactRow({ icon, label, value, onPress }) {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   if (!value) return null;
   return (
     <Pressable
@@ -371,7 +382,10 @@ function ContactRow({ icon, label, value, onPress }) {
 /* ─────────────────────────────────────────────────────────────────── */
 
 function ActionCell({ icon, label, onPress, primary = false }) {
-  const tint = primary ? '#FFF8F1' : fieldGuide.cream;
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const tint = primary ? fieldGuide.onEmber : fieldGuide.text;
   return (
     <Pressable
       onPress={onPress}
@@ -396,6 +410,9 @@ function ActionCell({ icon, label, onPress, primary = false }) {
 /* ─────────────────────────────────────────────────────────────────── */
 
 export const SpotDetailScreen = ({ navigation, route }) => {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const spotId = route?.params?.spotId ?? route?.params?.id;
   const insets = useSafeAreaInsets();
   const toast = useToast();
@@ -783,7 +800,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
             { opacity: pressed ? 0.9 : 1 },
           ]}
         >
-          <Ionicons name="star-outline" size={16} color={fieldGuide.ink} />
+          <Ionicons name="star-outline" size={16} color={fieldGuide.onCreamFill} />
         </Pressable>
       );
     }
@@ -797,7 +814,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
           { opacity: pressed ? 0.9 : 1 },
         ]}
       >
-        <Ionicons name="share-outline" size={16} color={fieldGuide.ink} />
+        <Ionicons name="share-outline" size={16} color={fieldGuide.onCreamFill} />
       </Pressable>
     );
   };
@@ -871,7 +888,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
               size={38}
               radius={19}
             >
-              <Ionicons name="chevron-back" size={16} color={fieldGuide.cream} />
+              <Ionicons name="chevron-back" size={16} color={fieldGuide.onDark} />
             </IconSquare>
             <View style={styles.navTopRight}>
               <Pressable
@@ -884,7 +901,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
                   <Ionicons
                     name={saved ? 'bookmark' : 'bookmark-outline'}
                     size={16}
-                    color={saved ? fieldGuide.ember : fieldGuide.cream}
+                    color={saved ? fieldGuide.ember : fieldGuide.onDark}
                   />
                 </View>
               </Pressable>
@@ -894,7 +911,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
                 size={38}
                 radius={19}
               >
-                <Ionicons name="share-outline" size={16} color={fieldGuide.cream} />
+                <Ionicons name="share-outline" size={16} color={fieldGuide.onDark} />
               </IconSquare>
               <IconSquare
                 onPress={() =>
@@ -907,7 +924,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
                 <Ionicons
                   name="ellipsis-horizontal"
                   size={16}
-                  color={fieldGuide.cream}
+                  color={fieldGuide.onDark}
                 />
               </IconSquare>
             </View>
@@ -915,7 +932,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
 
           {images.length > 0 ? (
             <View style={styles.heroCount}>
-              <Ionicons name="images-outline" size={12} color={fieldGuide.cream} />
+              <Ionicons name="images-outline" size={12} color={fieldGuide.onDark} />
               <Text style={styles.heroCountText}>
                 {`${heroIndex + 1} / ${images.length}`}
               </Text>
@@ -930,7 +947,7 @@ export const SpotDetailScreen = ({ navigation, route }) => {
             ) : null}
             {distanceMi ? (
               <HeroBadge>
-                <Ionicons name="location" size={12} color={fieldGuide.cream} />
+                <Ionicons name="location" size={12} color={fieldGuide.onDark} />
                 <Text style={styles.heroBadgeText}>{distanceMi}</Text>
               </HeroBadge>
             ) : null}
@@ -1232,6 +1249,7 @@ export default SpotDetailScreen;
 /* ─────────────────────────────────────────────────────────────────── */
 
 function ContactList({ spot, onOpen, onMaps }) {
+  const styles = useThemedStyles(createStyles);
   const website = pickSocialField(spot, ['website', 'websiteUrl', 'siteUrl']);
   const instagram = pickSocialField(spot, ['instagram', 'instagramUrl', 'ig']);
   const facebook = pickSocialField(spot, ['facebook', 'facebookUrl']);
@@ -1319,7 +1337,8 @@ function ContactList({ spot, onOpen, onMaps }) {
 /*  STYLES                                                              */
 /* ─────────────────────────────────────────────────────────────────── */
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -1368,7 +1387,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: 'rgba(20,22,29,0.45)',
+    backgroundColor: fieldGuide.overlay,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(244,239,230,0.18)',
     alignItems: 'center',
@@ -1392,7 +1411,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: 12,
     borderRadius: fieldGuide.radius.full,
-    backgroundColor: 'rgba(20,22,29,0.62)',
+    backgroundColor: fieldGuide.textMute,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(244,239,230,0.16)',
   },
@@ -1415,7 +1434,7 @@ const styles = StyleSheet.create({
   heroBadgeText: {
     fontFamily: fieldGuide.fonts.sansSemi,
     fontSize: 11,
-    color: fieldGuide.cream,
+    color: fieldGuide.onDark,
     includeFontPadding: false,
   },
   heroBadgeTextChampion: {
@@ -1431,7 +1450,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: fieldGuide.radius.full,
-    backgroundColor: 'rgba(20,22,29,0.55)',
+    backgroundColor: fieldGuide.overlay,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(244,239,230,0.18)',
     flexDirection: 'row',
@@ -1813,12 +1832,12 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: fieldGuide.radius.full,
-    backgroundColor: 'rgba(20,22,29,0.72)',
+    backgroundColor: fieldGuide.overlay,
   },
   similarDistText: {
     fontFamily: fieldGuide.fonts.sansSemi,
     fontSize: 10,
-    color: fieldGuide.cream,
+    color: fieldGuide.onDark,
     includeFontPadding: false,
   },
   similarTitle: {
@@ -1868,8 +1887,9 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: fieldGuide.cream,
+    backgroundColor: fieldGuide.creamFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
 });
+}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { StatusBar } from 'expo-status-bar';
+import ThemedStatusBar from './src/components/ThemedStatusBar';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -54,7 +54,7 @@ export default function App() {
               <ThemeProvider>
                 <ToastProvider>
                   <AppStatusProvider>
-                    <StatusBar style="light" />
+                    <ThemedStatusBar />
                     <AppNavigator />
                   </AppStatusProvider>
                 </ToastProvider>

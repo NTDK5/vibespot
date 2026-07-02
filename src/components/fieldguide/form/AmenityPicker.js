@@ -12,7 +12,8 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import {
   AMENITIES,
   DEFAULT_AMENITY_ICON,
@@ -22,6 +23,8 @@ import {
 } from '../../../utils/amenities';
 
 export default function AmenityPicker({ value = [], onChange }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [custom, setCustom] = useState('');
 
   const customValues = useMemo(
@@ -115,7 +118,8 @@ export default function AmenityPicker({ value = [], onChange }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   wrap: {
     gap: 12,
   },
@@ -152,7 +156,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   chipTextOn: {
-    color: fieldGuide.ink,
+    color: fieldGuide.onCreamFill,
   },
   customRow: {
     flexDirection: 'row',
@@ -177,3 +181,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
+}

@@ -3,12 +3,14 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import fieldGuide from '../../theme/fieldGuide';
+import { useThemedStyles } from '../../hooks/useThemedStyles';
+import { useTheme } from '../../context/ThemeContext';
 
 const HERO_HEIGHT = 420;
 const HERO_MARGIN = 18;
 
 export function OnboardingHero({ chip, children }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.hero}>
       <HeroGlow />
@@ -43,15 +45,20 @@ export function HeroGlow() {
   );
 }
 
-const DOT_COLORS = {
-  moss: { bg: fieldGuide.moss, shadow: 'rgba(122, 155, 106, 0.55)' },
-  ember: { bg: fieldGuide.ember, shadow: 'rgba(232, 116, 58, 0.5)' },
-  gold: { bg: fieldGuide.gold, shadow: 'rgba(201, 162, 75, 0.45)' },
-};
+function dotColors(fieldGuide) {
+
+  return {
+    moss: { bg: fieldGuide.moss, shadow: 'rgba(122, 155, 106, 0.55)' },
+    ember: { bg: fieldGuide.ember, shadow: 'rgba(232, 116, 58, 0.5)' },
+    gold: { bg: fieldGuide.gold, shadow: 'rgba(201, 162, 75, 0.45)' },
+  };
+}
 
 export function PulseDot({ variant = 'moss', size = 6, style }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const anim = useRef(new Animated.Value(0)).current;
-  const colors = DOT_COLORS[variant] || DOT_COLORS.moss;
+  const colors = dotColors(fieldGuide)[variant] || dotColors(fieldGuide).moss;
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -103,6 +110,7 @@ export function PulseDot({ variant = 'moss', size = 6, style }) {
 }
 
 export function SignalChip({ bold, text, dotVariant = 'moss' }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <BlurView tint="dark" intensity={28} style={styles.chip}>
       <PulseDot variant={dotVariant} />
@@ -115,6 +123,8 @@ export function SignalChip({ bold, text, dotVariant = 'moss' }) {
 }
 
 export function MapPin({ variant = 'ember', delay = 0 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const anim = useRef(new Animated.Value(0)).current;
   const palettes = {
     ember: {
@@ -168,6 +178,7 @@ export function MapPin({ variant = 'ember', delay = 0 }) {
 }
 
 export function SlideBody({ stepNum, stepLabel, headlineBefore, headlineAccent, headlineAfter, body }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.body}>
       <Text style={styles.step}>
@@ -186,7 +197,8 @@ export function SlideBody({ stepNum, stepLabel, headlineBefore, headlineAccent, 
 
 export { HERO_HEIGHT, HERO_MARGIN };
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   hero: {
     height: HERO_HEIGHT,
     marginHorizontal: HERO_MARGIN,
@@ -287,3 +299,4 @@ const styles = StyleSheet.create({
     maxWidth: 280,
   },
 });
+}

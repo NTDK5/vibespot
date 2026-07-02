@@ -37,7 +37,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { BRAND } from '../brand/fena';
 import {
   DisplayTitle,
@@ -219,6 +220,7 @@ function applySort(spots, mode, location, moodKeys = []) {
 /* ─────────────────────────────────────────────────────────────────── */
 
 function VibeTagRow({ tags }) {
+  const styles = useThemedStyles(createStyles);
   if (!Array.isArray(tags) || tags.length === 0) return null;
   return (
     <View style={styles.tagRow}>
@@ -240,6 +242,7 @@ function VibeTagRow({ tags }) {
 }
 
 function GridSpotCard({ spot, indexNumber, distanceLabel, savedByMe, matchTags, onPress, onToggleSave }) {
+  const styles = useThemedStyles(createStyles);
   const status = openStatus(spot);
   const rating = Number(spot?.ratingAvg ?? spot?.rating ?? 0);
   const ratingLabel = rating > 0 ? `★ ${rating.toFixed(1)}` : null;
@@ -302,6 +305,7 @@ function GridSpotCard({ spot, indexNumber, distanceLabel, savedByMe, matchTags, 
 }
 
 function ListSpotRow({ spot, indexNumber, distanceLabel, matchTags, onPress }) {
+  const styles = useThemedStyles(createStyles);
   const status = openStatus(spot);
   return (
     <Pressable
@@ -355,6 +359,9 @@ function ListSpotRow({ spot, indexNumber, distanceLabel, matchTags, onPress }) {
 /* ─────────────────────────────────────────────────────────────────── */
 
 export const ExploreScreen = ({ navigation, route }) => {
+  const { fieldGuide } = useTheme();
+
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { location } = useLocation();
@@ -818,7 +825,7 @@ export const ExploreScreen = ({ navigation, route }) => {
                 <Ionicons
                   name={mood.icon}
                   size={14}
-                  color={active ? fieldGuide.ink : fieldGuide.creamSoft}
+                  color={active ? fieldGuide.onCreamFill : fieldGuide.creamSoft}
                 />
                 <Text style={[styles.moodChipText, active && styles.moodChipTextActive]}>
                   {mood.label}
@@ -985,7 +992,7 @@ export const ExploreScreen = ({ navigation, route }) => {
           },
         ]}
       >
-        <Ionicons name="options-outline" size={20} color={fieldGuide.inkText} />
+        <Ionicons name="options-outline" size={20} color={fieldGuide.onCreamFill} />
       </Pressable>
 
       {/* ─── FILTER SHEET ─────────────────────────────────────── */}
@@ -1007,7 +1014,8 @@ export default ExploreScreen;
 /*  STYLES                                                             */
 /* ─────────────────────────────────────────────────────────────────── */
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -1125,8 +1133,8 @@ const styles = StyleSheet.create({
     backgroundColor: fieldGuide.inkElev,
   },
   moodChipActive: {
-    backgroundColor: fieldGuide.cream,
-    borderColor: fieldGuide.cream,
+    backgroundColor: fieldGuide.creamFill,
+    borderColor: fieldGuide.creamFill,
   },
   moodChipText: {
     fontFamily: fieldGuide.fonts.sansMedium,
@@ -1135,7 +1143,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   moodChipTextActive: {
-    color: fieldGuide.ink,
+    color: fieldGuide.onCreamFill,
   },
   moodSuggestDot: {
     width: 5,
@@ -1225,13 +1233,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 11,
     borderRadius: fieldGuide.radius.full,
-    backgroundColor: fieldGuide.cream,
+    backgroundColor: fieldGuide.creamFill,
   },
   emptyCtaText: {
     fontFamily: fieldGuide.fonts.monoMed,
     fontSize: 10,
     letterSpacing: fieldGuide.tracking.widest(10),
-    color: fieldGuide.ink,
+    color: fieldGuide.onCreamFill,
     includeFontPadding: false,
   },
 
@@ -1302,7 +1310,7 @@ const styles = StyleSheet.create({
     fontFamily: fieldGuide.fonts.monoMed,
     fontSize: 8.5,
     letterSpacing: 1.2,
-    color: fieldGuide.ink,
+    color: fieldGuide.onCreamFill,
     includeFontPadding: false,
   },
   stampRow: {
@@ -1429,7 +1437,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: fieldGuide.cream,
+    backgroundColor: fieldGuide.creamFill,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -1439,3 +1447,4 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
 });
+}

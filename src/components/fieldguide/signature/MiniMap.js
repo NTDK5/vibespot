@@ -21,8 +21,9 @@ import Svg, {
 } from 'react-native-svg';
 
 import { LeafletMap } from '../../LeafletMap';
-import fieldGuide from '../../../theme/fieldGuide';
-import { fieldGuideTileStyle } from '../../../utils/mapStyle';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
+import { getFieldGuideTileStyle } from '../../../utils/mapStyle';
 
 const VBW = 320;
 const VBH = 180;
@@ -33,7 +34,7 @@ function hasValidLocation(location) {
   return Number.isFinite(lat) && Number.isFinite(lng);
 }
 
-function DrawnSketch() {
+function DrawnSketch({ styles, fieldGuide }) {
   return (
     <>
       <Svg
@@ -117,13 +118,16 @@ function DrawnSketch() {
 }
 
 function LiveMiniMap({ location, style, onPress }) {
+  const styles = useThemedStyles(createStyles);
+  const { fieldGuide, isDark } = useTheme();
   const lat = Number(location.lat);
   const lng = Number(location.lng);
   const [mapHeight, setMapHeight] = useState(0);
+  const tileStyle = useMemo(() => getFieldGuideTileStyle(isDark), [isDark]);
 
   const markers = useMemo(
     () => [{ id: 'spot', lat, lng, color: fieldGuide.ember }],
-    [lat, lng],
+    [lat, lng, fieldGuide.ember],
   );
 
   return (
@@ -147,7 +151,7 @@ function LiveMiniMap({ location, style, onPress }) {
           height={mapHeight}
           interactive={false}
           markers={markers}
-          tileStyle={fieldGuideTileStyle}
+          tileStyle={tileStyle}
           style={styles.mapFill}
         />
       ) : null}
@@ -156,6 +160,8 @@ function LiveMiniMap({ location, style, onPress }) {
 }
 
 export default function MiniMap({ location, drawn = true, style, onPress }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const useLiveMap = !drawn && hasValidLocation(location);
 
   if (useLiveMap) {
@@ -166,12 +172,13 @@ export default function MiniMap({ location, drawn = true, style, onPress }) {
 
   return (
     <View style={[styles.container, style]}>
-      <DrawnSketch />
+      <DrawnSketch styles={styles} fieldGuide={fieldGuide} />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   container: {
     width: '100%',
     aspectRatio: 16 / 9,
@@ -198,3 +205,4 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 });
+}

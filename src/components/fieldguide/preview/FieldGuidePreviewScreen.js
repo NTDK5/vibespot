@@ -20,7 +20,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BRAND } from '../../../brand/fena';
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import {
   MonoMeta,
   DisplayTitle,
@@ -54,6 +55,7 @@ import {
 } from '../index';
 
 function Group({ title, children, style }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={[styles.group, style]}>
       <MonoMeta size="kicker" style={styles.groupKicker}>{title}</MonoMeta>
@@ -63,6 +65,7 @@ function Group({ title, children, style }) {
 }
 
 function Section({ title, children }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.section}>
       <SectionHead title={title} />
@@ -136,6 +139,8 @@ const HOURS = {
 };
 
 export default function FieldGuidePreviewScreen({ navigation }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
 
   const [seg2, setSeg2] = useState(0);
@@ -541,7 +546,8 @@ export default function FieldGuidePreviewScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -659,3 +665,4 @@ const styles = StyleSheet.create({
     borderColor: fieldGuide.inkLine,
   },
 });
+}

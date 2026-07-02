@@ -28,7 +28,8 @@ import { Pill } from '../components/fieldguide';
 import MonoMeta from '../components/fieldguide/primitives/MonoMeta';
 import SuccessSheet from '../components/fieldguide/state/SuccessSheet';
 import { LeafletMap } from '../components/LeafletMap';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../hooks/useAuth';
 import { useLocation } from '../hooks/useLocation';
@@ -138,6 +139,9 @@ function buildTags(state) {
 }
 
 export const AddSpotScreen = ({ navigation }) => {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { canAddSpot, isSpotOwner } = useAuth();
   const { location } = useLocation();
   const toast = useToast();
@@ -601,7 +605,8 @@ export const AddSpotScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   hint: {
     marginTop: -8,
     color: fieldGuide.creamMute,
@@ -628,7 +633,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: fieldGuide.radius.full,
-    backgroundColor: 'rgba(20,22,29,0.78)',
+    backgroundColor: fieldGuide.canvasElev,
   },
   mapOverlayText: {
     fontFamily: fieldGuide.fonts.mono,
@@ -718,3 +723,4 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 });
+}

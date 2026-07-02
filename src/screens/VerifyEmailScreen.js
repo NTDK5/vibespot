@@ -23,7 +23,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import {
   DisplayTitle,
   EditorialButton,
@@ -44,6 +45,7 @@ function formatCountdown(s) {
 }
 
 function VerifyEmailScreen({ navigation }) {
+  const styles = useThemedStyles(createStyles);
   const {
     pendingVerificationEmail,
     setPendingVerificationEmail,
@@ -240,7 +242,9 @@ function VerifyEmailScreen({ navigation }) {
 
 export default VerifyEmailScreen;
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -347,3 +351,4 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
   },
 });
+}

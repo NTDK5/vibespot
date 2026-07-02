@@ -28,7 +28,8 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
 const DEFAULT_SIZE = 34;
 
@@ -38,6 +39,8 @@ export default function SaveStamp({
   size = DEFAULT_SIZE,
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const scale = useSharedValue(1);
   const rotate = useSharedValue(0);
 
@@ -121,7 +124,8 @@ export default function SaveStamp({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   wrap: {
     position: 'absolute',
     top: 10,
@@ -139,3 +143,4 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
 });
+}

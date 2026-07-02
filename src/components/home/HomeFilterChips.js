@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import fieldGuide from '../../theme/fieldGuide';
+import { useThemedStyles } from '../../hooks/useThemedStyles';
+import { useTheme } from '../../context/ThemeContext';
 
 export const HOME_FILTERS = [
   { id: 'for_you', label: 'For you', showLiveDot: true, params: {} },
@@ -12,6 +13,7 @@ export const HOME_FILTERS = [
 ];
 
 export default function HomeFilterChips({ activeId = 'for_you', onSelect }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <ScrollView
       horizontal
@@ -50,7 +52,8 @@ export default function HomeFilterChips({ activeId = 'for_you', onSelect }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   row: {
     gap: 8,
     paddingBottom: 4,
@@ -78,7 +81,7 @@ const styles = StyleSheet.create({
     backgroundColor: fieldGuide.creamMute,
   },
   liveDotActive: {
-    backgroundColor: fieldGuide.inkDeep,
+    backgroundColor: fieldGuide.onEmber,
   },
   label: {
     fontFamily: fieldGuide.fonts.mono,
@@ -89,7 +92,8 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   labelActive: {
-    color: fieldGuide.inkDeep,
+    color: fieldGuide.onEmber,
     fontFamily: fieldGuide.fonts.monoMed,
   },
 });
+}

@@ -28,7 +28,8 @@ import Svg, {
   TextPath,
 } from 'react-native-svg';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
 function buildPerimeterContent(text) {
   // Pad with dot separators and repeat so the ring is always full.
@@ -50,6 +51,8 @@ export default function PostmarkStamp({
   tilt = 0,
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const fill = color || fieldGuide.cream;
   const cx = size / 2;
   const cy = size / 2;
@@ -116,7 +119,8 @@ export default function PostmarkStamp({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   wrap: {
     position: 'relative',
     alignItems: 'center',
@@ -132,3 +136,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
+}

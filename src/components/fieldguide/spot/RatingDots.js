@@ -18,7 +18,8 @@
 
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
 export default function RatingDots({
   value = 0,
@@ -29,6 +30,8 @@ export default function RatingDots({
   numberColor,
   style,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const dim = size === 'md' ? 8 : 6;
   const clamped = Math.max(0, Math.min(5, value));
   const filled = Math.round(clamped);
@@ -63,7 +66,8 @@ export default function RatingDots({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -81,3 +85,4 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 });
+}

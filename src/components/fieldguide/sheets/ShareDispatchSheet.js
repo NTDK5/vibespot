@@ -23,7 +23,8 @@ import ViewShot from 'react-native-view-shot';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import { BRAND } from '../../../brand/fena';
 import SheetHandle from '../primitives/SheetHandle';
 import MonoMeta from '../primitives/MonoMeta';
@@ -87,6 +88,8 @@ export default function ShareDispatchSheet({
   userName = '',
   onShared,
 }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const toast = useToast();
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
@@ -348,7 +351,8 @@ export default function ShareDispatchSheet({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   root: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -501,3 +505,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
+}

@@ -22,7 +22,8 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
 export default function IconSquare({
   onPress,
@@ -33,6 +34,7 @@ export default function IconSquare({
   accessibilityLabel,
   style,
 }) {
+  const styles = useThemedStyles(createStyles);
   const dim = { width: size, height: size, borderRadius: radius };
   const isGlass = surface === 'glass';
 
@@ -62,7 +64,8 @@ export default function IconSquare({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   wrap: {
     overflow: 'visible',
     shadowColor: '#000',
@@ -78,11 +81,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   glass: {
-    backgroundColor: 'rgba(20,22,29,0.78)',
+    backgroundColor: fieldGuide.canvasElev,
     borderColor: fieldGuide.inkLine,
   },
   cream: {
-    backgroundColor: fieldGuide.cream,
-    borderColor: fieldGuide.cream,
+    backgroundColor: fieldGuide.creamFill,
+    borderColor: fieldGuide.creamFill,
   },
 });
+}

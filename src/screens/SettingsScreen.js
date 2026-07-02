@@ -20,7 +20,7 @@ import Constants from 'expo-constants';
 import MonoMeta from '../components/fieldguide/primitives/MonoMeta';
 import ChangePasswordSheet from '../components/fieldguide/sheets/ChangePasswordSheet';
 import { BRAND } from '../brand/fena';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../context/ThemeContext';
@@ -37,6 +37,9 @@ function SettingRow({
   trailing,
   rose,
 }) {
+  const { fieldGuide } = useTheme();
+
+  const styles = useThemedStyles(createStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -79,6 +82,7 @@ function SettingRow({
 }
 
 function SettingsToggle({ value, onValueChange }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <Pressable
       onPress={() => onValueChange(!value)}
@@ -97,8 +101,9 @@ function SettingsToggle({ value, onValueChange }) {
 }
 
 export const SettingsScreen = ({ navigation }) => {
+  const styles = useThemedStyles(createStyles);
   const { user, logout } = useAuth();
-  const { isDark } = useTheme();
+  const { isDark, preference, setPreference, fieldGuide } = useTheme();
   const toast = useToast();
 
   const [passwordOpen, setPasswordOpen] = useState(false);
@@ -198,27 +203,54 @@ export const SettingsScreen = ({ navigation }) => {
         {group(
           'Appearance',
           <>
-            <SettingRow
-              icon="moon-outline"
-              title="Theme"
-              subtitle="Field Guide · ink"
-            />
-            <SettingRow
-              icon="contrast-outline"
-              title="Use Field Guide dark"
-              subtitle={isDark ? 'Always on' : 'On'}
-              trailing={
-                <SettingsToggle
-                  value
-                  onValueChange={() => {
-                    toast.show(
-                      'Light mode is a future pass — the field guide stays ink for now.',
-                      { variant: 'info' },
-                    );
-                  }}
-                />
-              }
-            />
+            <View style={styles.appearanceBlock}>
+              <Text style={styles.appearanceHint}>
+                Field Guide supports light paper, dark ink, or matching your device.
+              </Text>
+              <View style={styles.appearanceRow}>
+                {[
+                  { id: 'light', label: 'Light', icon: 'sunny-outline' },
+                  { id: 'dark', label: 'Dark', icon: 'moon-outline' },
+                  { id: 'system', label: 'System', icon: 'phone-portrait-outline' },
+                ].map((option) => {
+                  const active = preference === option.id;
+                  return (
+                    <Pressable
+                      key={option.id}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      onPress={() => setPreference(option.id)}
+                      style={({ pressed }) => [
+                        styles.appearanceOption,
+                        active && styles.appearanceOptionActive,
+                        pressed && { opacity: 0.88 },
+                      ]}
+                    >
+                      <Ionicons
+                        name={option.icon}
+                        size={16}
+                        color={active ? fieldGuide.ember : fieldGuide.creamMute}
+                      />
+                      <Text
+                        style={[
+                          styles.appearanceOptionLabel,
+                          active && styles.appearanceOptionLabelActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={styles.appearanceFootnote}>
+                {preference === 'system'
+                  ? `Following device · currently ${isDark ? 'dark' : 'light'}`
+                  : preference === 'dark'
+                    ? 'Always dark ink'
+                    : 'Always light paper'}
+              </Text>
+            </View>
           </>,
         )}
 
@@ -339,7 +371,8 @@ export const SettingsScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -438,7 +471,7 @@ const styles = StyleSheet.create({
     width: 19,
     height: 19,
     borderRadius: 10,
-    backgroundColor: fieldGuide.cream,
+    backgroundColor: fieldGuide.creamFill,
   },
   signOut: {
     paddingVertical: 14,
@@ -468,4 +501,52 @@ const styles = StyleSheet.create({
     color: fieldGuide.creamMute,
     textAlign: 'center',
   },
+  appearanceBlock: {
+    paddingHorizontal: 22,
+    gap: 12,
+  },
+  appearanceHint: {
+    fontFamily: fieldGuide.fonts.sans,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: fieldGuide.creamMute,
+  },
+  appearanceRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  appearanceOption: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: fieldGuide.radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: fieldGuide.inkLine2,
+    backgroundColor: fieldGuide.inkElev,
+  },
+  appearanceOptionActive: {
+    borderColor: fieldGuide.ember,
+    backgroundColor: 'rgba(232,116,58,0.12)',
+  },
+  appearanceOptionLabel: {
+    fontFamily: fieldGuide.fonts.monoMed,
+    fontSize: 9,
+    letterSpacing: fieldGuide.tracking.wide(9),
+    textTransform: 'uppercase',
+    color: fieldGuide.creamMute,
+  },
+  appearanceOptionLabelActive: {
+    color: fieldGuide.cream,
+  },
+  appearanceFootnote: {
+    fontFamily: fieldGuide.fonts.mono,
+    fontSize: 9,
+    letterSpacing: fieldGuide.tracking.wide(9),
+    textTransform: 'uppercase',
+    color: fieldGuide.creamFaint,
+  },
 });
+}

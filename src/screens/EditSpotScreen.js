@@ -34,7 +34,8 @@ import EditorialButton from '../components/fieldguide/form/EditorialButton';
 import LoadingScreen from '../components/fieldguide/state/LoadingScreen';
 import ErrorScreen from '../components/fieldguide/state/ErrorScreen';
 import { LeafletMap } from '../components/LeafletMap';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../hooks/useAuth';
 import { useLocation } from '../hooks/useLocation';
@@ -75,6 +76,9 @@ function matchPriceValue(spot) {
 }
 
 export const EditSpotScreen = ({ route, navigation }) => {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const spotId = route?.params?.spotId;
   const { isSuperAdmin, isSpotOwner, canAddSpot } = useAuth();
   const canEditSpot = canAddSpot;
@@ -544,7 +548,8 @@ export const EditSpotScreen = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -752,3 +757,4 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 });
+}

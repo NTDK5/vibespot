@@ -19,7 +19,8 @@ import { Ionicons } from '@expo/vector-icons';
 import AuthKeyboardScroll, {
   useAuthFieldScroll,
 } from '../components/auth/AuthKeyboardScroll';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import {
   DisplayTitle,
   EditorialButton,
@@ -37,6 +38,8 @@ import { useToast } from '../components/ToastProvider';
 import { isValidEmail } from '../utils/helpers';
 
 function LoginScreenForm({ navigation }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { login } = useAuth();
   const toast = useToast();
   const { registerField, scrollToField } = useAuthFieldScroll();
@@ -205,6 +208,7 @@ function LoginScreenForm({ navigation }) {
 }
 
 function LoginScreen({ navigation }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <AuthKeyboardScroll contentContainerStyle={styles.scroll}>
       <LoginScreenForm navigation={navigation} />
@@ -214,7 +218,8 @@ function LoginScreen({ navigation }) {
 
 export default LoginScreen;
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   scroll: {
     flexGrow: 1,
     paddingTop: 48,
@@ -311,3 +316,4 @@ const styles = StyleSheet.create({
     fontFamily: fieldGuide.fonts.sansMedium,
   },
 });
+}

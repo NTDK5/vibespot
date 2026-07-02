@@ -27,7 +27,8 @@ import Animated, {
   cancelAnimation,
 } from 'react-native-reanimated';
 
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 import DisplayTitle from '../primitives/DisplayTitle';
 import MonoMeta from '../primitives/MonoMeta';
 import EditorialButton from '../form/EditorialButton';
@@ -43,6 +44,7 @@ function formatSync(value) {
 }
 
 function PulsingDot({ size = 7, color }) {
+  const { fieldGuide } = useTheme();
   const opacity = useSharedValue(1);
   useEffect(() => {
     opacity.value = withRepeat(
@@ -69,6 +71,7 @@ function PulsingDot({ size = 7, color }) {
 }
 
 function SignalArt({ size = 180 }) {
+  const { fieldGuide } = useTheme();
   return (
     <View style={{ width: size, height: size }}>
       <Svg width={size} height={size} viewBox="0 0 200 200" fill="none">
@@ -95,6 +98,7 @@ function SignalArt({ size = 180 }) {
 }
 
 function Banner({ lastSyncAt, style }) {
+  const bannerStyles = useThemedStyles(createBannerStyles);
   return (
     <View style={[bannerStyles.bar, style]}>
       <PulsingDot />
@@ -106,6 +110,8 @@ function Banner({ lastSyncAt, style }) {
 }
 
 function Screen({ lastSyncAt, onRetry, style }) {
+  const { fieldGuide } = useTheme();
+  const screenStyles = useThemedStyles(createScreenStyles);
   return (
     <View style={[screenStyles.wrap, style]}>
       <SignalArt />
@@ -148,57 +154,63 @@ export default function OfflineBanner({
   return <Banner lastSyncAt={lastSyncAt} style={style} />;
 }
 
-const bannerStyles = StyleSheet.create({
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginHorizontal: 22,
-    backgroundColor: 'rgba(201,95,110,0.12)',
-    borderColor: 'rgba(201,95,110,0.3)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: fieldGuide.radius.md,
-  },
-  text: {
-    marginLeft: 12,
-    flex: 1,
-    fontFamily: fieldGuide.fonts.mono,
-    fontSize: 10,
-    letterSpacing: fieldGuide.tracking.widest(10),
-    textTransform: 'uppercase',
-    color: fieldGuide.rose,
-    includeFontPadding: false,
-  },
-});
+function createBannerStyles(fieldGuide) {
 
-const screenStyles = StyleSheet.create({
-  wrap: {
-    flex: 1,
-    paddingHorizontal: 28,
-    paddingVertical: 40,
-    backgroundColor: fieldGuide.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    marginTop: 12,
-    textAlign: 'center',
-    maxWidth: 280,
-  },
-  body: {
-    marginTop: 14,
-    fontFamily: fieldGuide.fonts.sans,
-    fontSize: 14,
-    lineHeight: 22,
-    color: fieldGuide.creamSoft,
-    textAlign: 'center',
-    maxWidth: 320,
-  },
-  cta: {
-    marginTop: 24,
-    width: '100%',
-    maxWidth: 280,
-    alignSelf: 'center',
-  },
-});
+  return StyleSheet.create({
+    bar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      marginHorizontal: 22,
+      backgroundColor: 'rgba(201,95,110,0.12)',
+      borderColor: 'rgba(201,95,110,0.3)',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderRadius: fieldGuide.radius.md,
+    },
+    text: {
+      marginLeft: 12,
+      flex: 1,
+      fontFamily: fieldGuide.fonts.mono,
+      fontSize: 10,
+      letterSpacing: fieldGuide.tracking.widest(10),
+      textTransform: 'uppercase',
+      color: fieldGuide.rose,
+      includeFontPadding: false,
+    },
+  });
+}
+
+function createScreenStyles(fieldGuide) {
+
+  return StyleSheet.create({
+    wrap: {
+      flex: 1,
+      paddingHorizontal: 28,
+      paddingVertical: 40,
+      backgroundColor: fieldGuide.ink,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    title: {
+      marginTop: 12,
+      textAlign: 'center',
+      maxWidth: 280,
+    },
+    body: {
+      marginTop: 14,
+      fontFamily: fieldGuide.fonts.sans,
+      fontSize: 14,
+      lineHeight: 22,
+      color: fieldGuide.creamSoft,
+      textAlign: 'center',
+      maxWidth: 320,
+    },
+    cta: {
+      marginTop: 24,
+      width: '100%',
+      maxWidth: 280,
+      alignSelf: 'center',
+    },
+  });
+}

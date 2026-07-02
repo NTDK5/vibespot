@@ -15,7 +15,8 @@
 
 import React from 'react';
 import { StyleSheet, Text } from 'react-native';
-import fieldGuide from '../../../theme/fieldGuide';
+import { useThemedStyles } from '../../../hooks/useThemedStyles';
+import { useTheme } from '../../../context/ThemeContext';
 
 const SIZE_FS = {
   eyebrow: 10,
@@ -27,39 +28,34 @@ const SIZE_FS = {
 // em multipliers from css_app.css mapped to the px helpers in
 // fieldGuide.tracking. eyebrow 0.22em, kicker 0.28em, spot 0.20em,
 // tab 0.18em.
-const SIZE_TRACK = {
-  eyebrow: fieldGuide.tracking.widest,
-  kicker:  fieldGuide.tracking.mono28,
-  spot:    fieldGuide.tracking.wider,
-  tab:     fieldGuide.tracking.wide,
-};
-
-const SIZE_FAMILY = {
-  eyebrow: fieldGuide.fonts.mono,
-  kicker:  fieldGuide.fonts.monoMed,
-  spot:    fieldGuide.fonts.mono,
-  tab:     fieldGuide.fonts.mono,
-};
-
-const SIZE_COLOR = {
-  eyebrow: fieldGuide.creamMute,
-  kicker:  fieldGuide.ember,
-  spot:    fieldGuide.creamMute,
-  tab:     fieldGuide.creamFaint,
-};
-
 export default function MonoMeta({ children, size = 'eyebrow', color, style }) {
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const fs = SIZE_FS[size];
-  const ls = SIZE_TRACK[size](fs);
+  const ls = fieldGuide.tracking[
+    size === 'kicker' ? 'mono28' : size === 'spot' ? 'wider' : size === 'tab' ? 'wide' : 'widest'
+  ](fs);
+  const sizeColor = {
+    eyebrow: fieldGuide.creamMute,
+    kicker: fieldGuide.ember,
+    spot: fieldGuide.creamMute,
+    tab: fieldGuide.creamFaint,
+  };
+  const sizeFamily = {
+    eyebrow: fieldGuide.fonts.mono,
+    kicker: fieldGuide.fonts.monoMed,
+    spot: fieldGuide.fonts.mono,
+    tab: fieldGuide.fonts.mono,
+  };
   return (
     <Text
       style={[
         styles.base,
         {
-          fontFamily: SIZE_FAMILY[size],
+          fontFamily: sizeFamily[size],
           fontSize: fs,
           letterSpacing: ls,
-          color: color || SIZE_COLOR[size],
+          color: color || sizeColor[size],
         },
         style,
       ]}
@@ -69,9 +65,11 @@ export default function MonoMeta({ children, size = 'eyebrow', color, style }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   base: {
     textTransform: 'uppercase',
     includeFontPadding: false,
   },
 });
+}

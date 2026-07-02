@@ -30,7 +30,8 @@ import {
   MonoMeta,
   Pill,
 } from '../components/fieldguide';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ToastProvider';
 import { logger } from '../utils/logger';
 import {
@@ -100,6 +101,9 @@ function applyFilter(filter, reviews) {
 }
 
 export const ReviewsScreen = ({ navigation, route }) => {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const spotId = route?.params?.spotId ?? route?.params?.id;
   const toast = useToast();
   const { user } = useAuth();
@@ -408,7 +412,8 @@ export const ReviewsScreen = ({ navigation, route }) => {
 
 export default ReviewsScreen;
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -536,3 +541,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+}

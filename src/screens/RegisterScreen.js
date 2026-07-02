@@ -24,7 +24,8 @@ import AuthKeyboardScroll, {
 import { BRAND } from '../brand/fena';
 import { FenaAuthBrandHeader } from '../components/brand';
 import GoogleIcon from '../components/GoogleIcon';
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import {
   DisplayTitle,
   EditorialButton,
@@ -39,6 +40,9 @@ import { useToast } from '../components/ToastProvider';
 import { isValidEmail } from '../utils/helpers';
 
 function CheckBox({ checked, onToggle }) {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <Pressable
       onPress={onToggle}
@@ -59,6 +63,7 @@ function CheckBox({ checked, onToggle }) {
 }
 
 function RegisterScreenForm({ navigation }) {
+  const styles = useThemedStyles(createStyles);
   const { register, pendingVerificationEmail } = useAuth();
   const toast = useToast();
   const { registerField, scrollToField } = useAuthFieldScroll();
@@ -280,7 +285,8 @@ function RegisterScreen({ navigation }) {
 
 export default RegisterScreen;
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   topbar: {
     marginBottom: 0,
   },
@@ -374,3 +380,4 @@ const styles = StyleSheet.create({
     fontFamily: fieldGuide.fonts.sansMedium,
   },
 });
+}

@@ -21,7 +21,8 @@ import { SafeAreaView, useSafeAreaInsets as useSafeAreaInsetsHook } from 'react-
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
-import fieldGuide from '../theme/fieldGuide';
+import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useTheme } from '../context/ThemeContext';
 import {
   ChampionCard,
   DuotoneVibe,
@@ -203,6 +204,9 @@ function indexForSpot(spot, fallbackIndex) {
 /* ─────────────────────────────────────────────────────────────────── */
 
 function TrendingRow({ item, position, isLast, onPress }) {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const rank = pickRank(item, 'rank') ?? position + 1;
   const prev = pickRank(item, 'previousRank');
   const change = typeof prev === 'number' && typeof rank === 'number'
@@ -267,6 +271,9 @@ function TrendingRow({ item, position, isLast, onPress }) {
 /* ─────────────────────────────────────────────────────────────────── */
 
 function MoodCard({ category, count, onPress }) {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -301,6 +308,7 @@ function MoodCard({ category, count, onPress }) {
 /* ─────────────────────────────────────────────────────────────────── */
 
 function GhostPickCard({ label = 'NO ENTRIES YET' }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.ghostCard}>
       <View style={styles.ghostPhoto} />
@@ -310,6 +318,7 @@ function GhostPickCard({ label = 'NO ENTRIES YET' }) {
 }
 
 function ChampionSkeleton() {
+  const styles = useThemedStyles(createStyles);
   return <View style={styles.championSkeleton} />;
 }
 
@@ -318,6 +327,9 @@ function ChampionSkeleton() {
 /* ─────────────────────────────────────────────────────────────────── */
 
 export const HomeScreen = ({ navigation }) => {
+
+  const { fieldGuide } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { user } = useAuth();
   const toast = useToast();
   const insets =
@@ -945,7 +957,8 @@ export default HomeScreen;
 /*  STYLES                                                             */
 /* ─────────────────────────────────────────────────────────────────── */
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: fieldGuide.ink,
@@ -1093,3 +1106,4 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
+}

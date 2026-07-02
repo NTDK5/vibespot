@@ -1,3 +1,4 @@
+import { useThemedStyles } from '../../hooks/useThemedStyles';
 import React, { useId } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, {
@@ -12,19 +13,27 @@ import Svg, {
   Stop,
 } from 'react-native-svg';
 
+import { useTheme } from '../../context/ThemeContext';
 import { MapPin, OnboardingHero, SignalChip } from './OnboardingPrimitives';
 
 export default function DiscoverIllustration({ chip }) {
+  const { fieldGuide, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const skyId = useId().replace(/:/g, '');
   const pathId = useId().replace(/:/g, '');
+  const skyTop = isDark ? '#2a3348' : fieldGuide.paperSoft;
+  const skyBottom = isDark ? fieldGuide.canvasDeep : fieldGuide.paper;
+  const buildingFill = isDark ? 'rgba(27,30,39,0.7)' : 'rgba(20,22,29,0.12)';
+  const buildingStroke = isDark ? 'rgba(244,239,230,0.1)' : 'rgba(20,22,29,0.08)';
+  const gridStroke = isDark ? 'rgba(244,239,230,0.05)' : 'rgba(20,22,29,0.06)';
 
   return (
     <OnboardingHero chip={<SignalChip bold={chip.bold} text={chip.text} dotVariant={chip.dot} />}>
       <Svg width="100%" height="100%" viewBox="0 0 354 420" preserveAspectRatio="xMidYMid slice">
         <Defs>
           <LinearGradient id={skyId} x1="177" y1="0" x2="177" y2="420" gradientUnits="userSpaceOnUse">
-            <Stop offset="0%" stopColor="#2a3348" />
-            <Stop offset="100%" stopColor="#0B0C11" />
+            <Stop offset="0%" stopColor={skyTop} />
+            <Stop offset="100%" stopColor={skyBottom} />
           </LinearGradient>
           <LinearGradient id={pathId} x1="0" y1="0" x2="1" y2="0">
             <Stop offset="0%" stopColor="#E8743A" stopOpacity={0} />
@@ -34,7 +43,7 @@ export default function DiscoverIllustration({ chip }) {
         </Defs>
         <Rect width="354" height="420" fill={`url(#${skyId})`} />
         <Ellipse cx="177" cy="140" rx="160" ry="60" fill="#E8743A" opacity={0.07} />
-        <G opacity={0.32} fill="rgba(27,30,39,0.7)" stroke="rgba(244,239,230,0.1)" strokeWidth={0.7}>
+        <G opacity={0.32} fill={buildingFill} stroke={buildingStroke} strokeWidth={0.7}>
           <Rect x="20" y="180" width="58" height="40" rx="3" />
           <Rect x="88" y="168" width="48" height="52" rx="3" />
           <Rect x="148" y="175" width="70" height="44" rx="3" />
@@ -45,7 +54,7 @@ export default function DiscoverIllustration({ chip }) {
           <Rect x="188" y="230" width="64" height="38" rx="3" />
           <Rect x="264" y="226" width="54" height="40" rx="3" />
         </G>
-        <G stroke="rgba(244,239,230,0.05)" strokeWidth={0.8}>
+        <G stroke={gridStroke} strokeWidth={0.8}>
           <Line x1="0" y1="210" x2="354" y2="210" />
           <Line x1="0" y1="260" x2="354" y2="260" />
           <Line x1="88" y1="150" x2="88" y2="290" />
@@ -76,9 +85,11 @@ export default function DiscoverIllustration({ chip }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(fieldGuide) {
+  return StyleSheet.create({
   pin: {
     position: 'absolute',
     zIndex: 2,
   },
 });
+}
